@@ -53,6 +53,8 @@
         tankStyle: "",
         filtration: "",
         lightingModel: "",
+        lightingSummary: "",
+        lightingPhotos: [],
         lightingPhoto: null,
         lightingPhotoDataUrl: "",
         lightStart: "10:00",
@@ -122,10 +124,14 @@
       insightRuns: Array.isArray(raw.insightRuns) ? raw.insightRuns : [],
     };
 
-    next.profile.lightingPhoto = normalizePhotoRecord(
-      next.profile.lightingPhoto || next.profile.lightingPhotoDataUrl,
-    );
-    next.profile.lightingPhotoDataUrl = next.profile.lightingPhoto?.dataUrl || "";
+    const lightingPhotos = normalizePhotoArray([
+      ...(Array.isArray(next.profile.lightingPhotos) ? next.profile.lightingPhotos : []),
+      next.profile.lightingPhoto,
+      next.profile.lightingPhotoDataUrl,
+    ]);
+    next.profile.lightingPhotos = lightingPhotos;
+    next.profile.lightingPhoto = lightingPhotos[0] || null;
+    next.profile.lightingPhotoDataUrl = lightingPhotos.find((photo) => photo.dataUrl)?.dataUrl || "";
 
     next.zones = next.zones.map((zone) => ({
       id: zone.id || uid(),
@@ -235,7 +241,7 @@
     };
   }
 
-  function normalizePhotoList(item) {
+  function normalizePhotoArray(values) {
     const photos = [];
     const seen = new Set();
     const addPhoto = (photo) => {
@@ -247,19 +253,36 @@
       photos.push(normalized);
     };
 
-    if (Array.isArray(item.photos)) {
-      item.photos.forEach(addPhoto);
-    }
-    addPhoto(item.photoDataUrl);
+    values.filter(Boolean).forEach(addPhoto);
     return photos;
+  }
+
+  function normalizePhotoList(item) {
+    const values = [];
+    if (Array.isArray(item.photos)) {
+      values.push(...item.photos);
+    }
+    values.push(item.photoDataUrl);
+    return normalizePhotoArray(values);
   }
 
   function getLivestockPhotos(item) {
     return normalizePhotoList(item);
   }
 
-  function getLightingPhoto() {
-    return normalizePhotoRecord(state.profile.lightingPhoto || state.profile.lightingPhotoDataUrl);
+  function getLightingPhotos() {
+    return normalizePhotoArray([
+      ...(Array.isArray(state.profile.lightingPhotos) ? state.profile.lightingPhotos : []),
+      state.profile.lightingPhoto,
+      state.profile.lightingPhotoDataUrl,
+    ]);
+  }
+
+  function setLightingPhotos(photos) {
+    const normalized = normalizePhotoArray(photos);
+    state.profile.lightingPhotos = normalized;
+    state.profile.lightingPhoto = normalized[0] || null;
+    state.profile.lightingPhotoDataUrl = normalized.find((photo) => photo.dataUrl)?.dataUrl || "";
   }
 
   function photoIdFromPath(path) {
@@ -595,10 +618,15 @@
     const kind = previewId === "lightingPhotoPreview" ? "lighting" : "livestock";
     preview.hidden = false;
     if (kind === "lighting") {
-      const src = getPhotoSrc(photos[0]);
       preview.innerHTML = `
-        <img src="${escapeHtml(src)}" alt="${escapeHtml(altText)}" />
-        <button class="mini-button danger" type="button" data-remove-photo="lighting">Remove Photo</button>
+        <div class="photo-preview-grid">
+          ${photos.map((photo, index) => `
+            <article class="photo-preview-item">
+              <img src="${escapeHtml(getPhotoSrc(photo))}" alt="${escapeHtml(`${altText} ${index + 1}`)}" />
+              <button class="mini-button danger" type="button" data-remove-photo="lighting" data-photo-index="${index}">Remove</button>
+            </article>
+          `).join("")}
+        </div>
       `;
       return;
     }
@@ -623,18 +651,18 @@
     input.disabled = true;
     try {
       if (target === "lighting") {
-        const dataUrl = await compressImageFile(files[0], 1400, 0.86);
-        const pendingPhoto = createPendingPhoto(dataUrl);
-        const photo = supabaseClient
-          ? await uploadPhotoRecord(pendingPhoto, "profile", "lighting")
-          : pendingPhoto;
-        state.profile.lightingPhoto = photo;
-        state.profile.lightingPhotoDataUrl = photo.dataUrl || "";
+        const dataUrls = await Promise.all(files.map((file) => compressImageFile(file, 1400, 0.82)));
+        const pendingPhotos = dataUrls.map(createPendingPhoto);
+        const photos = [];
+        for (const photo of pendingPhotos) {
+          photos.push(supabaseClient ? await uploadPhotoRecord(photo, "profile", "lighting") : photo);
+        }
+        setLightingPhotos([...getLightingPhotos(), ...photos]);
         saveState();
-        renderPhotoPreview("lightingPhotoPreview", photo, "Lighting screenshot");
+        renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
         renderPhotoLibrary();
         renderInsightsContext();
-        showToast("Lighting screenshot saved.");
+        showToast(`${photos.length} lighting image${photos.length === 1 ? "" : "s"} saved.`);
       } else {
         const dataUrls = await Promise.all(files.map((file) => compressImageFile(file, 1100, 0.78)));
         pendingLivestockPhotos = [...pendingLivestockPhotos, ...dataUrls.map(createPendingPhoto)];
@@ -886,7 +914,7 @@
         input.value = value ?? "";
       }
     });
-    renderPhotoPreview("lightingPhotoPreview", getLightingPhoto(), "Lighting screenshot");
+    renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
   }
 
   function updateProfileFromForm() {
@@ -1003,15 +1031,18 @@
 
   function getPhotoLibraryItems() {
     const photos = [];
-    const lightingPhoto = getLightingPhoto();
-    if (lightingPhoto) {
+    const lightingPhotos = getLightingPhotos();
+    lightingPhotos.forEach((photo, index) => {
       photos.push({
-        id: "lighting",
-        title: "Lighting Screenshot",
-        subtitle: state.profile.lightingModel || "Tank profile",
-        src: getPhotoSrc(lightingPhoto),
+        id: `lighting-${index}`,
+        title: "Lighting Schedule",
+        subtitle: [
+          state.profile.lightingModel || "Tank profile",
+          lightingPhotos.length > 1 ? `Image ${index + 1}` : "",
+        ].filter(Boolean).join(" · "),
+        src: getPhotoSrc(photo),
       });
-    }
+    });
 
     state.livestock.forEach((item) => {
       const itemPhotos = getLivestockPhotos(item);
@@ -1185,8 +1216,8 @@
     const latestWaterTest = recentWaterTests[0] || null;
     const latestWaterChange = getLatestEvent("water_change");
     const latestFeeding = getLatestEvent("feeding");
-    const { lightingPhotoDataUrl, lightingPhoto, ...profile } = state.profile;
-    const hasLightingScreenshot = Boolean(lightingPhoto || lightingPhotoDataUrl);
+    const { lightingPhotoDataUrl, lightingPhoto, lightingPhotos, ...profile } = state.profile;
+    const lightingImageCount = getLightingPhotos().length;
     const livestock = state.livestock.map((item) => {
       const { photoDataUrl, photos, ...safeItem } = item;
       const photoCount = getLivestockPhotos(item).length;
@@ -1201,7 +1232,17 @@
       generatedAt: new Date().toISOString(),
       profile: {
         ...profile,
-        hasLightingScreenshot,
+        lightingImageCount,
+        hasLightingScreenshot: lightingImageCount > 0,
+        lightingContext: {
+          model: state.profile.lightingModel || "",
+          photoperiod: {
+            lightsOn: state.profile.lightStart || "",
+            lightsOff: state.profile.lightEnd || "",
+          },
+          summary: state.profile.lightingSummary || "",
+          sourceImageCount: lightingImageCount,
+        },
       },
       zones: state.zones,
       livestock,
@@ -1234,6 +1275,9 @@
     if (!context.profile.filtration) missingData.push("Filtration type");
     if (!context.profile.lightingModel) missingData.push("Lighting model");
     if (!context.profile.hasLightingScreenshot) missingData.push("Lighting screenshot or intensity schedule");
+    if (context.profile.lightingImageCount && !context.profile.lightingSummary) {
+      missingData.push("Lighting summary from schedule images");
+    }
     if (!context.zones.length) missingData.push("Placement zones");
     if (!latest) missingData.push("Recent water test");
 
@@ -1453,10 +1497,13 @@
     let changed = false;
 
     try {
-      const lightingPhoto = getLightingPhoto();
-      if (lightingPhoto?.dataUrl) {
-        state.profile.lightingPhoto = await uploadPhotoRecord(lightingPhoto, "profile", "lighting");
-        state.profile.lightingPhotoDataUrl = "";
+      const lightingPhotos = getLightingPhotos();
+      if (lightingPhotos.some((photo) => photo.dataUrl)) {
+        const uploadedPhotos = [];
+        for (const photo of lightingPhotos) {
+          uploadedPhotos.push(await uploadPhotoRecord(photo, "profile", "lighting"));
+        }
+        setLightingPhotos(uploadedPhotos);
         changed = true;
       }
 
@@ -2003,15 +2050,21 @@
     const removePhoto = event.target.closest("[data-remove-photo]");
     if (removePhoto) {
       if (removePhoto.dataset.removePhoto === "lighting") {
-        const lightingPhoto = getLightingPhoto();
-        state.profile.lightingPhotoDataUrl = "";
-        state.profile.lightingPhoto = null;
-        await removeStoragePaths(getPhotoStoragePaths([lightingPhoto]));
+        const lightingPhotos = getLightingPhotos();
+        const photoIndex = Number(removePhoto.dataset.photoIndex);
+        const removedPhotos = Number.isInteger(photoIndex)
+          ? lightingPhotos.filter((_photo, index) => index === photoIndex)
+          : lightingPhotos;
+        const remainingPhotos = Number.isInteger(photoIndex)
+          ? lightingPhotos.filter((_photo, index) => index !== photoIndex)
+          : [];
+        setLightingPhotos(remainingPhotos);
+        await removeStoragePaths(getPhotoStoragePaths(removedPhotos));
         saveState();
-        renderPhotoPreview("lightingPhotoPreview", "", "Lighting screenshot");
+        renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
         renderPhotoLibrary();
         renderInsightsContext();
-        showToast("Lighting screenshot removed.");
+        showToast("Lighting image removed.");
       } else {
         const photoIndex = Number(removePhoto.dataset.photoIndex);
         if (Number.isInteger(photoIndex)) {

@@ -167,6 +167,14 @@
                 Lighting Model
                 <input type="text" data-profile="lightingModel" />
               </label>
+              <label class="wide-field">
+                Lighting Summary
+                <textarea
+                  data-profile="lightingSummary"
+                  rows="3"
+                  placeholder="Peak channels, ramp timing, PAR notes"
+                ></textarea>
+              </label>
               <label>
                 Lights On
                 <input type="time" data-profile="lightStart" />
@@ -194,8 +202,8 @@
             </div>
             <div class="photo-field">
               <label>
-                Lighting Screenshot
-                <input id="lightingPhotoInput" type="file" accept="image/*" />
+                Lighting Images
+                <input id="lightingPhotoInput" type="file" accept="image/*" multiple />
               </label>
               <div id="lightingPhotoPreview" class="photo-preview" hidden></div>
             </div>
