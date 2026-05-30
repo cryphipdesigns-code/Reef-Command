@@ -168,10 +168,6 @@
                 <input type="text" data-profile="lightingModel" />
               </label>
               <label>
-                Flow Setup
-                <input type="text" data-profile="flowSetup" />
-              </label>
-              <label>
                 Lights On
                 <input type="time" data-profile="lightStart" />
               </label>
@@ -195,6 +191,13 @@
                 Dosing
                 <input type="text" data-profile="dosing" />
               </label>
+            </div>
+            <div class="photo-field">
+              <label>
+                Lighting Screenshot
+                <input id="lightingPhotoInput" type="file" accept="image/*" />
+              </label>
+              <div id="lightingPhotoPreview" class="photo-preview" hidden></div>
             </div>
 
             <div class="toggle-row">
@@ -294,8 +297,8 @@
                 Quantity
                 <input id="livestockQuantity" type="number" min="0" step="1" />
               </label>
-              <label>
-                Added / Noticed
+              <label id="livestockDateField">
+                <span id="livestockDateLabel">Date Added</span>
                 <input id="livestockAdded" type="date" />
               </label>
               <label>
@@ -324,20 +327,23 @@
                   <option value="Unknown">Unknown</option>
                 </select>
               </label>
-              <label>
-                Growth Metric
-                <input id="livestockGrowthMetric" type="text" placeholder="3 heads, 5 mushrooms" />
+              <label class="wide-field">
+                Metric / Count
+                <input id="livestockGrowthMetric" type="text" placeholder="4 heads, larger, receding edge" />
               </label>
               <label class="wide-field">
                 Notes
                 <input id="livestockNotes" type="text" />
               </label>
-              <label class="wide-field">
-                Growth / Health Notes
-                <input id="livestockGrowthNotes" type="text" />
-              </label>
             </div>
-            <div class="toggle-row">
+            <div class="photo-field">
+              <label>
+                Photo
+                <input id="livestockPhotoInput" type="file" accept="image/*" />
+              </label>
+              <div id="livestockPhotoPreview" class="photo-preview" hidden></div>
+            </div>
+            <div id="livestockLegacyRow" class="toggle-row">
               <label class="check-label">
                 <input id="livestockLegacy" type="checkbox" />
                 Legacy / add date unknown
@@ -373,6 +379,14 @@
           </div>
 
           <div id="livestockList" class="card-list"></div>
+
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Photo Library</h2>
+              <span id="photoCountPill" class="status-pill">0 photos</span>
+            </div>
+            <div id="photoLibrary" class="photo-library"></div>
+          </section>
         </section>
 
         <section id="logbookView" class="app-view" data-title="Logbook">
@@ -642,43 +656,7 @@
             </div>
             <div id="insightOutput" class="insight-output"></div>
           </section>
-
-          <details class="settings-drawer">
-            <summary>
-              <span>Backend</span>
-              <i data-lucide="settings"></i>
-            </summary>
-            <div class="settings-grid">
-              <label>
-                Supabase URL
-                <input id="backendUrl" type="url" autocomplete="off" />
-              </label>
-              <label>
-                Supabase Anon Key
-                <input id="backendAnonKey" type="password" autocomplete="off" />
-              </label>
-              <button id="saveBackendButton" class="secondary-button" type="button">
-                Save Backend
-              </button>
-              <label>
-                Email
-                <input id="authEmail" type="email" autocomplete="email" />
-              </label>
-              <button id="sendMagicLinkButton" class="secondary-button" type="button">
-                Send Link
-              </button>
-              <button id="signOutButton" class="secondary-button" type="button">
-                Sign Out
-              </button>
-              <button id="pullStateButton" class="secondary-button" type="button">
-                Pull
-              </button>
-              <button id="pushStateButton" class="secondary-button" type="button">
-                Push
-              </button>
-            </div>
-            <p id="backendStatus" class="backend-status">Local mode</p>
-          </details>
+          <p id="backendStatus" class="backend-status visually-hidden">Local mode</p>
         </section>
       </main>
 

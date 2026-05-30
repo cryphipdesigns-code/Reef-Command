@@ -28,6 +28,8 @@
   let remoteSaveQueued = false;
   let isRemoteHydrating = false;
   let toastTimer = null;
+  let pendingLivestockPhotoDataUrl = "";
+  let editingLog = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -49,9 +51,9 @@
         tankStyle: "",
         filtration: "",
         lightingModel: "",
+        lightingPhotoDataUrl: "",
         lightStart: "10:00",
         lightEnd: "20:00",
-        flowSetup: "",
         targetSalinity: "1.026",
         targetTemp: "78 F",
         saltMix: "",
@@ -148,7 +150,7 @@
         health: item.health || "",
         growthTrend: item.growthTrend || "",
         growthMetric: item.growthMetric || "",
-        growthNotes: item.growthNotes || "",
+        photoDataUrl: item.photoDataUrl || "",
         removedDate: item.removedDate || "",
         outcomeReason: item.outcomeReason || "",
       };
@@ -381,6 +383,94 @@
     toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
   }
 
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error || new Error("Could not read image."));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Could not load image."));
+      image.src = src;
+    });
+  }
+
+  async function compressImageFile(file, maxDimension = 1000, quality = 0.82) {
+    if (!file || !file.type.startsWith("image/")) {
+      throw new Error("Choose an image file.");
+    }
+
+    const source = await readFileAsDataUrl(file);
+    const image = await loadImage(source);
+    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", quality);
+  }
+
+  function renderPhotoPreview(previewId, dataUrl, altText) {
+    const preview = $(previewId);
+    if (!preview) return;
+    if (!dataUrl) {
+      preview.hidden = true;
+      preview.innerHTML = "";
+      return;
+    }
+
+    const kind = previewId === "lightingPhotoPreview" ? "lighting" : "livestock";
+    preview.hidden = false;
+    preview.innerHTML = `
+      <img src="${escapeHtml(dataUrl)}" alt="${escapeHtml(altText)}" />
+      <button class="mini-button danger" type="button" data-remove-photo="${kind}">Remove Photo</button>
+    `;
+  }
+
+  async function handlePhotoInput(event, target) {
+    const input = event.target;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    input.disabled = true;
+    try {
+      const dataUrl = await compressImageFile(
+        file,
+        target === "lighting" ? 1400 : 900,
+        target === "lighting" ? 0.86 : 0.8,
+      );
+      if (target === "lighting") {
+        state.profile.lightingPhotoDataUrl = dataUrl;
+        saveState();
+        renderPhotoPreview("lightingPhotoPreview", dataUrl, "Lighting screenshot");
+        renderPhotoLibrary();
+        renderInsightsContext();
+        showToast("Lighting screenshot saved.");
+      } else {
+        pendingLivestockPhotoDataUrl = dataUrl;
+        renderPhotoPreview("livestockPhotoPreview", dataUrl, "Stock photo");
+        showToast("Photo ready.");
+      }
+    } catch (error) {
+      console.error(error);
+      showToast(error.message || "Photo could not be saved.");
+    } finally {
+      input.disabled = false;
+      input.value = "";
+    }
+  }
+
   function minutesFromTime(value) {
     if (!value || !value.includes(":")) return null;
     const [hours, minutes] = value.split(":").map(Number);
@@ -511,7 +601,9 @@
     renderTankProfileForm();
     renderDashboard();
     renderZones();
+    syncLivestockDateControls();
     renderLivestock();
+    renderPhotoLibrary();
     renderLogMode();
     renderTimeline();
     renderInsightsContext();
@@ -615,6 +707,7 @@
         input.value = value ?? "";
       }
     });
+    renderPhotoPreview("lightingPhotoPreview", state.profile.lightingPhotoDataUrl, "Lighting screenshot");
   }
 
   function updateProfileFromForm() {
@@ -625,6 +718,7 @@
     saveState();
     $("profileSavedStatus").textContent = "Saved";
     renderDashboard();
+    renderPhotoLibrary();
     renderInsightsContext();
   }
 
@@ -698,8 +792,8 @@
         </div>
         <p class="card-meta">${escapeHtml(formatStockDate(item))} · ${escapeHtml(getZoneName(item.zoneId))}</p>
         ${healthParts.length ? `<p class="card-meta">${escapeHtml(healthParts.join(" · "))}</p>` : ""}
+        ${item.photoDataUrl ? `<img class="stock-photo" src="${escapeHtml(item.photoDataUrl)}" alt="${escapeHtml(item.species)} photo" />` : ""}
         ${item.notes ? `<p class="card-meta">${escapeHtml(item.notes)}</p>` : ""}
-        ${item.growthNotes ? `<p class="card-meta">${escapeHtml(item.growthNotes)}</p>` : ""}
         ${outcome}
         <div class="card-actions">
           <button class="mini-button" type="button" data-livestock-action="edit" data-id="${item.id}">Edit</button>
@@ -715,6 +809,45 @@
     `;
   }
 
+  function getPhotoLibraryItems() {
+    const photos = [];
+    if (state.profile.lightingPhotoDataUrl) {
+      photos.push({
+        id: "lighting",
+        title: "Lighting Screenshot",
+        subtitle: state.profile.lightingModel || "Tank profile",
+        src: state.profile.lightingPhotoDataUrl,
+      });
+    }
+
+    state.livestock.forEach((item) => {
+      if (!item.photoDataUrl) return;
+      photos.push({
+        id: item.id,
+        title: item.species || "Stock photo",
+        subtitle: [item.category, formatStockDate(item)].filter(Boolean).join(" · "),
+        src: item.photoDataUrl,
+      });
+    });
+    return photos;
+  }
+
+  function renderPhotoLibrary() {
+    const library = $("photoLibrary");
+    if (!library) return;
+    const photos = getPhotoLibraryItems();
+    $("photoCountPill").textContent = `${photos.length} photo${photos.length === 1 ? "" : "s"}`;
+    library.innerHTML = photos.length
+      ? photos.map((photo) => `
+        <article class="photo-tile">
+          <img src="${escapeHtml(photo.src)}" alt="${escapeHtml(photo.title)}" />
+          <strong>${escapeHtml(photo.title)}</strong>
+          <span>${escapeHtml(photo.subtitle)}</span>
+        </article>
+      `).join("")
+      : `<div class="empty-state">No photos yet.</div>`;
+  }
+
   function renderLogMode() {
     const mode = state.ui.logMode || "test";
     $$("[data-log-mode]").forEach((button) => {
@@ -725,6 +858,7 @@
     });
     seedLogDates();
     updateTestTimingPill();
+    updateLogSubmitLabels();
   }
 
   function renderTimeline() {
@@ -742,7 +876,10 @@
             <strong>${escapeHtml(entry.title)}</strong>
             <p class="timeline-meta">${escapeHtml(entry.meta)}</p>
           </div>
-          <button class="mini-button danger" type="button" data-delete-entry="${entry.kind}:${entry.id}">Delete</button>
+          <div class="card-actions">
+            <button class="mini-button" type="button" data-edit-entry="${entry.kind}:${entry.id}">Edit</button>
+            <button class="mini-button danger" type="button" data-delete-entry="${entry.kind}:${entry.id}">Delete</button>
+          </div>
         </div>
         <p class="timeline-details">${escapeHtml(entry.details)}</p>
       </article>
@@ -849,13 +986,24 @@
     const latestWaterTest = recentWaterTests[0] || null;
     const latestWaterChange = getLatestEvent("water_change");
     const latestFeeding = getLatestEvent("feeding");
+    const { lightingPhotoDataUrl, ...profile } = state.profile;
+    const livestock = state.livestock.map((item) => {
+      const { photoDataUrl, ...safeItem } = item;
+      return {
+        ...safeItem,
+        hasPhoto: Boolean(photoDataUrl),
+      };
+    });
 
     return {
       generatedAt: new Date().toISOString(),
-      profile: state.profile,
+      profile: {
+        ...profile,
+        hasLightingScreenshot: Boolean(lightingPhotoDataUrl),
+      },
       zones: state.zones,
-      livestock: state.livestock,
-      activeLivestock: state.livestock.filter((item) => isLifecycleStock(item) && item.status === "active"),
+      livestock,
+      activeLivestock: livestock.filter((item) => isLifecycleStock(item) && item.status === "active"),
       recentWaterTests,
       recentEvents,
       latestWaterTest,
@@ -883,6 +1031,7 @@
     if (!context.profile.displayVolume) missingData.push("Display volume");
     if (!context.profile.filtration) missingData.push("Filtration type");
     if (!context.profile.lightingModel) missingData.push("Lighting model");
+    if (!context.profile.hasLightingScreenshot) missingData.push("Lighting screenshot or intensity schedule");
     if (!context.zones.length) missingData.push("Placement zones");
     if (!latest) missingData.push("Recent water test");
 
@@ -1033,22 +1182,28 @@
   }
 
   function renderBackendSettings() {
+    if (!$("backendUrl") || !$("backendAnonKey")) {
+      updateBackendStatus();
+      return;
+    }
     $("backendUrl").value = backendConfig.supabaseUrl || "";
     $("backendAnonKey").value = backendConfig.supabaseAnonKey || "";
     updateBackendStatus();
   }
 
   function updateBackendStatus(message) {
+    const status = $("backendStatus");
+    if (!status) return;
     if (message) {
-      $("backendStatus").textContent = message;
+      status.textContent = message;
       return;
     }
     if (!backendConfig.supabaseUrl || !backendConfig.supabaseAnonKey) {
-      $("backendStatus").textContent = "Local mode";
+      status.textContent = "Local mode";
     } else if (currentUser) {
-      $("backendStatus").textContent = `Auto sync on · signed in as ${currentUser.email || currentUser.id}`;
+      status.textContent = `Auto sync on · signed in as ${currentUser.email || currentUser.id}`;
     } else {
-      $("backendStatus").textContent = "Auto sync is on.";
+      status.textContent = "Auto sync is on.";
     }
   }
 
@@ -1092,8 +1247,8 @@
 
   async function saveBackendSettings() {
     backendConfig = {
-      supabaseUrl: $("backendUrl").value.trim(),
-      supabaseAnonKey: $("backendAnonKey").value.trim(),
+      supabaseUrl: $("backendUrl")?.value.trim() || "",
+      supabaseAnonKey: $("backendAnonKey")?.value.trim() || "",
     };
     writeJson(BACKEND_KEY, backendConfig);
     await initBackend();
@@ -1249,10 +1404,30 @@
     showToast("Zone added.");
   }
 
+  function syncLivestockDateControls() {
+    const category = $("livestockCategory").value;
+    const casual = isCasualStockCategory(category);
+    const dateField = $("livestockDateField");
+    const dateLabel = $("livestockDateLabel");
+    const dateInput = $("livestockAdded");
+    const legacy = $("livestockLegacy");
+    const legacyRow = $("livestockLegacyRow");
+
+    dateLabel.textContent = casual ? "First Noticed" : "Date Added";
+    legacyRow.hidden = casual;
+    legacy.disabled = casual;
+    if (casual) legacy.checked = false;
+
+    const hideDate = !casual && legacy.checked;
+    dateField.hidden = hideDate;
+    dateInput.disabled = hideDate;
+    if (hideDate) dateInput.value = "";
+  }
+
   function getLivestockFormData() {
     const species = $("livestockSpecies").value.trim();
     const category = $("livestockCategory").value;
-    const addedDate = $("livestockAdded").value;
+    const addedDate = $("livestockAdded").disabled ? "" : $("livestockAdded").value;
     const isLegacy = $("livestockLegacy").checked || (!addedDate && !isCasualStockCategory(category));
     const casual = isCasualStockCategory(category);
 
@@ -1269,13 +1444,16 @@
       health: $("livestockHealth").value,
       growthTrend: $("livestockGrowthTrend").value,
       growthMetric: $("livestockGrowthMetric").value.trim(),
-      growthNotes: $("livestockGrowthNotes").value.trim(),
+      photoDataUrl: pendingLivestockPhotoDataUrl || "",
     };
   }
 
   function resetLivestockForm() {
     $("livestockForm").reset();
     $("livestockEditId").value = "";
+    pendingLivestockPhotoDataUrl = "";
+    renderPhotoPreview("livestockPhotoPreview", "", "Stock photo");
+    syncLivestockDateControls();
     $("livestockFormTitle").textContent = "Add Stock";
     $("livestockSubmitButton").innerHTML = `<i data-lucide="plus"></i>Add`;
     $("cancelLivestockEditButton").hidden = true;
@@ -1296,7 +1474,9 @@
     $("livestockHealth").value = item.health || "";
     $("livestockGrowthTrend").value = item.growthTrend || "";
     $("livestockGrowthMetric").value = item.growthMetric || "";
-    $("livestockGrowthNotes").value = item.growthNotes || "";
+    pendingLivestockPhotoDataUrl = item.photoDataUrl || "";
+    renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotoDataUrl, "Stock photo");
+    syncLivestockDateControls();
     $("livestockFormTitle").textContent = "Edit Stock";
     $("livestockSubmitButton").innerHTML = `<i data-lucide="save"></i>Save`;
     $("cancelLivestockEditButton").hidden = false;
@@ -1328,9 +1508,97 @@
     resetLivestockForm();
     saveState();
     renderLivestock();
+    renderPhotoLibrary();
     renderDashboard();
     renderInsightsContext();
     showToast(existing ? "Stock updated." : "Stock added.");
+  }
+
+  function updateLogSubmitLabels() {
+    const labels = {
+      test: "Save Test",
+      feeding: "Save Feeding",
+      maintenance: "Save Maintenance",
+      water_change: "Save Change",
+    };
+
+    Object.entries(logFormMap).forEach(([kind, formId]) => {
+      const button = $(formId)?.querySelector('button[type="submit"]');
+      if (!button) return;
+      const label = editingLog?.kind === kind ? "Save Edit" : labels[kind];
+      button.innerHTML = `<i data-lucide="save"></i>${label}`;
+    });
+    refreshIcons();
+  }
+
+  function clearLogEdit() {
+    editingLog = null;
+    updateLogSubmitLabels();
+  }
+
+  function setLogMode(mode) {
+    state.ui.logMode = mode;
+    saveLocalState();
+    renderLogMode();
+  }
+
+  function setInputValue(id, value) {
+    $(id).value = value ?? "";
+  }
+
+  function ensureSelectOption(select, value) {
+    if (!value || Array.from(select.options).some((option) => option.value === value)) return;
+    select.add(new Option(value, value));
+  }
+
+  function startLogEdit(key) {
+    const [kind, id] = key.split(":");
+    if (kind === "test") {
+      const test = state.waterTests.find((entry) => entry.id === id);
+      if (!test) return;
+      editingLog = { kind, id };
+      setLogMode("test");
+      setInputValue("testMeasuredAt", toDatetimeLocal(test.measuredAt));
+      setInputValue("testAmmonia", test.ammonia);
+      setInputValue("testNitrite", test.nitrite);
+      setInputValue("testNitrate", test.nitrate);
+      setInputValue("testPhosphate", test.phosphate);
+      setInputValue("testPh", test.ph);
+      setInputValue("testSalinity", test.salinity);
+      setInputValue("testTemp", test.temperature);
+      setInputValue("testAlk", test.alkalinity);
+      setInputValue("testCalcium", test.calcium);
+      setInputValue("testMagnesium", test.magnesium);
+      setInputValue("testNotes", test.notes);
+      updateTestTimingPill();
+    } else {
+      const entry = state.events.find((event) => event.id === id && event.type === kind);
+      if (!entry) return;
+      editingLog = { kind, id };
+      setLogMode(kind);
+      if (kind === "feeding") {
+        setInputValue("feedingAt", toDatetimeLocal(entry.happenedAt));
+        ensureSelectOption($("feedingFood"), entry.label);
+        setInputValue("feedingFood", entry.label);
+        setInputValue("feedingAmount", entry.amount);
+        setInputValue("feedingTarget", entry.target);
+        setInputValue("feedingNotes", entry.notes);
+      } else if (kind === "maintenance") {
+        setInputValue("maintenanceAt", toDatetimeLocal(entry.happenedAt));
+        ensureSelectOption($("maintenanceType"), entry.label);
+        setInputValue("maintenanceType", entry.label);
+        setInputValue("maintenanceDetails", entry.details || entry.notes);
+      } else if (kind === "water_change") {
+        setInputValue("waterChangeAt", toDatetimeLocal(entry.happenedAt));
+        setInputValue("waterChangeGallons", entry.gallons);
+        setInputValue("waterChangePercent", entry.percent);
+        setInputValue("waterChangeNotes", entry.notes);
+      }
+    }
+
+    $(logFormMap[kind]).scrollIntoView({ behavior: "smooth", block: "start" });
+    updateLogSubmitLabels();
+    showToast("Editing timeline entry.");
   }
 
   function addWaterTest(event) {
@@ -1338,8 +1606,11 @@
     const measuredAt = fromDatetimeLocal($("testMeasuredAt").value);
     const previousWaterChange = getLatestEventBefore("water_change", measuredAt);
     const previousFeeding = getLatestEventBefore("feeding", measuredAt);
+    const existing = editingLog?.kind === "test"
+      ? state.waterTests.find((entry) => entry.id === editingLog.id)
+      : null;
     const test = {
-      id: uid(),
+      id: existing?.id || uid(),
       measuredAt,
       ammonia: readNumber("testAmmonia"),
       nitrite: readNumber("testNitrite"),
@@ -1368,75 +1639,125 @@
       return;
     }
 
-    state.waterTests.push(test);
+    if (existing) {
+      Object.assign(existing, test);
+    } else {
+      state.waterTests.push(test);
+    }
     $("waterTestForm").reset();
     seedLogDates();
+    clearLogEdit();
     saveState();
     renderDashboard();
     renderTimeline();
     renderInsightsContext();
-    showToast("Water test saved.");
+    showToast(existing ? "Water test updated." : "Water test saved.");
   }
 
   function addFeeding(event) {
     event.preventDefault();
-    state.events.push({
-      id: uid(),
+    const existing = editingLog?.kind === "feeding"
+      ? state.events.find((entry) => entry.id === editingLog.id)
+      : null;
+    const feeding = {
+      id: existing?.id || uid(),
       type: "feeding",
       happenedAt: fromDatetimeLocal($("feedingAt").value),
       label: $("feedingFood").value,
       amount: $("feedingAmount").value.trim(),
       target: $("feedingTarget").value.trim(),
       notes: $("feedingNotes").value.trim(),
-    });
+    };
+    if (existing) {
+      Object.assign(existing, feeding);
+    } else {
+      state.events.push(feeding);
+    }
     $("feedingForm").reset();
     seedLogDates();
+    clearLogEdit();
     saveState();
     renderDashboard();
     renderTimeline();
     renderInsightsContext();
-    showToast("Feeding saved.");
+    showToast(existing ? "Feeding updated." : "Feeding saved.");
   }
 
   function addMaintenance(event) {
     event.preventDefault();
-    state.events.push({
-      id: uid(),
+    const existing = editingLog?.kind === "maintenance"
+      ? state.events.find((entry) => entry.id === editingLog.id)
+      : null;
+    const maintenance = {
+      id: existing?.id || uid(),
       type: "maintenance",
       happenedAt: fromDatetimeLocal($("maintenanceAt").value),
       label: $("maintenanceType").value,
       details: $("maintenanceDetails").value.trim(),
-    });
+      notes: "",
+    };
+    if (existing) {
+      Object.assign(existing, maintenance);
+    } else {
+      state.events.push(maintenance);
+    }
     $("maintenanceForm").reset();
     seedLogDates();
+    clearLogEdit();
     saveState();
     renderDashboard();
     renderTimeline();
     renderInsightsContext();
-    showToast("Maintenance saved.");
+    showToast(existing ? "Maintenance updated." : "Maintenance saved.");
   }
 
   function addWaterChange(event) {
     event.preventDefault();
-    state.events.push({
-      id: uid(),
+    const existing = editingLog?.kind === "water_change"
+      ? state.events.find((entry) => entry.id === editingLog.id)
+      : null;
+    const waterChange = {
+      id: existing?.id || uid(),
       type: "water_change",
       happenedAt: fromDatetimeLocal($("waterChangeAt").value),
       label: "Water change",
       gallons: $("waterChangeGallons").value,
       percent: $("waterChangePercent").value,
       notes: $("waterChangeNotes").value.trim(),
-    });
+    };
+    if (existing) {
+      Object.assign(existing, waterChange);
+    } else {
+      state.events.push(waterChange);
+    }
     $("waterChangeForm").reset();
     seedLogDates();
+    clearLogEdit();
     saveState();
     renderDashboard();
     renderTimeline();
     renderInsightsContext();
-    showToast("Water change saved.");
+    showToast(existing ? "Water change updated." : "Water change saved.");
   }
 
   function handleDocumentClick(event) {
+    const removePhoto = event.target.closest("[data-remove-photo]");
+    if (removePhoto) {
+      if (removePhoto.dataset.removePhoto === "lighting") {
+        state.profile.lightingPhotoDataUrl = "";
+        saveState();
+        renderPhotoPreview("lightingPhotoPreview", "", "Lighting screenshot");
+        renderPhotoLibrary();
+        renderInsightsContext();
+        showToast("Lighting screenshot removed.");
+      } else {
+        pendingLivestockPhotoDataUrl = "";
+        renderPhotoPreview("livestockPhotoPreview", "", "Stock photo");
+        showToast("Photo removed.");
+      }
+      return;
+    }
+
     const viewButton = event.target.closest("[data-view]");
     if (viewButton) {
       setActiveView(viewButton.dataset.view);
@@ -1460,6 +1781,7 @@
 
     const logMode = event.target.closest("[data-log-mode]");
     if (logMode) {
+      clearLogEdit();
       state.ui.logMode = logMode.dataset.logMode;
       saveLocalState();
       renderLogMode();
@@ -1506,6 +1828,12 @@
       return;
     }
 
+    const editEntry = event.target.closest("[data-edit-entry]");
+    if (editEntry) {
+      startLogEdit(editEntry.dataset.editEntry);
+      return;
+    }
+
     const deleteEntry = event.target.closest("[data-delete-entry]");
     if (deleteEntry) {
       deleteTimelineEntry(deleteEntry.dataset.deleteEntry);
@@ -1536,6 +1864,7 @@
     }
     saveState();
     renderLivestock();
+    renderPhotoLibrary();
     renderDashboard();
     renderInsightsContext();
     showToast("Livestock updated.");
@@ -1548,6 +1877,7 @@
     } else {
       state.events = state.events.filter((event) => event.id !== id);
     }
+    if (editingLog?.kind === kind && editingLog.id === id) clearLogEdit();
     saveState();
     renderDashboard();
     renderTimeline();
@@ -1570,8 +1900,12 @@
       input.addEventListener("input", updateProfileFromForm);
       input.addEventListener("change", updateProfileFromForm);
     });
+    $("lightingPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "lighting"));
     $("zoneForm").addEventListener("submit", addZone);
     $("livestockForm").addEventListener("submit", addLivestock);
+    $("livestockCategory").addEventListener("change", syncLivestockDateControls);
+    $("livestockLegacy").addEventListener("change", syncLivestockDateControls);
+    $("livestockPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "livestock"));
     $("cancelLivestockEditButton").addEventListener("click", resetLivestockForm);
     $("waterTestForm").addEventListener("submit", addWaterTest);
     $("feedingForm").addEventListener("submit", addFeeding);
@@ -1579,11 +1913,11 @@
     $("waterChangeForm").addEventListener("submit", addWaterChange);
     $("testMeasuredAt").addEventListener("change", updateTestTimingPill);
     $("generateInsightButton").addEventListener("click", generateInsight);
-    $("saveBackendButton").addEventListener("click", saveBackendSettings);
-    $("sendMagicLinkButton").addEventListener("click", sendMagicLink);
-    $("signOutButton").addEventListener("click", signOut);
-    $("pullStateButton").addEventListener("click", pullState);
-    $("pushStateButton").addEventListener("click", pushState);
+    $("saveBackendButton")?.addEventListener("click", saveBackendSettings);
+    $("sendMagicLinkButton")?.addEventListener("click", sendMagicLink);
+    $("signOutButton")?.addEventListener("click", signOut);
+    $("pullStateButton")?.addEventListener("click", pullState);
+    $("pushStateButton")?.addEventListener("click", pushState);
     $("clearMistakeButton").addEventListener("click", deleteLastEntry);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {

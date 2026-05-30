@@ -24,6 +24,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   min-height: 100%;
@@ -53,6 +57,7 @@ input,
 select,
 textarea {
   font: inherit;
+  min-width: 0;
 }
 
 button {
@@ -70,7 +75,7 @@ svg {
   width: min(100%, 1180px);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 12px 12px 104px;
+  padding: 12px 12px calc(172px + env(safe-area-inset-bottom, 0px));
 }
 
 .app-header {
@@ -370,6 +375,7 @@ h3 {
 label {
   display: grid;
   gap: 6px;
+  min-width: 0;
   color: var(--muted-strong);
   font-size: 0.78rem;
   font-weight: 800;
@@ -379,6 +385,7 @@ input,
 select,
 textarea {
   width: 100%;
+  max-width: 100%;
   min-height: 44px;
   padding: 10px 11px;
   color: var(--text);
@@ -411,6 +418,81 @@ textarea:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.photo-field {
+  display: grid;
+  gap: 10px;
+}
+
+.photo-preview {
+  display: grid;
+  gap: 8px;
+  align-items: start;
+}
+
+.photo-preview img,
+.stock-photo {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.stock-photo {
+  aspect-ratio: 4 / 3;
+  max-height: 170px;
+}
+
+.photo-library {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.photo-tile {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 24px rgba(20, 45, 42, 0.05);
+}
+
+.photo-tile img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--surface-soft);
+}
+
+.photo-tile strong,
+.photo-tile span {
+  overflow-wrap: anywhere;
+}
+
+.photo-tile strong {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.photo-tile span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
 }
 
 .check-label {
@@ -513,6 +595,11 @@ textarea:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.timeline-head .card-actions {
+  flex: 0 0 auto;
+  justify-content: flex-end;
 }
 
 .mini-button {
@@ -777,7 +864,7 @@ textarea:focus {
 
 @media (min-width: 720px) {
   #appShell {
-    padding: 18px 18px 112px;
+    padding: 18px 18px calc(142px + env(safe-area-inset-bottom, 0px));
   }
 
   .app-view.active {
@@ -814,6 +901,10 @@ textarea:focus {
   }
 
   .context-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .photo-library {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
