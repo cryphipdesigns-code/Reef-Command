@@ -218,12 +218,33 @@
     scheduleRemoteSave();
   }
 
+  function saveLocalState() {
+    writeJson(STORAGE_KEY, state);
+  }
+
   function scheduleRemoteSave(delay = 800) {
     if (!supabaseClient || isRemoteHydrating) return;
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
       pushState({ silent: true });
     }, delay);
+  }
+
+  function hasMeaningfulState(value) {
+    const profile = value?.profile || {};
+    const defaults = getDefaultState().profile;
+    const profileChanged = Object.keys(defaults).some((key) => {
+      if (key === "tankName") return Boolean(profile[key] && profile[key] !== defaults[key]);
+      return String(profile[key] ?? "") !== String(defaults[key] ?? "");
+    });
+
+    return Boolean(
+      profileChanged ||
+        value?.livestock?.length ||
+        value?.waterTests?.length ||
+        value?.events?.length ||
+        value?.insightRuns?.length,
+    );
   }
 
   function uid() {
@@ -436,7 +457,7 @@
   function setActiveView(viewName) {
     const next = viewMap[viewName] ? viewName : "home";
     state.ui.activeView = next;
-    saveState();
+    saveLocalState();
 
     Object.entries(viewMap).forEach(([key, id]) => {
       $(id).classList.toggle("active", key === next);
@@ -1131,8 +1152,17 @@
     const remoteState = normalizeState(data.data);
     const localTime = new Date(state.updatedAt || 0).getTime();
     const remoteTime = new Date(remoteState.updatedAt || data.updated_at || 0).getTime();
-    if (options.startup && localTime > remoteTime) {
+    const localHasData = hasMeaningfulState(state);
+    const remoteHasData = hasMeaningfulState(remoteState);
+    if (options.startup && localHasData && (!remoteHasData || localTime > remoteTime)) {
       await pushState({ silent: true });
+      return;
+    }
+    if (options.startup && !remoteHasData && localHasData) {
+      await pushState({ silent: true });
+      return;
+    }
+    if (options.startup && !remoteHasData && !localHasData) {
       return;
     }
 
@@ -1313,7 +1343,7 @@
     const quickLog = event.target.closest("[data-open-log]");
     if (quickLog) {
       state.ui.logMode = quickLog.dataset.openLog;
-      saveState();
+      saveLocalState();
       setActiveView("logbook");
       renderLogMode();
       return;
@@ -1322,7 +1352,7 @@
     const logMode = event.target.closest("[data-log-mode]");
     if (logMode) {
       state.ui.logMode = logMode.dataset.logMode;
-      saveState();
+      saveLocalState();
       renderLogMode();
       return;
     }
@@ -1330,7 +1360,7 @@
     const livestockFilter = event.target.closest("[data-livestock-filter]");
     if (livestockFilter) {
       state.ui.livestockFilter = livestockFilter.dataset.livestockFilter;
-      saveState();
+      saveLocalState();
       renderLivestock();
       return;
     }
@@ -1342,7 +1372,7 @@
         button.classList.toggle("active", button === insightMode);
       });
       $("insightModePill").textContent = insightMode.textContent.trim();
-      saveState();
+      saveLocalState();
       return;
     }
 

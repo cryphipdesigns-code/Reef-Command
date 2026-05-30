@@ -1,4 +1,4 @@
-const CACHE_NAME = "reef-command-v3";
+const CACHE_NAME = "reef-command-v4";
 const APP_ASSETS = [
   "./",
   "./index.html",
