@@ -1,6 +1,7 @@
 (function () {
   const STORAGE_KEY = "reefCommandState.v1";
   const BACKEND_KEY = "reefCommandBackend.v1";
+  const SHARED_STATE_ID = "default";
 
   const viewMap = {
     home: "homeView",
@@ -22,6 +23,10 @@
   let supabaseClient = null;
   let currentUser = null;
   let authSubscription = null;
+  let autosaveTimer = null;
+  let remoteSaveInFlight = false;
+  let remoteSaveQueued = false;
+  let isRemoteHydrating = false;
   let toastTimer = null;
 
   function $(id) {
@@ -210,6 +215,15 @@
   function saveState() {
     state.updatedAt = new Date().toISOString();
     writeJson(STORAGE_KEY, state);
+    scheduleRemoteSave();
+  }
+
+  function scheduleRemoteSave(delay = 800) {
+    if (!supabaseClient || isRemoteHydrating) return;
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      pushState({ silent: true });
+    }, delay);
   }
 
   function uid() {
@@ -696,7 +710,7 @@
     const latest = state.insightRuns[0];
     if (!latest) {
       $("insightOutput").innerHTML = `<div class="empty-state">No result yet.</div>`;
-      $("insightSourcePill").textContent = supabaseClient && currentUser ? "GPT ready" : "Local";
+      $("insightSourcePill").textContent = supabaseClient ? "GPT ready" : "Local";
       return;
     }
     $("insightSourcePill").textContent = latest.source === "gpt" ? "GPT" : "Local";
@@ -897,7 +911,7 @@
     try {
       let result;
       let source = "local";
-      if (supabaseClient && currentUser) {
+      if (supabaseClient) {
         const response = await supabaseClient.functions.invoke("generate-insights", {
           body: {
             mode,
@@ -961,9 +975,9 @@
     if (!backendConfig.supabaseUrl || !backendConfig.supabaseAnonKey) {
       $("backendStatus").textContent = "Local mode";
     } else if (currentUser) {
-      $("backendStatus").textContent = `Signed in as ${currentUser.email || currentUser.id}`;
+      $("backendStatus").textContent = `Auto sync on · signed in as ${currentUser.email || currentUser.id}`;
     } else {
-      $("backendStatus").textContent = "Backend saved. Not signed in.";
+      $("backendStatus").textContent = "Auto sync is on.";
     }
   }
 
@@ -1002,6 +1016,7 @@
     authSubscription = subscription.data?.subscription || null;
     updateBackendStatus();
     renderInsightOutput();
+    await pullState({ silent: true, startup: true });
   }
 
   async function saveBackendSettings() {
@@ -1014,13 +1029,9 @@
     showToast("Backend saved.");
   }
 
-  function ensureSignedIn() {
+  function ensureBackend() {
     if (!supabaseClient) {
       showToast("Add Supabase settings first.");
-      return false;
-    }
-    if (!currentUser) {
-      showToast("Sign in before syncing.");
       return false;
     }
     return true;
@@ -1058,46 +1069,79 @@
     showToast("Signed out.");
   }
 
-  async function pushState() {
-    if (!ensureSignedIn()) return;
+  async function pushState(options = {}) {
+    if (!ensureBackend()) return;
+    if (remoteSaveInFlight) {
+      remoteSaveQueued = true;
+      return;
+    }
+    remoteSaveInFlight = true;
     const { error } = await supabaseClient
-      .from("reef_app_state")
+      .from("reef_shared_state")
       .upsert(
         {
-          user_id: currentUser.id,
+          id: SHARED_STATE_ID,
           data: state,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "user_id" },
+        { onConflict: "id" },
       );
+    remoteSaveInFlight = false;
     if (error) {
       console.error(error);
-      showToast("Push failed.");
+      if (!options.silent) showToast("Sync failed.");
       return;
     }
-    showToast("Pushed to Supabase.");
+    updateBackendStatus(
+      options.silent
+        ? `Autosaved at ${new Date().toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          })}.`
+        : "Synced.",
+    );
+    if (!options.silent) showToast("Synced.");
+    if (remoteSaveQueued) {
+      remoteSaveQueued = false;
+      scheduleRemoteSave(50);
+    }
   }
 
-  async function pullState() {
-    if (!ensureSignedIn()) return;
+  async function pullState(options = {}) {
+    if (!ensureBackend()) return;
     const { data, error } = await supabaseClient
-      .from("reef_app_state")
-      .select("data")
-      .eq("user_id", currentUser.id)
+      .from("reef_shared_state")
+      .select("data, updated_at")
+      .eq("id", SHARED_STATE_ID)
       .maybeSingle();
     if (error) {
       console.error(error);
-      showToast("Pull failed.");
+      if (!options.silent) showToast("Pull failed.");
       return;
     }
     if (!data?.data) {
-      showToast("No remote state yet.");
+      if (options.startup) {
+        await pushState({ silent: true });
+      } else if (!options.silent) {
+        showToast("No remote state yet.");
+      }
       return;
     }
-    state = normalizeState(data.data);
-    saveState();
+
+    const remoteState = normalizeState(data.data);
+    const localTime = new Date(state.updatedAt || 0).getTime();
+    const remoteTime = new Date(remoteState.updatedAt || data.updated_at || 0).getTime();
+    if (options.startup && localTime > remoteTime) {
+      await pushState({ silent: true });
+      return;
+    }
+
+    isRemoteHydrating = true;
+    state = remoteState;
+    writeJson(STORAGE_KEY, state);
+    isRemoteHydrating = false;
     renderAll();
-    showToast("Pulled from Supabase.");
+    if (!options.silent) showToast("Pulled from Supabase.");
   }
 
   function addZone(event) {
