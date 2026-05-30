@@ -1,0 +1,19 @@
+{
+  "name": "Reef Command",
+  "short_name": "Reef",
+  "description": "Reef tank logbook and GPT-backed husbandry insights.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f8f7",
+  "theme_color": "#087f7a",
+  "icons": [
+    {
+      "src": "./icons/reef-command.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reef Command</title>
+    <meta name="theme-color" content="#f5f8f7" />
+    <meta name="application-name" content="Reef Command" />
+    <meta name="apple-mobile-web-app-title" content="Reef Command" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/reef-command.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/reef-command.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="appShell">
+      <header class="app-header">
+        <div class="app-title-block">
+          <p class="kicker">Reef Command</p>
+          <h1 id="viewTitle">Home</h1>
+        </div>
+        <div class="header-actions">
+          <button
+            id="syncNowButton"
+            class="icon-button"
+            type="button"
+            title="Sync"
+            aria-label="Sync"
+          >
+            <i data-lucide="cloud"></i>
+          </button>
+        </div>
+      </header>
+
+      <main id="mainContent">
+        <section id="homeView" class="app-view active" data-title="Home">
+          <div class="tank-brief">
+            <div>
+              <p class="kicker">Active Tank</p>
+              <h2 id="homeTankName">Reef Tank</h2>
+              <p id="homeTankSubtitle" class="muted-line">No volume set</p>
+            </div>
+            <div class="light-badge" id="lightPhaseBadge">
+              <i data-lucide="sun"></i>
+              <span>Lighting unset</span>
+            </div>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric-card">
+              <span>Ammonia</span>
+              <strong id="metricAmmonia">--</strong>
+              <small id="metricAmmoniaMeta">No test yet</small>
+            </article>
+            <article class="metric-card">
+              <span>Nitrate</span>
+              <strong id="metricNitrate">--</strong>
+              <small id="metricNitrateMeta">No test yet</small>
+            </article>
+            <article class="metric-card">
+              <span>Water Change</span>
+              <strong id="metricWaterChange">--</strong>
+              <small id="metricWaterChangeMeta">No event yet</small>
+            </article>
+            <article class="metric-card">
+              <span>Livestock</span>
+              <strong id="metricLivestock">0</strong>
+              <small id="metricLivestockMeta">Active animals</small>
+            </article>
+          </div>
+
+          <div id="riskStrip" class="risk-strip"></div>
+
+          <div class="quick-actions">
+            <button class="action-button" type="button" data-open-log="test">
+              <i data-lucide="test-tube-2"></i>
+              Water Test
+            </button>
+            <button class="action-button" type="button" data-open-log="feeding">
+              <i data-lucide="fish"></i>
+              Feeding
+            </button>
+            <button class="action-button" type="button" data-open-log="water_change">
+              <i data-lucide="waves"></i>
+              Water Change
+            </button>
+          </div>
+
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Recent Timeline</h2>
+              <button class="text-button" type="button" data-view-link="logbook">
+                View All
+              </button>
+            </div>
+            <div id="homeTimeline" class="timeline-list"></div>
+          </section>
+
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Insight Brief</h2>
+              <button class="text-button" type="button" data-view-link="insights">
+                Open
+              </button>
+            </div>
+            <div id="homeInsightBrief" class="insight-brief"></div>
+          </section>
+        </section>
+
+        <section id="tankView" class="app-view" data-title="Tank">
+          <form id="tankProfileForm" class="form-surface">
+            <div class="section-heading">
+              <h2>Tank Details</h2>
+              <span id="profileSavedStatus" class="status-pill">Saved</span>
+            </div>
+
+            <div class="field-grid">
+              <label>
+                Tank Name
+                <input type="text" data-profile="tankName" autocomplete="off" />
+              </label>
+              <label>
+                Display Volume
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  data-profile="displayVolume"
+                />
+              </label>
+              <label>
+                Total Volume
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  data-profile="totalVolume"
+                />
+              </label>
+              <label>
+                Start Date
+                <input type="date" data-profile="startDate" />
+              </label>
+              <label>
+                Tank Style
+                <select data-profile="tankStyle">
+                  <option value="">Select</option>
+                  <option value="Mixed reef">Mixed reef</option>
+                  <option value="Fish only">Fish only</option>
+                  <option value="Soft coral">Soft coral</option>
+                  <option value="LPS focused">LPS focused</option>
+                  <option value="SPS focused">SPS focused</option>
+                  <option value="Nano reef">Nano reef</option>
+                </select>
+              </label>
+              <label>
+                Filtration
+                <select data-profile="filtration">
+                  <option value="">Select</option>
+                  <option value="Sump">Sump</option>
+                  <option value="All-in-one chamber">All-in-one chamber</option>
+                  <option value="Canister">Canister</option>
+                  <option value="Hang-on-back">Hang-on-back</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label>
+                Lighting Model
+                <input type="text" data-profile="lightingModel" />
+              </label>
+              <label>
+                Flow Setup
+                <input type="text" data-profile="flowSetup" />
+              </label>
+              <label>
+                Lights On
+                <input type="time" data-profile="lightStart" />
+              </label>
+              <label>
+                Lights Off
+                <input type="time" data-profile="lightEnd" />
+              </label>
+              <label>
+                Target Salinity
+                <input type="text" data-profile="targetSalinity" />
+              </label>
+              <label>
+                Target Temp
+                <input type="text" data-profile="targetTemp" />
+              </label>
+              <label>
+                Salt Mix
+                <input type="text" data-profile="saltMix" />
+              </label>
+              <label>
+                Dosing
+                <input type="text" data-profile="dosing" />
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <label class="check-label">
+                <input type="checkbox" data-profile="proteinSkimmer" />
+                Protein skimmer
+              </label>
+              <label class="check-label">
+                <input type="checkbox" data-profile="refugium" />
+                Refugium
+              </label>
+              <label class="check-label">
+                <input type="checkbox" data-profile="autoTopOff" />
+                Auto top-off
+              </label>
+            </div>
+
+            <label>
+              Notes
+              <textarea data-profile="notes" rows="4"></textarea>
+            </label>
+          </form>
+
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Placement Zones</h2>
+              <span class="status-pill">PAR ready</span>
+            </div>
+            <form id="zoneForm" class="compact-form">
+              <label>
+                Name
+                <input id="zoneName" type="text" placeholder="Mid rock" />
+              </label>
+              <label>
+                Light
+                <select id="zoneLight">
+                  <option value="Low">Low</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </label>
+              <label>
+                Flow
+                <select id="zoneFlow">
+                  <option value="Low">Low</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </label>
+              <label>
+                PAR Min
+                <input id="zoneParMin" type="number" min="0" step="1" />
+              </label>
+              <label>
+                PAR Max
+                <input id="zoneParMax" type="number" min="0" step="1" />
+              </label>
+              <label class="wide-field">
+                Notes
+                <input id="zoneNotes" type="text" />
+              </label>
+              <button class="primary-button" type="submit">
+                <i data-lucide="plus"></i>
+                Add Zone
+              </button>
+            </form>
+            <div id="zoneList" class="card-list"></div>
+          </section>
+        </section>
+
+        <section id="livestockView" class="app-view" data-title="Livestock">
+          <form id="livestockForm" class="form-surface">
+            <div class="section-heading">
+              <h2>Add Livestock</h2>
+              <span id="livestockCountPill" class="status-pill">0 active</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                Name
+                <input id="livestockName" type="text" required />
+              </label>
+              <label>
+                Category
+                <select id="livestockCategory">
+                  <option value="Fish">Fish</option>
+                  <option value="Coral">Coral</option>
+                  <option value="Invert">Invert</option>
+                  <option value="Cleanup crew">Cleanup crew</option>
+                  <option value="Macroalgae">Macroalgae</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label>
+                Species
+                <input id="livestockSpecies" type="text" />
+              </label>
+              <label>
+                Added
+                <input id="livestockAdded" type="date" />
+              </label>
+              <label>
+                Placement
+                <select id="livestockZone"></select>
+              </label>
+              <label class="wide-field">
+                Notes
+                <input id="livestockNotes" type="text" />
+              </label>
+            </div>
+            <button class="primary-button" type="submit">
+              <i data-lucide="plus"></i>
+              Add
+            </button>
+          </form>
+
+          <div class="filter-bar" role="tablist" aria-label="Livestock filter">
+            <button class="active" type="button" data-livestock-filter="active">
+              Active
+            </button>
+            <button type="button" data-livestock-filter="all">All</button>
+            <button type="button" data-livestock-filter="Coral">Coral</button>
+            <button type="button" data-livestock-filter="Fish">Fish</button>
+            <button type="button" data-livestock-filter="inactive">
+              Inactive
+            </button>
+          </div>
+
+          <div id="livestockList" class="card-list"></div>
+        </section>
+
+        <section id="logbookView" class="app-view" data-title="Logbook">
+          <div class="filter-bar" role="tablist" aria-label="Log type">
+            <button class="active" type="button" data-log-mode="test">
+              Tests
+            </button>
+            <button type="button" data-log-mode="feeding">Feeding</button>
+            <button type="button" data-log-mode="maintenance">
+              Maintenance
+            </button>
+            <button type="button" data-log-mode="water_change">
+              Water Change
+            </button>
+          </div>
+
+          <form id="waterTestForm" class="form-surface log-form active">
+            <div class="section-heading">
+              <h2>Water Test</h2>
+              <span id="testTimingPill" class="status-pill">Now</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                Measured At
+                <input id="testMeasuredAt" type="datetime-local" />
+              </label>
+              <label>
+                Ammonia
+                <input
+                  id="testAmmonia"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="ppm"
+                />
+              </label>
+              <label>
+                Nitrite
+                <input
+                  id="testNitrite"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="ppm"
+                />
+              </label>
+              <label>
+                Nitrate
+                <input
+                  id="testNitrate"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="ppm"
+                />
+              </label>
+              <label>
+                Phosphate
+                <input
+                  id="testPhosphate"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="ppm"
+                />
+              </label>
+              <label>
+                pH
+                <input id="testPh" type="number" min="0" step="0.01" />
+              </label>
+              <label>
+                Salinity
+                <input id="testSalinity" type="text" placeholder="1.026" />
+              </label>
+              <label>
+                Temperature
+                <input id="testTemp" type="text" placeholder="78 F" />
+              </label>
+              <label>
+                Alkalinity
+                <input id="testAlk" type="number" min="0" step="0.1" />
+              </label>
+              <label>
+                Calcium
+                <input id="testCalcium" type="number" min="0" step="1" />
+              </label>
+              <label>
+                Magnesium
+                <input id="testMagnesium" type="number" min="0" step="1" />
+              </label>
+              <label class="wide-field">
+                Notes
+                <input id="testNotes" type="text" />
+              </label>
+            </div>
+            <button class="primary-button" type="submit">
+              <i data-lucide="save"></i>
+              Save Test
+            </button>
+          </form>
+
+          <form id="feedingForm" class="form-surface log-form">
+            <div class="section-heading">
+              <h2>Feeding</h2>
+              <span class="status-pill">Nutrients</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                Fed At
+                <input id="feedingAt" type="datetime-local" />
+              </label>
+              <label>
+                Food
+                <select id="feedingFood">
+                  <option value="Flakes">Flakes</option>
+                  <option value="Pellets">Pellets</option>
+                  <option value="Frozen">Frozen</option>
+                  <option value="Nori">Nori</option>
+                  <option value="Coral food">Coral food</option>
+                  <option value="Phyto">Phyto</option>
+                  <option value="Amino acids">Amino acids</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label>
+                Amount
+                <input id="feedingAmount" type="text" placeholder="1/2 cube" />
+              </label>
+              <label>
+                Target
+                <input id="feedingTarget" type="text" placeholder="Whole tank" />
+              </label>
+              <label class="wide-field">
+                Notes
+                <input id="feedingNotes" type="text" />
+              </label>
+            </div>
+            <button class="primary-button" type="submit">
+              <i data-lucide="save"></i>
+              Save Feeding
+            </button>
+          </form>
+
+          <form id="maintenanceForm" class="form-surface log-form">
+            <div class="section-heading">
+              <h2>Maintenance</h2>
+              <span class="status-pill">Equipment</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                Completed At
+                <input id="maintenanceAt" type="datetime-local" />
+              </label>
+              <label>
+                Type
+                <select id="maintenanceType">
+                  <option value="RODI replaced">RODI replaced</option>
+                  <option value="Carbon replaced">Carbon replaced</option>
+                  <option value="Purigen replaced">Purigen replaced</option>
+                  <option value="GFO replaced">GFO replaced</option>
+                  <option value="Filter floss changed">Filter floss changed</option>
+                  <option value="Skimmer cleaned">Skimmer cleaned</option>
+                  <option value="Pump cleaned">Pump cleaned</option>
+                  <option value="Dosing adjusted">Dosing adjusted</option>
+                  <option value="Equipment changed">Equipment changed</option>
+                  <option value="General note">General note</option>
+                </select>
+              </label>
+              <label class="wide-field">
+                Details
+                <input id="maintenanceDetails" type="text" />
+              </label>
+            </div>
+            <button class="primary-button" type="submit">
+              <i data-lucide="save"></i>
+              Save Maintenance
+            </button>
+          </form>
+
+          <form id="waterChangeForm" class="form-surface log-form">
+            <div class="section-heading">
+              <h2>Water Change</h2>
+              <span class="status-pill">Reset point</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                Changed At
+                <input id="waterChangeAt" type="datetime-local" />
+              </label>
+              <label>
+                Gallons
+                <input id="waterChangeGallons" type="number" min="0" step="0.1" />
+              </label>
+              <label>
+                Percent
+                <input id="waterChangePercent" type="number" min="0" step="1" />
+              </label>
+              <label class="wide-field">
+                Notes
+                <input id="waterChangeNotes" type="text" />
+              </label>
+            </div>
+            <button class="primary-button" type="submit">
+              <i data-lucide="save"></i>
+              Save Change
+            </button>
+          </form>
+
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Timeline</h2>
+              <button id="clearMistakeButton" class="text-button" type="button">
+                Delete Last
+              </button>
+            </div>
+            <div id="logTimeline" class="timeline-list"></div>
+          </section>
+        </section>
+
+        <section id="insightsView" class="app-view" data-title="Insights">
+          <section class="form-surface">
+            <div class="section-heading">
+              <h2>Ask Reef Command</h2>
+              <span id="insightModePill" class="status-pill">Health</span>
+            </div>
+            <div class="filter-bar insight-modes" role="tablist" aria-label="Insight mode">
+              <button class="active" type="button" data-insight-mode="health">
+                Health
+              </button>
+              <button type="button" data-insight-mode="trends">Trends</button>
+              <button type="button" data-insight-mode="maintenance">
+                Maintenance
+              </button>
+              <button type="button" data-insight-mode="livestock">
+                Livestock
+              </button>
+              <button type="button" data-insight-mode="freeform">
+                Ask
+              </button>
+            </div>
+            <label>
+              Question
+              <textarea
+                id="insightQuestion"
+                rows="4"
+                placeholder="Review my last 30 days"
+              ></textarea>
+            </label>
+            <button id="generateInsightButton" class="primary-button" type="button">
+              <i data-lucide="sparkles"></i>
+              Generate
+            </button>
+          </section>
+
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Context Sent</h2>
+              <span id="contextCountPill" class="status-pill">0 logs</span>
+            </div>
+            <div id="contextSummary" class="context-summary"></div>
+          </section>
+
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Result</h2>
+              <span id="insightSourcePill" class="status-pill">Local</span>
+            </div>
+            <div id="insightOutput" class="insight-output"></div>
+          </section>
+
+          <details class="settings-drawer">
+            <summary>
+              <span>Backend</span>
+              <i data-lucide="settings"></i>
+            </summary>
+            <div class="settings-grid">
+              <label>
+                Supabase URL
+                <input id="backendUrl" type="url" autocomplete="off" />
+              </label>
+              <label>
+                Supabase Anon Key
+                <input id="backendAnonKey" type="password" autocomplete="off" />
+              </label>
+              <button id="saveBackendButton" class="secondary-button" type="button">
+                Save Backend
+              </button>
+              <label>
+                Email
+                <input id="authEmail" type="email" autocomplete="email" />
+              </label>
+              <button id="sendMagicLinkButton" class="secondary-button" type="button">
+                Send Link
+              </button>
+              <button id="signOutButton" class="secondary-button" type="button">
+                Sign Out
+              </button>
+              <button id="pullStateButton" class="secondary-button" type="button">
+                Pull
+              </button>
+              <button id="pushStateButton" class="secondary-button" type="button">
+                Push
+              </button>
+            </div>
+            <p id="backendStatus" class="backend-status">Local mode</p>
+          </details>
+        </section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="Primary">
+        <button class="active" type="button" data-view="home">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Home</span>
+        </button>
+        <button type="button" data-view="tank">
+          <i data-lucide="ship-wheel"></i>
+          <span>Tank</span>
+        </button>
+        <button type="button" data-view="livestock">
+          <i data-lucide="fish"></i>
+          <span>Stock</span>
+        </button>
+        <button type="button" data-view="logbook">
+          <i data-lucide="clipboard-list"></i>
+          <span>Logs</span>
+        </button>
+        <button type="button" data-view="insights">
+          <i data-lucide="sparkles"></i>
+          <span>Insights</span>
+        </button>
+      </nav>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
