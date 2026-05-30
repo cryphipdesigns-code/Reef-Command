@@ -28,7 +28,7 @@
   let remoteSaveQueued = false;
   let isRemoteHydrating = false;
   let toastTimer = null;
-  let pendingLivestockPhotoDataUrl = "";
+  let pendingLivestockPhotos = [];
   let editingLog = null;
 
   function $(id) {
@@ -135,6 +135,7 @@
       const hasLegacyFlag = Object.prototype.hasOwnProperty.call(item, "isLegacy");
       const isLegacy = hasLegacyFlag ? Boolean(item.isLegacy) : true;
       const species = item.species || item.name || "Unknown";
+      const photos = normalizePhotoList(item);
 
       return {
         id: item.id || uid(),
@@ -150,7 +151,8 @@
         health: item.health || "",
         growthTrend: item.growthTrend || "",
         growthMetric: item.growthMetric || "",
-        photoDataUrl: item.photoDataUrl || "",
+        photos,
+        photoDataUrl: photos[0] || "",
         removedDate: item.removedDate || "",
         outcomeReason: item.outcomeReason || "",
       };
@@ -201,6 +203,24 @@
 
   function writeJson(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  function normalizePhotoList(item) {
+    const photos = [];
+    if (Array.isArray(item.photos)) {
+      item.photos.forEach((photo) => {
+        const dataUrl = typeof photo === "string" ? photo : photo?.dataUrl;
+        if (dataUrl && !photos.includes(dataUrl)) photos.push(dataUrl);
+      });
+    }
+    if (item.photoDataUrl && !photos.includes(item.photoDataUrl)) {
+      photos.unshift(item.photoDataUrl);
+    }
+    return photos;
+  }
+
+  function getLivestockPhotos(item) {
+    return normalizePhotoList(item);
   }
 
   async function loadLocalBackendConfig() {
@@ -424,7 +444,8 @@
   function renderPhotoPreview(previewId, dataUrl, altText) {
     const preview = $(previewId);
     if (!preview) return;
-    if (!dataUrl) {
+    const photos = Array.isArray(dataUrl) ? dataUrl.filter(Boolean) : dataUrl ? [dataUrl] : [];
+    if (!photos.length) {
       preview.hidden = true;
       preview.innerHTML = "";
       return;
@@ -432,25 +453,35 @@
 
     const kind = previewId === "lightingPhotoPreview" ? "lighting" : "livestock";
     preview.hidden = false;
+    if (kind === "lighting") {
+      preview.innerHTML = `
+        <img src="${escapeHtml(photos[0])}" alt="${escapeHtml(altText)}" />
+        <button class="mini-button danger" type="button" data-remove-photo="lighting">Remove Photo</button>
+      `;
+      return;
+    }
+
     preview.innerHTML = `
-      <img src="${escapeHtml(dataUrl)}" alt="${escapeHtml(altText)}" />
-      <button class="mini-button danger" type="button" data-remove-photo="${kind}">Remove Photo</button>
+      <div class="photo-preview-grid">
+        ${photos.map((photo, index) => `
+          <article class="photo-preview-item">
+            <img src="${escapeHtml(photo)}" alt="${escapeHtml(`${altText} ${index + 1}`)}" />
+            <button class="mini-button danger" type="button" data-remove-photo="livestock" data-photo-index="${index}">Remove</button>
+          </article>
+        `).join("")}
+      </div>
     `;
   }
 
   async function handlePhotoInput(event, target) {
     const input = event.target;
-    const file = input.files?.[0];
-    if (!file) return;
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
 
     input.disabled = true;
     try {
-      const dataUrl = await compressImageFile(
-        file,
-        target === "lighting" ? 1400 : 900,
-        target === "lighting" ? 0.86 : 0.8,
-      );
       if (target === "lighting") {
+        const dataUrl = await compressImageFile(files[0], 1400, 0.86);
         state.profile.lightingPhotoDataUrl = dataUrl;
         saveState();
         renderPhotoPreview("lightingPhotoPreview", dataUrl, "Lighting screenshot");
@@ -458,9 +489,10 @@
         renderInsightsContext();
         showToast("Lighting screenshot saved.");
       } else {
-        pendingLivestockPhotoDataUrl = dataUrl;
-        renderPhotoPreview("livestockPhotoPreview", dataUrl, "Stock photo");
-        showToast("Photo ready.");
+        const dataUrls = await Promise.all(files.map((file) => compressImageFile(file, 900, 0.8)));
+        pendingLivestockPhotos = [...pendingLivestockPhotos, ...dataUrls];
+        renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
+        showToast(`${dataUrls.length} photo${dataUrls.length === 1 ? "" : "s"} ready.`);
       }
     } catch (error) {
       console.error(error);
@@ -773,6 +805,7 @@
   function renderLivestockCard(item) {
     const casual = isCasualStockCategory(item.category);
     const quantity = formatQuantity(item.quantity);
+    const photos = getLivestockPhotos(item);
     const healthParts = [
       item.health ? `Health: ${item.health}` : "",
       item.growthTrend ? `Growth: ${item.growthTrend}` : "",
@@ -792,7 +825,7 @@
         </div>
         <p class="card-meta">${escapeHtml(formatStockDate(item))} · ${escapeHtml(getZoneName(item.zoneId))}</p>
         ${healthParts.length ? `<p class="card-meta">${escapeHtml(healthParts.join(" · "))}</p>` : ""}
-        ${item.photoDataUrl ? `<img class="stock-photo" src="${escapeHtml(item.photoDataUrl)}" alt="${escapeHtml(item.species)} photo" />` : ""}
+        ${renderStockPhotoGrid(item, photos)}
         ${item.notes ? `<p class="card-meta">${escapeHtml(item.notes)}</p>` : ""}
         ${outcome}
         <div class="card-actions">
@@ -809,6 +842,18 @@
     `;
   }
 
+  function renderStockPhotoGrid(item, photos) {
+    if (!photos.length) return "";
+    return `
+      <div class="stock-photo-grid" data-count="${Math.min(photos.length, 4)}">
+        ${photos.slice(0, 4).map((photo, index) => `
+          <img src="${escapeHtml(photo)}" alt="${escapeHtml(`${item.species} photo ${index + 1}`)}" />
+        `).join("")}
+      </div>
+      ${photos.length > 1 ? `<p class="card-meta">${photos.length} photos</p>` : ""}
+    `;
+  }
+
   function getPhotoLibraryItems() {
     const photos = [];
     if (state.profile.lightingPhotoDataUrl) {
@@ -821,12 +866,18 @@
     }
 
     state.livestock.forEach((item) => {
-      if (!item.photoDataUrl) return;
-      photos.push({
-        id: item.id,
-        title: item.species || "Stock photo",
-        subtitle: [item.category, formatStockDate(item)].filter(Boolean).join(" · "),
-        src: item.photoDataUrl,
+      const itemPhotos = getLivestockPhotos(item);
+      itemPhotos.forEach((photo, index) => {
+        photos.push({
+          id: `${item.id}-${index}`,
+          title: item.species || "Stock photo",
+          subtitle: [
+            item.category,
+            formatStockDate(item),
+            itemPhotos.length > 1 ? `Photo ${index + 1}` : "",
+          ].filter(Boolean).join(" · "),
+          src: photo,
+        });
       });
     });
     return photos;
@@ -988,10 +1039,12 @@
     const latestFeeding = getLatestEvent("feeding");
     const { lightingPhotoDataUrl, ...profile } = state.profile;
     const livestock = state.livestock.map((item) => {
-      const { photoDataUrl, ...safeItem } = item;
+      const { photoDataUrl, photos, ...safeItem } = item;
+      const photoCount = getLivestockPhotos(item).length;
       return {
         ...safeItem,
-        hasPhoto: Boolean(photoDataUrl),
+        photoCount,
+        hasPhoto: photoCount > 0,
       };
     });
 
@@ -1444,14 +1497,15 @@
       health: $("livestockHealth").value,
       growthTrend: $("livestockGrowthTrend").value,
       growthMetric: $("livestockGrowthMetric").value.trim(),
-      photoDataUrl: pendingLivestockPhotoDataUrl || "",
+      photos: pendingLivestockPhotos,
+      photoDataUrl: pendingLivestockPhotos[0] || "",
     };
   }
 
   function resetLivestockForm() {
     $("livestockForm").reset();
     $("livestockEditId").value = "";
-    pendingLivestockPhotoDataUrl = "";
+    pendingLivestockPhotos = [];
     renderPhotoPreview("livestockPhotoPreview", "", "Stock photo");
     syncLivestockDateControls();
     $("livestockFormTitle").textContent = "Add Stock";
@@ -1474,8 +1528,8 @@
     $("livestockHealth").value = item.health || "";
     $("livestockGrowthTrend").value = item.growthTrend || "";
     $("livestockGrowthMetric").value = item.growthMetric || "";
-    pendingLivestockPhotoDataUrl = item.photoDataUrl || "";
-    renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotoDataUrl, "Stock photo");
+    pendingLivestockPhotos = getLivestockPhotos(item);
+    renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
     syncLivestockDateControls();
     $("livestockFormTitle").textContent = "Edit Stock";
     $("livestockSubmitButton").innerHTML = `<i data-lucide="save"></i>Save`;
@@ -1751,8 +1805,13 @@
         renderInsightsContext();
         showToast("Lighting screenshot removed.");
       } else {
-        pendingLivestockPhotoDataUrl = "";
-        renderPhotoPreview("livestockPhotoPreview", "", "Stock photo");
+        const photoIndex = Number(removePhoto.dataset.photoIndex);
+        if (Number.isInteger(photoIndex)) {
+          pendingLivestockPhotos = pendingLivestockPhotos.filter((_photo, index) => index !== photoIndex);
+        } else {
+          pendingLivestockPhotos = [];
+        }
+        renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
         showToast("Photo removed.");
       }
       return;

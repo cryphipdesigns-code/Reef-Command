@@ -431,6 +431,17 @@ textarea:focus {
   align-items: start;
 }
 
+.photo-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.photo-preview-item {
+  display: grid;
+  gap: 7px;
+}
+
 .photo-preview img,
 .stock-photo {
   width: 100%;
@@ -444,6 +455,25 @@ textarea:focus {
 .stock-photo {
   aspect-ratio: 4 / 3;
   max-height: 170px;
+}
+
+.stock-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.stock-photo-grid[data-count="1"] {
+  grid-template-columns: 1fr;
+}
+
+.stock-photo-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
 }
 
 .photo-library {
