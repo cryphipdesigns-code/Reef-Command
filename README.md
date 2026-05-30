@@ -9,6 +9,7 @@ Mobile-first reef tank logbook and insight app.
 - Livestock records with active, moved, and deceased states
 - Water test logs with timestamp and light-phase context
 - Feeding, maintenance, and water-change events in one timeline
+- Stock photos stored in Supabase Storage so the synced app state stays small
 - Local insight drafts when GPT is not connected
 - Supabase sync scaffold with email magic-link auth
 - Supabase Edge Function for GPT-backed insights
@@ -95,8 +96,8 @@ scripts/deploy-supabase.sh
 
 The script links the project, pushes migrations, deploys the GPT Edge Function, sets function secrets, and writes local app settings to `.env.supabase`.
 
-In the app, open Insights, expand Backend, add the Supabase URL and anon key from `.env.supabase`, then sign in with a magic link.
+The hosted app reads `config.json` and uses the shared Reef Command Supabase project automatically.
 
 ## Data model note
 
-The first version keeps the UI simple by syncing one structured JSON app state row per user. The JSON is already organized around profile, zones, livestock, water tests, events, and insight runs, so it can later be split into normalized tables without changing the mobile logging flow.
+The app syncs one structured shared JSON state row for profile, zones, livestock, water tests, events, and insight runs. Photos are uploaded to the `reef-photos` Supabase Storage bucket, and the JSON stores only lightweight photo paths and metadata.

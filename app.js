@@ -2,6 +2,8 @@
   const STORAGE_KEY = "reefCommandState.v1";
   const BACKEND_KEY = "reefCommandBackend.v1";
   const SHARED_STATE_ID = "default";
+  const PHOTO_BUCKET = "reef-photos";
+  const PHOTO_ROOT = "shared";
 
   const viewMap = {
     home: "homeView",
@@ -51,6 +53,7 @@
         tankStyle: "",
         filtration: "",
         lightingModel: "",
+        lightingPhoto: null,
         lightingPhotoDataUrl: "",
         lightStart: "10:00",
         lightEnd: "20:00",
@@ -119,6 +122,11 @@
       insightRuns: Array.isArray(raw.insightRuns) ? raw.insightRuns : [],
     };
 
+    next.profile.lightingPhoto = normalizePhotoRecord(
+      next.profile.lightingPhoto || next.profile.lightingPhotoDataUrl,
+    );
+    next.profile.lightingPhotoDataUrl = next.profile.lightingPhoto?.dataUrl || "";
+
     next.zones = next.zones.map((zone) => ({
       id: zone.id || uid(),
       name: zone.name || "Zone",
@@ -152,7 +160,7 @@
         growthTrend: item.growthTrend || "",
         growthMetric: item.growthMetric || "",
         photos,
-        photoDataUrl: photos[0] || "",
+        photoDataUrl: photos.find((photo) => photo.dataUrl)?.dataUrl || "",
         removedDate: item.removedDate || "",
         outcomeReason: item.outcomeReason || "",
       };
@@ -205,22 +213,89 @@
     localStorage.setItem(key, JSON.stringify(value));
   }
 
+  function normalizePhotoRecord(photo) {
+    if (!photo) return null;
+    if (typeof photo === "string") {
+      return {
+        id: uid(),
+        path: "",
+        dataUrl: photo,
+        createdAt: new Date().toISOString(),
+      };
+    }
+
+    const path = photo.path || photo.storagePath || "";
+    const dataUrl = photo.dataUrl || (typeof photo.url === "string" && photo.url.startsWith("data:") ? photo.url : "");
+    if (!path && !dataUrl) return null;
+    return {
+      id: photo.id || photoIdFromPath(path) || uid(),
+      path,
+      dataUrl,
+      createdAt: photo.createdAt || new Date().toISOString(),
+    };
+  }
+
   function normalizePhotoList(item) {
     const photos = [];
+    const seen = new Set();
+    const addPhoto = (photo) => {
+      const normalized = normalizePhotoRecord(photo);
+      if (!normalized) return;
+      const key = normalized.path || normalized.dataUrl;
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      photos.push(normalized);
+    };
+
     if (Array.isArray(item.photos)) {
-      item.photos.forEach((photo) => {
-        const dataUrl = typeof photo === "string" ? photo : photo?.dataUrl;
-        if (dataUrl && !photos.includes(dataUrl)) photos.push(dataUrl);
-      });
+      item.photos.forEach(addPhoto);
     }
-    if (item.photoDataUrl && !photos.includes(item.photoDataUrl)) {
-      photos.unshift(item.photoDataUrl);
-    }
+    addPhoto(item.photoDataUrl);
     return photos;
   }
 
   function getLivestockPhotos(item) {
     return normalizePhotoList(item);
+  }
+
+  function getLightingPhoto() {
+    return normalizePhotoRecord(state.profile.lightingPhoto || state.profile.lightingPhotoDataUrl);
+  }
+
+  function photoIdFromPath(path) {
+    if (!path) return "";
+    const file = path.split("/").pop() || "";
+    return file.replace(/\.[^.]+$/, "");
+  }
+
+  function getPhotoSrc(photo) {
+    const normalized = normalizePhotoRecord(photo);
+    if (!normalized) return "";
+    if (normalized.dataUrl) return normalized.dataUrl;
+    if (normalized.path) return getStoragePublicUrl(normalized.path);
+    return "";
+  }
+
+  function getStoragePublicUrl(path) {
+    if (!path) return "";
+    if (supabaseClient) {
+      return supabaseClient.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+    }
+    const baseUrl = backendConfig.supabaseUrl || "";
+    if (!baseUrl) return "";
+    return `${baseUrl.replace(/\/$/, "")}/storage/v1/object/public/${PHOTO_BUCKET}/${encodeStoragePath(path)}`;
+  }
+
+  function encodeStoragePath(path) {
+    return path.split("/").map((part) => encodeURIComponent(part)).join("/");
+  }
+
+  function cleanPathSegment(value) {
+    return String(value || "item")
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "item";
   }
 
   async function loadLocalBackendConfig() {
@@ -441,10 +516,76 @@
     return canvas.toDataURL("image/jpeg", quality);
   }
 
-  function renderPhotoPreview(previewId, dataUrl, altText) {
+  async function dataUrlToBlob(dataUrl) {
+    const response = await fetch(dataUrl);
+    return response.blob();
+  }
+
+  function createPendingPhoto(dataUrl) {
+    return {
+      id: uid(),
+      path: "",
+      dataUrl,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  function getPhotoStoragePaths(photos) {
+    return photos
+      .map((photo) => normalizePhotoRecord(photo)?.path || "")
+      .filter(Boolean);
+  }
+
+  async function uploadPhotoRecord(photo, folder, ownerId) {
+    const normalized = normalizePhotoRecord(photo);
+    if (!normalized || !normalized.dataUrl || !supabaseClient) return normalized;
+
+    const blob = await dataUrlToBlob(normalized.dataUrl);
+    const path = normalized.path || [
+      PHOTO_ROOT,
+      cleanPathSegment(folder),
+      cleanPathSegment(ownerId),
+      `${cleanPathSegment(normalized.id)}.jpg`,
+    ].join("/");
+    const { error } = await supabaseClient.storage
+      .from(PHOTO_BUCKET)
+      .upload(path, blob, {
+        cacheControl: "31536000",
+        contentType: "image/jpeg",
+        upsert: true,
+      });
+    if (error) throw error;
+    return {
+      id: normalized.id,
+      path,
+      dataUrl: "",
+      createdAt: normalized.createdAt,
+    };
+  }
+
+  async function preparePhotosForSave(ownerId, photos) {
+    const saved = [];
+    for (const photo of photos) {
+      const normalized = normalizePhotoRecord(photo);
+      if (!normalized) continue;
+      saved.push(await uploadPhotoRecord(normalized, "livestock", ownerId));
+    }
+    return saved;
+  }
+
+  async function removeStoragePaths(paths) {
+    const uniquePaths = [...new Set(paths.filter(Boolean))];
+    if (!uniquePaths.length || !supabaseClient) return;
+    const { error } = await supabaseClient.storage.from(PHOTO_BUCKET).remove(uniquePaths);
+    if (error) console.warn("Could not remove stored photos", error);
+  }
+
+  function renderPhotoPreview(previewId, photoValue, altText) {
     const preview = $(previewId);
     if (!preview) return;
-    const photos = Array.isArray(dataUrl) ? dataUrl.filter(Boolean) : dataUrl ? [dataUrl] : [];
+    const photos = (Array.isArray(photoValue) ? photoValue : photoValue ? [photoValue] : [])
+      .map(normalizePhotoRecord)
+      .filter(Boolean);
     if (!photos.length) {
       preview.hidden = true;
       preview.innerHTML = "";
@@ -454,8 +595,9 @@
     const kind = previewId === "lightingPhotoPreview" ? "lighting" : "livestock";
     preview.hidden = false;
     if (kind === "lighting") {
+      const src = getPhotoSrc(photos[0]);
       preview.innerHTML = `
-        <img src="${escapeHtml(photos[0])}" alt="${escapeHtml(altText)}" />
+        <img src="${escapeHtml(src)}" alt="${escapeHtml(altText)}" />
         <button class="mini-button danger" type="button" data-remove-photo="lighting">Remove Photo</button>
       `;
       return;
@@ -465,7 +607,7 @@
       <div class="photo-preview-grid">
         ${photos.map((photo, index) => `
           <article class="photo-preview-item">
-            <img src="${escapeHtml(photo)}" alt="${escapeHtml(`${altText} ${index + 1}`)}" />
+            <img src="${escapeHtml(getPhotoSrc(photo))}" alt="${escapeHtml(`${altText} ${index + 1}`)}" />
             <button class="mini-button danger" type="button" data-remove-photo="livestock" data-photo-index="${index}">Remove</button>
           </article>
         `).join("")}
@@ -482,15 +624,20 @@
     try {
       if (target === "lighting") {
         const dataUrl = await compressImageFile(files[0], 1400, 0.86);
-        state.profile.lightingPhotoDataUrl = dataUrl;
+        const pendingPhoto = createPendingPhoto(dataUrl);
+        const photo = supabaseClient
+          ? await uploadPhotoRecord(pendingPhoto, "profile", "lighting")
+          : pendingPhoto;
+        state.profile.lightingPhoto = photo;
+        state.profile.lightingPhotoDataUrl = photo.dataUrl || "";
         saveState();
-        renderPhotoPreview("lightingPhotoPreview", dataUrl, "Lighting screenshot");
+        renderPhotoPreview("lightingPhotoPreview", photo, "Lighting screenshot");
         renderPhotoLibrary();
         renderInsightsContext();
         showToast("Lighting screenshot saved.");
       } else {
-        const dataUrls = await Promise.all(files.map((file) => compressImageFile(file, 900, 0.8)));
-        pendingLivestockPhotos = [...pendingLivestockPhotos, ...dataUrls];
+        const dataUrls = await Promise.all(files.map((file) => compressImageFile(file, 1100, 0.78)));
+        pendingLivestockPhotos = [...pendingLivestockPhotos, ...dataUrls.map(createPendingPhoto)];
         renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
         showToast(`${dataUrls.length} photo${dataUrls.length === 1 ? "" : "s"} ready.`);
       }
@@ -739,7 +886,7 @@
         input.value = value ?? "";
       }
     });
-    renderPhotoPreview("lightingPhotoPreview", state.profile.lightingPhotoDataUrl, "Lighting screenshot");
+    renderPhotoPreview("lightingPhotoPreview", getLightingPhoto(), "Lighting screenshot");
   }
 
   function updateProfileFromForm() {
@@ -847,7 +994,7 @@
     return `
       <div class="stock-photo-grid" data-count="${Math.min(photos.length, 4)}">
         ${photos.slice(0, 4).map((photo, index) => `
-          <img src="${escapeHtml(photo)}" alt="${escapeHtml(`${item.species} photo ${index + 1}`)}" />
+          <img src="${escapeHtml(getPhotoSrc(photo))}" alt="${escapeHtml(`${item.species} photo ${index + 1}`)}" />
         `).join("")}
       </div>
       ${photos.length > 1 ? `<p class="card-meta">${photos.length} photos</p>` : ""}
@@ -856,12 +1003,13 @@
 
   function getPhotoLibraryItems() {
     const photos = [];
-    if (state.profile.lightingPhotoDataUrl) {
+    const lightingPhoto = getLightingPhoto();
+    if (lightingPhoto) {
       photos.push({
         id: "lighting",
         title: "Lighting Screenshot",
         subtitle: state.profile.lightingModel || "Tank profile",
-        src: state.profile.lightingPhotoDataUrl,
+        src: getPhotoSrc(lightingPhoto),
       });
     }
 
@@ -876,7 +1024,7 @@
             formatStockDate(item),
             itemPhotos.length > 1 ? `Photo ${index + 1}` : "",
           ].filter(Boolean).join(" · "),
-          src: photo,
+          src: getPhotoSrc(photo),
         });
       });
     });
@@ -1037,7 +1185,8 @@
     const latestWaterTest = recentWaterTests[0] || null;
     const latestWaterChange = getLatestEvent("water_change");
     const latestFeeding = getLatestEvent("feeding");
-    const { lightingPhotoDataUrl, ...profile } = state.profile;
+    const { lightingPhotoDataUrl, lightingPhoto, ...profile } = state.profile;
+    const hasLightingScreenshot = Boolean(lightingPhoto || lightingPhotoDataUrl);
     const livestock = state.livestock.map((item) => {
       const { photoDataUrl, photos, ...safeItem } = item;
       const photoCount = getLivestockPhotos(item).length;
@@ -1052,7 +1201,7 @@
       generatedAt: new Date().toISOString(),
       profile: {
         ...profile,
-        hasLightingScreenshot: Boolean(lightingPhotoDataUrl),
+        hasLightingScreenshot,
       },
       zones: state.zones,
       livestock,
@@ -1296,6 +1445,37 @@
     updateBackendStatus();
     renderInsightOutput();
     await pullState({ silent: true, startup: true });
+    await migrateInlinePhotosToStorage();
+  }
+
+  async function migrateInlinePhotosToStorage() {
+    if (!supabaseClient) return;
+    let changed = false;
+
+    try {
+      const lightingPhoto = getLightingPhoto();
+      if (lightingPhoto?.dataUrl) {
+        state.profile.lightingPhoto = await uploadPhotoRecord(lightingPhoto, "profile", "lighting");
+        state.profile.lightingPhotoDataUrl = "";
+        changed = true;
+      }
+
+      for (const item of state.livestock) {
+        const photos = getLivestockPhotos(item);
+        if (!photos.some((photo) => photo.dataUrl)) continue;
+        item.photos = await preparePhotosForSave(item.id, photos);
+        item.photoDataUrl = "";
+        changed = true;
+      }
+
+      if (!changed) return;
+      saveState();
+      renderAll();
+      showToast("Photos moved to Supabase Storage.");
+    } catch (error) {
+      console.error(error);
+      showToast("Some photos still need storage upload.");
+    }
   }
 
   async function saveBackendSettings() {
@@ -1498,7 +1678,7 @@
       growthTrend: $("livestockGrowthTrend").value,
       growthMetric: $("livestockGrowthMetric").value.trim(),
       photos: pendingLivestockPhotos,
-      photoDataUrl: pendingLivestockPhotos[0] || "",
+      photoDataUrl: "",
     };
   }
 
@@ -1538,34 +1718,59 @@
     refreshIcons();
   }
 
-  function addLivestock(event) {
+  async function addLivestock(event) {
     event.preventDefault();
     const formData = getLivestockFormData();
     if (!formData.species) return;
+    const submitButton = $("livestockSubmitButton");
+    submitButton.disabled = true;
+    submitButton.innerHTML = `<i data-lucide="loader-circle"></i>Saving`;
+    refreshIcons();
+
     const editId = $("livestockEditId").value;
     const existing = editId ? state.livestock.find((item) => item.id === editId) : null;
+    const id = existing?.id || uid();
+    const previousPaths = existing ? getPhotoStoragePaths(getLivestockPhotos(existing)) : [];
 
-    if (existing) {
-      Object.assign(existing, {
+    try {
+      const photos = await preparePhotosForSave(id, formData.photos);
+      const nextPaths = getPhotoStoragePaths(photos);
+      const payload = {
         ...formData,
-        status: isCasualStockCategory(formData.category) ? "noticed" : existing.status === "noticed" ? "active" : existing.status,
-      });
-    } else {
-      state.livestock.push({
-        id: uid(),
-        ...formData,
-        removedDate: "",
-        outcomeReason: "",
-      });
+        photos,
+        photoDataUrl: photos.find((photo) => photo.dataUrl)?.dataUrl || "",
+      };
+
+      if (existing) {
+        Object.assign(existing, {
+          ...payload,
+          status: isCasualStockCategory(payload.category) ? "noticed" : existing.status === "noticed" ? "active" : existing.status,
+        });
+      } else {
+        state.livestock.push({
+          id,
+          ...payload,
+          removedDate: "",
+          outcomeReason: "",
+        });
+      }
+
+      await removeStoragePaths(previousPaths.filter((path) => !nextPaths.includes(path)));
+
+      resetLivestockForm();
+      saveState();
+      renderLivestock();
+      renderPhotoLibrary();
+      renderDashboard();
+      renderInsightsContext();
+      showToast(existing ? "Stock updated." : "Stock added.");
+    } catch (error) {
+      console.error(error);
+      showToast("Photo upload failed. Try again.");
+    } finally {
+      submitButton.disabled = false;
+      refreshIcons();
     }
-
-    resetLivestockForm();
-    saveState();
-    renderLivestock();
-    renderPhotoLibrary();
-    renderDashboard();
-    renderInsightsContext();
-    showToast(existing ? "Stock updated." : "Stock added.");
   }
 
   function updateLogSubmitLabels() {
@@ -1794,11 +1999,14 @@
     showToast(existing ? "Water change updated." : "Water change saved.");
   }
 
-  function handleDocumentClick(event) {
+  async function handleDocumentClick(event) {
     const removePhoto = event.target.closest("[data-remove-photo]");
     if (removePhoto) {
       if (removePhoto.dataset.removePhoto === "lighting") {
+        const lightingPhoto = getLightingPhoto();
         state.profile.lightingPhotoDataUrl = "";
+        state.profile.lightingPhoto = null;
+        await removeStoragePaths(getPhotoStoragePaths([lightingPhoto]));
         saveState();
         renderPhotoPreview("lightingPhotoPreview", "", "Lighting screenshot");
         renderPhotoLibrary();
@@ -1883,7 +2091,7 @@
 
     const livestockAction = event.target.closest("[data-livestock-action]");
     if (livestockAction) {
-      updateLivestockStatus(livestockAction.dataset.id, livestockAction.dataset.livestockAction);
+      await updateLivestockStatus(livestockAction.dataset.id, livestockAction.dataset.livestockAction);
       return;
     }
 
@@ -1899,7 +2107,7 @@
     }
   }
 
-  function updateLivestockStatus(id, action) {
+  async function updateLivestockStatus(id, action) {
     const item = state.livestock.find((entry) => entry.id === id);
     if (!item) return;
     if (action === "edit") {
@@ -1907,6 +2115,7 @@
       return;
     }
     if (action === "delete") {
+      await removeStoragePaths(getPhotoStoragePaths(getLivestockPhotos(item)));
       state.livestock = state.livestock.filter((entry) => entry.id !== id);
     } else if (action === "restore") {
       item.status = "active";
