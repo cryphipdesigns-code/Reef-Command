@@ -407,6 +407,12 @@ textarea:focus {
   gap: 8px;
 }
 
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .check-label {
   min-height: 42px;
   grid-template-columns: auto 1fr;

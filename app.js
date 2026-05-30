@@ -127,18 +127,32 @@
       notes: zone.notes || "",
     }));
 
-    next.livestock = next.livestock.map((item) => ({
-      id: item.id || uid(),
-      name: item.name || "Unnamed",
-      category: item.category || "Other",
-      species: item.species || "",
-      addedDate: item.addedDate || todayInputValue(),
-      status: item.status || "active",
-      zoneId: item.zoneId || "",
-      notes: item.notes || "",
-      removedDate: item.removedDate || "",
-      outcomeReason: item.outcomeReason || "",
-    }));
+    next.livestock = next.livestock.map((item) => {
+      const category = item.category || "Other";
+      const casual = isCasualStockCategory(category);
+      const hasLegacyFlag = Object.prototype.hasOwnProperty.call(item, "isLegacy");
+      const isLegacy = hasLegacyFlag ? Boolean(item.isLegacy) : true;
+      const species = item.species || item.name || "Unknown";
+
+      return {
+        id: item.id || uid(),
+        species,
+        name: species,
+        category,
+        quantity: item.quantity ?? "",
+        addedDate: item.addedDate || "",
+        isLegacy,
+        status: casual ? "noticed" : item.status || "active",
+        zoneId: item.zoneId || "",
+        notes: item.notes || "",
+        health: item.health || "",
+        growthTrend: item.growthTrend || "",
+        growthMetric: item.growthMetric || "",
+        growthNotes: item.growthNotes || "",
+        removedDate: item.removedDate || "",
+        outcomeReason: item.outcomeReason || "",
+      };
+    });
 
     next.waterTests = next.waterTests.map((test) => ({
       id: test.id || uid(),
@@ -222,7 +236,7 @@
     writeJson(STORAGE_KEY, state);
   }
 
-  function scheduleRemoteSave(delay = 800) {
+  function scheduleRemoteSave(delay = 450) {
     if (!supabaseClient || isRemoteHydrating) return;
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
@@ -319,6 +333,29 @@
       return suffix ? `${trimmed} ${suffix}` : trimmed;
     }
     return String(value);
+  }
+
+  function isCasualStockCategory(category) {
+    return category === "Microfauna" || category === "Noticed pest";
+  }
+
+  function isLifecycleStock(item) {
+    return !isCasualStockCategory(item.category);
+  }
+
+  function formatStockDate(item) {
+    if (isCasualStockCategory(item.category)) {
+      return item.addedDate ? `Noticed ${formatDate(item.addedDate)}` : "Casual notice";
+    }
+    if (item.isLegacy || !item.addedDate) return "Legacy / add date unknown";
+    return `Added ${formatDate(item.addedDate)}`;
+  }
+
+  function formatQuantity(value) {
+    if (value === "" || value === null || value === undefined) return "";
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "";
+    return Number.isInteger(number) ? String(number) : String(number);
   }
 
   function escapeHtml(value) {
@@ -488,7 +525,11 @@
     const profile = state.profile;
     const latestTest = getLatestWaterTest();
     const latestWaterChange = getLatestEvent("water_change");
-    const activeLivestock = state.livestock.filter((item) => item.status === "active");
+    const activeLivestock = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "active");
+    const activeQuantity = activeLivestock.reduce((total, item) => {
+      const quantity = Number(item.quantity);
+      return total + (Number.isFinite(quantity) && quantity > 0 ? quantity : 1);
+    }, 0);
     const phase = getLightPhase();
 
     $("homeTankName").textContent = profile.tankName || "Reef Tank";
@@ -505,8 +546,8 @@
     $("metricNitrateMeta").textContent = latestTest ? formatAge(latestTest.measuredAt) : "No test yet";
     $("metricWaterChange").textContent = latestWaterChange ? formatAge(latestWaterChange.happenedAt) : "--";
     $("metricWaterChangeMeta").textContent = latestWaterChange ? describeEventDetails(latestWaterChange) : "No event yet";
-    $("metricLivestock").textContent = String(activeLivestock.length);
-    $("metricLivestockMeta").textContent = `${state.livestock.length} total records`;
+    $("metricLivestock").textContent = String(activeQuantity);
+    $("metricLivestockMeta").textContent = `${activeLivestock.length} active records`;
 
     renderRiskStrip();
     renderHomeTimeline();
@@ -615,8 +656,9 @@
   }
 
   function renderLivestock() {
-    const activeCount = state.livestock.filter((item) => item.status === "active").length;
-    $("livestockCountPill").textContent = `${activeCount} active`;
+    const activeCount = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "active").length;
+    const casualCount = state.livestock.filter((item) => isCasualStockCategory(item.category)).length;
+    $("livestockCountPill").textContent = `${activeCount} active · ${casualCount} noticed`;
     $$("[data-livestock-filter]").forEach((button) => {
       button.classList.toggle("active", button.dataset.livestockFilter === state.ui.livestockFilter);
     });
@@ -624,8 +666,8 @@
     const filter = state.ui.livestockFilter;
     const items = state.livestock.filter((item) => {
       if (filter === "all") return true;
-      if (filter === "active") return item.status === "active";
-      if (filter === "inactive") return item.status !== "active";
+      if (filter === "active") return isLifecycleStock(item) && item.status === "active";
+      if (filter === "inactive") return isLifecycleStock(item) && item.status !== "active";
       return item.category === filter;
     });
 
@@ -635,29 +677,38 @@
   }
 
   function renderLivestockCard(item) {
-    const statusTone = item.status === "active" ? "good" : "danger";
-    const outcome = item.status !== "active"
+    const casual = isCasualStockCategory(item.category);
+    const quantity = formatQuantity(item.quantity);
+    const healthParts = [
+      item.health ? `Health: ${item.health}` : "",
+      item.growthTrend ? `Growth: ${item.growthTrend}` : "",
+      item.growthMetric ? `Metric: ${item.growthMetric}` : "",
+    ].filter(Boolean);
+    const outcome = !casual && item.status !== "active"
       ? `<p class="card-meta">${escapeHtml(item.status)}${item.removedDate ? ` on ${escapeHtml(formatDate(item.removedDate))}` : ""}${item.outcomeReason ? ` · ${escapeHtml(item.outcomeReason)}` : ""}</p>`
       : "";
     return `
       <article class="data-card">
         <div class="data-card-header">
           <div class="data-card-title">
-            <strong>${escapeHtml(item.name)}</strong>
-            <p class="card-meta">${escapeHtml(item.category)}${item.species ? ` · ${escapeHtml(item.species)}` : ""}</p>
+            <strong>${escapeHtml(item.species)}</strong>
+            <p class="card-meta">${escapeHtml(item.category)}${quantity ? ` · Qty ${escapeHtml(quantity)}` : ""}</p>
           </div>
-          <span class="category-pill">${escapeHtml(item.status)}</span>
+          <span class="category-pill">${escapeHtml(casual ? "noticed" : item.status)}</span>
         </div>
-        <p class="card-meta">Added ${escapeHtml(formatDate(item.addedDate))} · ${escapeHtml(getZoneName(item.zoneId))}</p>
+        <p class="card-meta">${escapeHtml(formatStockDate(item))} · ${escapeHtml(getZoneName(item.zoneId))}</p>
+        ${healthParts.length ? `<p class="card-meta">${escapeHtml(healthParts.join(" · "))}</p>` : ""}
         ${item.notes ? `<p class="card-meta">${escapeHtml(item.notes)}</p>` : ""}
+        ${item.growthNotes ? `<p class="card-meta">${escapeHtml(item.growthNotes)}</p>` : ""}
         ${outcome}
         <div class="card-actions">
-          ${item.status === "active" ? `
+          <button class="mini-button" type="button" data-livestock-action="edit" data-id="${item.id}">Edit</button>
+          ${!casual && item.status === "active" ? `
             <button class="mini-button danger" type="button" data-livestock-action="deceased" data-id="${item.id}">Deceased</button>
             <button class="mini-button" type="button" data-livestock-action="moved" data-id="${item.id}">Moved</button>
-          ` : `
+          ` : !casual ? `
             <button class="mini-button good" type="button" data-livestock-action="restore" data-id="${item.id}">Restore</button>
-          `}
+          ` : ""}
           <button class="mini-button danger" type="button" data-livestock-action="delete" data-id="${item.id}">Delete</button>
         </div>
       </article>
@@ -702,7 +753,6 @@
     ["testMeasuredAt", "feedingAt", "maintenanceAt", "waterChangeAt"].forEach((id) => {
       if ($(id) && !$(id).value) $(id).value = toDatetimeLocal();
     });
-    if (!$("livestockAdded").value) $("livestockAdded").value = todayInputValue();
   }
 
   function updateTestTimingPill() {
@@ -716,7 +766,7 @@
     $("contextCountPill").textContent = `${context.recentWaterTests.length + context.recentEvents.length} logs`;
     $("contextSummary").innerHTML = [
       { label: "Tank", value: state.profile.displayVolume ? `${state.profile.displayVolume} gal` : "No volume" },
-      { label: "Livestock", value: `${context.activeLivestock.length} active` },
+      { label: "Stock", value: `${context.activeLivestock.length} active` },
       { label: "Latest Test", value: context.latestWaterTest ? formatAge(context.latestWaterTest.measuredAt) : "None" },
       { label: "Water Change", value: context.latestWaterChange ? formatAge(context.latestWaterChange.happenedAt) : "None" },
     ].map((tile) => `
@@ -805,7 +855,7 @@
       profile: state.profile,
       zones: state.zones,
       livestock: state.livestock,
-      activeLivestock: state.livestock.filter((item) => item.status === "active"),
+      activeLivestock: state.livestock.filter((item) => isLifecycleStock(item) && item.status === "active"),
       recentWaterTests,
       recentEvents,
       latestWaterTest,
@@ -1199,29 +1249,88 @@
     showToast("Zone added.");
   }
 
-  function addLivestock(event) {
-    event.preventDefault();
-    const name = $("livestockName").value.trim();
-    if (!name) return;
-    state.livestock.push({
-      id: uid(),
-      name,
-      category: $("livestockCategory").value,
-      species: $("livestockSpecies").value.trim(),
-      addedDate: $("livestockAdded").value || todayInputValue(),
-      status: "active",
+  function getLivestockFormData() {
+    const species = $("livestockSpecies").value.trim();
+    const category = $("livestockCategory").value;
+    const addedDate = $("livestockAdded").value;
+    const isLegacy = $("livestockLegacy").checked || (!addedDate && !isCasualStockCategory(category));
+    const casual = isCasualStockCategory(category);
+
+    return {
+      species,
+      name: species,
+      category,
+      quantity: $("livestockQuantity").value,
+      addedDate,
+      isLegacy: casual ? false : isLegacy,
+      status: casual ? "noticed" : "active",
       zoneId: $("livestockZone").value,
       notes: $("livestockNotes").value.trim(),
-      removedDate: "",
-      outcomeReason: "",
-    });
+      health: $("livestockHealth").value,
+      growthTrend: $("livestockGrowthTrend").value,
+      growthMetric: $("livestockGrowthMetric").value.trim(),
+      growthNotes: $("livestockGrowthNotes").value.trim(),
+    };
+  }
+
+  function resetLivestockForm() {
     $("livestockForm").reset();
-    seedLogDates();
+    $("livestockEditId").value = "";
+    $("livestockFormTitle").textContent = "Add Stock";
+    $("livestockSubmitButton").innerHTML = `<i data-lucide="plus"></i>Add`;
+    $("cancelLivestockEditButton").hidden = true;
+    refreshIcons();
+  }
+
+  function startLivestockEdit(id) {
+    const item = state.livestock.find((entry) => entry.id === id);
+    if (!item) return;
+    $("livestockEditId").value = item.id;
+    $("livestockSpecies").value = item.species || item.name || "";
+    $("livestockCategory").value = item.category || "Other";
+    $("livestockQuantity").value = item.quantity ?? "";
+    $("livestockAdded").value = item.addedDate || "";
+    $("livestockLegacy").checked = Boolean(item.isLegacy);
+    $("livestockZone").value = item.zoneId || "";
+    $("livestockNotes").value = item.notes || "";
+    $("livestockHealth").value = item.health || "";
+    $("livestockGrowthTrend").value = item.growthTrend || "";
+    $("livestockGrowthMetric").value = item.growthMetric || "";
+    $("livestockGrowthNotes").value = item.growthNotes || "";
+    $("livestockFormTitle").textContent = "Edit Stock";
+    $("livestockSubmitButton").innerHTML = `<i data-lucide="save"></i>Save`;
+    $("cancelLivestockEditButton").hidden = false;
+    $("livestockForm").scrollIntoView({ behavior: "smooth", block: "start" });
+    refreshIcons();
+  }
+
+  function addLivestock(event) {
+    event.preventDefault();
+    const formData = getLivestockFormData();
+    if (!formData.species) return;
+    const editId = $("livestockEditId").value;
+    const existing = editId ? state.livestock.find((item) => item.id === editId) : null;
+
+    if (existing) {
+      Object.assign(existing, {
+        ...formData,
+        status: isCasualStockCategory(formData.category) ? "noticed" : existing.status === "noticed" ? "active" : existing.status,
+      });
+    } else {
+      state.livestock.push({
+        id: uid(),
+        ...formData,
+        removedDate: "",
+        outcomeReason: "",
+      });
+    }
+
+    resetLivestockForm();
     saveState();
     renderLivestock();
     renderDashboard();
     renderInsightsContext();
-    showToast("Livestock added.");
+    showToast(existing ? "Stock updated." : "Stock added.");
   }
 
   function addWaterTest(event) {
@@ -1406,6 +1515,10 @@
   function updateLivestockStatus(id, action) {
     const item = state.livestock.find((entry) => entry.id === id);
     if (!item) return;
+    if (action === "edit") {
+      startLivestockEdit(id);
+      return;
+    }
     if (action === "delete") {
       state.livestock = state.livestock.filter((entry) => entry.id !== id);
     } else if (action === "restore") {
@@ -1459,6 +1572,7 @@
     });
     $("zoneForm").addEventListener("submit", addZone);
     $("livestockForm").addEventListener("submit", addLivestock);
+    $("cancelLivestockEditButton").addEventListener("click", resetLivestockForm);
     $("waterTestForm").addEventListener("submit", addWaterTest);
     $("feedingForm").addEventListener("submit", addFeeding);
     $("maintenanceForm").addEventListener("submit", addMaintenance);
@@ -1470,8 +1584,12 @@
     $("signOutButton").addEventListener("click", signOut);
     $("pullStateButton").addEventListener("click", pullState);
     $("pushStateButton").addEventListener("click", pushState);
-    $("syncNowButton").addEventListener("click", pushState);
     $("clearMistakeButton").addEventListener("click", deleteLastEntry);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        pushState({ silent: true });
+      }
+    });
   }
 
   function initInsightMode() {

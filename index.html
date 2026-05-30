@@ -29,17 +29,6 @@
           <p class="kicker">Reef Command</p>
           <h1 id="viewTitle">Home</h1>
         </div>
-        <div class="header-actions">
-          <button
-            id="syncNowButton"
-            class="icon-button"
-            type="button"
-            title="Sync"
-            aria-label="Sync"
-          >
-            <i data-lucide="cloud"></i>
-          </button>
-        </div>
       </header>
 
       <main id="mainContent">
@@ -279,13 +268,14 @@
         <section id="livestockView" class="app-view" data-title="Livestock">
           <form id="livestockForm" class="form-surface">
             <div class="section-heading">
-              <h2>Add Livestock</h2>
+              <h2 id="livestockFormTitle">Add Stock</h2>
               <span id="livestockCountPill" class="status-pill">0 active</span>
             </div>
+            <input id="livestockEditId" type="hidden" />
             <div class="field-grid">
               <label>
-                Name
-                <input id="livestockName" type="text" required />
+                Species / Item
+                <input id="livestockSpecies" type="text" required />
               </label>
               <label>
                 Category
@@ -294,31 +284,74 @@
                   <option value="Coral">Coral</option>
                   <option value="Invert">Invert</option>
                   <option value="Cleanup crew">Cleanup crew</option>
+                  <option value="Microfauna">Microfauna</option>
+                  <option value="Noticed pest">Noticed pest</option>
                   <option value="Macroalgae">Macroalgae</option>
                   <option value="Other">Other</option>
                 </select>
               </label>
               <label>
-                Species
-                <input id="livestockSpecies" type="text" />
+                Quantity
+                <input id="livestockQuantity" type="number" min="0" step="1" />
               </label>
               <label>
-                Added
+                Added / Noticed
                 <input id="livestockAdded" type="date" />
               </label>
               <label>
                 Placement
                 <select id="livestockZone"></select>
               </label>
+              <label>
+                Health
+                <select id="livestockHealth">
+                  <option value="">Not tracked</option>
+                  <option value="Thriving">Thriving</option>
+                  <option value="Stable">Stable</option>
+                  <option value="Struggling">Struggling</option>
+                  <option value="Declining">Declining</option>
+                  <option value="Unknown">Unknown</option>
+                </select>
+              </label>
+              <label>
+                Growth
+                <select id="livestockGrowthTrend">
+                  <option value="">Not tracked</option>
+                  <option value="Growing">Growing</option>
+                  <option value="Stable">Stable</option>
+                  <option value="Receding">Receding</option>
+                  <option value="Melting">Melting</option>
+                  <option value="Unknown">Unknown</option>
+                </select>
+              </label>
+              <label>
+                Growth Metric
+                <input id="livestockGrowthMetric" type="text" placeholder="3 heads, 5 mushrooms" />
+              </label>
               <label class="wide-field">
                 Notes
                 <input id="livestockNotes" type="text" />
               </label>
+              <label class="wide-field">
+                Growth / Health Notes
+                <input id="livestockGrowthNotes" type="text" />
+              </label>
             </div>
-            <button class="primary-button" type="submit">
-              <i data-lucide="plus"></i>
-              Add
-            </button>
+            <div class="toggle-row">
+              <label class="check-label">
+                <input id="livestockLegacy" type="checkbox" />
+                Legacy / add date unknown
+              </label>
+            </div>
+            <div class="form-actions">
+              <button id="livestockSubmitButton" class="primary-button" type="submit">
+                <i data-lucide="plus"></i>
+                Add
+              </button>
+              <button id="cancelLivestockEditButton" class="secondary-button" type="button" hidden>
+                Cancel
+              </button>
+            </div>
           </form>
 
           <div class="filter-bar" role="tablist" aria-label="Livestock filter">
@@ -328,6 +361,12 @@
             <button type="button" data-livestock-filter="all">All</button>
             <button type="button" data-livestock-filter="Coral">Coral</button>
             <button type="button" data-livestock-filter="Fish">Fish</button>
+            <button type="button" data-livestock-filter="Microfauna">
+              Microfauna
+            </button>
+            <button type="button" data-livestock-filter="Noticed pest">
+              Pests
+            </button>
             <button type="button" data-livestock-filter="inactive">
               Inactive
             </button>
