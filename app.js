@@ -185,7 +185,10 @@
   async function loadLocalBackendConfig() {
     if (Object.keys(backendConfig).length) return;
 
-    const configPaths = ["./config.local.json", "./config.json"];
+    const isLocalHost = ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
+    const configPaths = isLocalHost
+      ? ["./config.local.json", "./config.json"]
+      : ["./config.json"];
     for (const path of configPaths) {
       try {
         const response = await fetch(path, { cache: "no-store" });
