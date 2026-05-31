@@ -719,13 +719,25 @@
     const defaults = getDefaultState().profile;
     const profileChanged = Object.keys(defaults).some((key) => {
       if (key === "tankName") return Boolean(profile[key] && profile[key] !== defaults[key]);
+      if (Array.isArray(defaults[key])) return Array.isArray(profile[key]) && profile[key].length > 0;
       return String(profile[key] ?? "") !== String(defaults[key] ?? "");
     });
-    const mapChanged = JSON.stringify(value?.map || {}) !== JSON.stringify(getDefaultMap());
+    const customZones = Array.isArray(value?.zones) && value.zones.some((zone) => {
+      const defaultNames = ["Top rock", "Mid reef", "Sand bed"];
+      return !defaultNames.includes(zone.name) || zone.parMin || zone.parMax || zone.notes;
+    });
+    const customMapDimensions = (() => {
+      const dimensions = value?.map?.dimensions || {};
+      const defaults = getDefaultMap().dimensions;
+      return ["width", "depth", "height", "sandDepth", "waterline"].some((key) =>
+        String(dimensions[key] ?? "") !== String(defaults[key] ?? ""),
+      );
+    })();
 
     return Boolean(
       profileChanged ||
-        mapChanged ||
+        customZones ||
+        customMapDimensions ||
         value?.livestock?.length ||
         value?.waterTests?.length ||
         value?.events?.length ||
@@ -3171,6 +3183,10 @@
 
   async function pushState(options = {}) {
     if (!ensureBackend()) return;
+    if (!hasMeaningfulState(state) && !options.allowEmpty) {
+      if (!options.silent) showToast("Nothing to sync yet.");
+      return;
+    }
     if (remoteSaveInFlight) {
       remoteSaveQueued = true;
       return;
@@ -3189,6 +3205,7 @@
     remoteSaveInFlight = false;
     if (error) {
       console.error(error);
+      updateBackendStatus("Sync write failed.");
       if (!options.silent) showToast("Sync failed.");
       return;
     }
@@ -3216,11 +3233,13 @@
       .maybeSingle();
     if (error) {
       console.error(error);
+      updateBackendStatus("Sync read failed.");
       if (!options.silent) showToast("Pull failed.");
       return;
     }
+    const localHasData = hasMeaningfulState(state);
     if (!data?.data) {
-      if (options.startup) {
+      if (options.startup && localHasData) {
         await pushState({ silent: true });
       } else if (!options.silent) {
         showToast("No remote state yet.");
@@ -3231,18 +3250,19 @@
     const remoteState = normalizeState(data.data);
     const localTime = new Date(state.updatedAt || 0).getTime();
     const remoteTime = new Date(remoteState.updatedAt || data.updated_at || 0).getTime();
-    const localHasData = hasMeaningfulState(state);
     const remoteHasData = hasMeaningfulState(remoteState);
-    if (options.startup && localHasData && (!remoteHasData || localTime > remoteTime)) {
-      await pushState({ silent: true });
-      return;
-    }
-    if (options.startup && !remoteHasData && localHasData) {
-      await pushState({ silent: true });
-      return;
-    }
-    if (options.startup && !remoteHasData && !localHasData) {
-      return;
+    if (options.startup) {
+      if (localHasData && !remoteHasData) {
+        await pushState({ silent: true });
+        return;
+      }
+      if (!localHasData && !remoteHasData) {
+        return;
+      }
+      if (localHasData && remoteHasData && localTime > remoteTime) {
+        await pushState({ silent: true });
+        return;
+      }
     }
 
     isRemoteHydrating = true;
