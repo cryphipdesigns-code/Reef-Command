@@ -126,7 +126,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 4,
+      modelVersion: 5,
       dimensions: {
         width: 30,
         depth: 12,
@@ -134,7 +134,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock structure-only mesh: left, front left, front right, right, and shelf. Rock geometry uses measured footprints, perimeter-ring meshes, height controls, and photo/ruler-calibrated profiles.",
+        calibrationNotes: "Five-rock outline-driven mesh from the traced front, top, and right-view references. Left rock, right rock, and shelf are anchored to the back glass; front rocks remain separate on the sandbed.",
       },
       view: "orbit",
       layers: {
@@ -148,207 +148,168 @@
           id: "left-rock",
           name: "Left rock",
           type: "profile-rock",
-          x: -9.4,
-          y: -2.1,
+          x: -10.35,
+          y: 1.05,
           z: 1.3,
-          width: 6.8,
-          depth: 5.2,
-          height: 4.4,
-          footprint: [[-3.4, -2.25], [-1.35, -2.55], [1.55, -2.2], [3.25, -0.95], [3.1, 1.05], [1.35, 2.45], [-1.35, 2.35], [-3.25, 1.1], [-3.55, -0.75]],
+          width: 7.8,
+          depth: 8.6,
+          height: 5.2,
+          footprint: [[-3.95, -2.65], [-3.45, -3.75], [-2.2, -3.92], [-1.25, -3.35], [0.35, -3.55], [1.55, -2.95], [2.85, -2.15], [3.35, -0.82], [3.15, 1.2], [2.55, 2.75], [1.85, 4.12], [0.65, 4.85], [-1.35, 4.75], [-2.65, 3.88], [-3.45, 2.35], [-3.9, 0.45]],
+          frontProfile: [[-3.95, 0.8], [-3.35, 1.7], [-2.65, 2.65], [-1.65, 3.85], [-0.45, 4.95], [0.75, 4.72], [1.75, 3.65], [2.7, 2.55], [3.35, 1.08]],
+          sideProfile: [[-3.75, 0.9], [-2.4, 2.15], [-0.65, 3.55], [1.35, 4.65], [3.15, 4.92], [4.85, 3.55]],
           heightPoints: [
-            { x: -2.2, y: -1.1, h: 2.5, r: 1.55 },
-            { x: -0.25, y: -0.55, h: 4.2, r: 1.8 },
-            { x: 1.55, y: 0.35, h: 3.2, r: 1.45 },
-            { x: -1.45, y: 1.25, h: 2.4, r: 1.2 },
+            { x: -2.2, y: -1.4, h: 0.32, r: 1.35 },
+            { x: -0.4, y: 0.25, h: 0.55, r: 1.7 },
+            { x: 1.25, y: 1.6, h: 0.34, r: 1.2 },
           ],
           ridges: [
-            { from: [-2.6, -0.65], to: [2.15, 0.85], h: 1.35, r: 0.62 },
+            { from: [-2.8, -1.15], to: [2.0, 1.55], h: 0.34, r: 0.7 },
           ],
           depressions: [
-            { x: 0.75, y: -1.65, h: 0.65, r: 0.95 },
+            { x: 2.15, y: -1.85, h: 0.3, r: 0.8 },
           ],
-          edgeSoftness: 0.72,
-          surfaceNoise: 0.18,
-          lobes: [
-            { x: -0.35, y: -0.22, z: 0.52, rx: 2.85, ry: 1.45, rz: 0.45, rot: 0.08 },
-            { x: -2.45, y: -1.05, z: 0.85, rx: 1.45, ry: 0.95, rz: 0.82, rot: -0.22 },
-            { x: -1.15, y: -0.25, z: 1.55, rx: 1.45, ry: 1.2, rz: 1.35, rot: 0.12 },
-            { x: 0.35, y: -0.15, z: 1.85, rx: 1.65, ry: 1.25, rz: 1.45, rot: -0.08 },
-            { x: 1.55, y: 0.55, z: 1.35, rx: 1.35, ry: 1.08, rz: 1.1, rot: 0.45 },
-            { x: -1.75, y: 1.2, z: 0.9, rx: 1.05, ry: 0.82, rz: 0.72, rot: 0.2 },
-          ],
+          edgeSoftness: 0.62,
+          edgeFloor: 0.48,
+          surfaceNoise: 0.08,
           light: "Low-Medium",
           flow: "Medium",
           parMin: 45,
           parMax: 120,
-          notes: "Separate sandbed rock on the left side with clear sand gaps around it.",
+          notes: "Back-glass-touching left rock. Larger continuous mass from the traced top and front outlines, with sand gap at the front-right edge.",
         },
         {
           id: "front-left-rock",
           name: "Front left rock",
           type: "profile-rock",
-          x: -3.8,
-          y: -4.85,
+          x: -3.35,
+          y: -4.35,
           z: 1.3,
-          width: 4.2,
-          depth: 2.4,
-          height: 1.8,
-          footprint: [[-2.05, -1.1], [-0.65, -1.3], [1.7, -0.72], [2.05, 0.42], [0.9, 1.12], [-0.7, 1.18], [-2.0, 0.52]],
+          width: 5.2,
+          depth: 2.8,
+          height: 2.0,
+          footprint: [[-2.55, -1.05], [-1.65, -1.35], [-0.35, -1.22], [1.35, -0.92], [2.35, -0.25], [2.55, 0.68], [1.35, 1.18], [-0.15, 1.32], [-1.55, 0.98], [-2.42, 0.28]],
+          frontProfile: [[-2.55, 0.42], [-1.65, 1.05], [-0.45, 1.6], [0.85, 1.42], [1.85, 0.9], [2.55, 0.45]],
+          sideProfile: [[-1.35, 0.45], [-0.45, 1.35], [0.42, 1.55], [1.32, 0.72]],
           heightPoints: [
-            { x: -1.2, y: -0.2, h: 1.25, r: 0.95 },
-            { x: 0.35, y: -0.2, h: 1.75, r: 1.05 },
-            { x: 1.15, y: 0.48, h: 1.1, r: 0.72 },
+            { x: -0.95, y: -0.2, h: 0.22, r: 0.8 },
+            { x: 0.55, y: 0.1, h: 0.18, r: 0.75 },
           ],
           ridges: [
-            { from: [-1.35, -0.25], to: [1.2, 0.42], h: 0.45, r: 0.38 },
+            { from: [-1.55, -0.18], to: [1.45, 0.25], h: 0.18, r: 0.42 },
           ],
           depressions: [],
-          edgeSoftness: 0.5,
-          surfaceNoise: 0.12,
-          lobes: [
-            { x: 0.0, y: -0.05, z: 0.34, rx: 1.65, ry: 0.72, rz: 0.28, rot: 0.08 },
-            { x: -1.1, y: -0.15, z: 0.48, rx: 0.92, ry: 0.55, rz: 0.45, rot: -0.1 },
-            { x: 0.0, y: 0.0, z: 0.72, rx: 1.05, ry: 0.7, rz: 0.62, rot: 0.2 },
-            { x: 1.05, y: 0.42, z: 0.5, rx: 0.72, ry: 0.5, rz: 0.42, rot: -0.28 },
-          ],
+          edgeSoftness: 0.4,
+          edgeFloor: 0.4,
+          surfaceNoise: 0.07,
           light: "Low",
           flow: "Low-Medium",
           parMin: 35,
           parMax: 85,
-          notes: "Low front-left sandbed rock, separated from the left rock and shelf by sand.",
+          notes: "Low front sandbed rock below the shelf, separated from the left rock by visible sand.",
         },
         {
           id: "front-right-rock",
           name: "Front right rock",
           type: "profile-rock",
-          x: 2.5,
-          y: -4.55,
+          x: 2.75,
+          y: -4.25,
           z: 1.3,
-          width: 3.5,
-          depth: 2.7,
-          height: 2.5,
-          footprint: [[-1.75, -1.25], [-0.55, -1.35], [1.35, -0.85], [1.75, 0.55], [0.65, 1.3], [-1.05, 1.05], [-1.85, 0.1]],
+          width: 5.4,
+          depth: 3.2,
+          height: 2.7,
+          footprint: [[-2.75, -1.25], [-1.55, -1.55], [0.4, -1.38], [2.0, -0.82], [2.65, 0.18], [2.38, 1.15], [1.25, 1.55], [-0.45, 1.35], [-1.9, 0.82], [-2.65, -0.18]],
+          frontProfile: [[-2.75, 0.7], [-1.8, 1.35], [-0.5, 2.18], [0.75, 2.35], [1.75, 1.75], [2.65, 0.82]],
+          sideProfile: [[-1.55, 0.85], [-0.55, 2.0], [0.48, 2.25], [1.55, 1.05]],
           heightPoints: [
-            { x: -0.85, y: -0.2, h: 1.35, r: 0.85 },
-            { x: 0.35, y: -0.1, h: 2.45, r: 0.9 },
-            { x: 0.9, y: 0.65, h: 1.45, r: 0.62 },
+            { x: -0.8, y: -0.2, h: 0.22, r: 0.82 },
+            { x: 0.75, y: 0.15, h: 0.28, r: 0.85 },
           ],
           ridges: [
-            { from: [-0.85, -0.3], to: [0.75, 0.35], h: 0.7, r: 0.35 },
+            { from: [-1.4, -0.35], to: [1.5, 0.3], h: 0.22, r: 0.44 },
           ],
           depressions: [],
-          edgeSoftness: 0.45,
-          surfaceNoise: 0.13,
-          lobes: [
-            { x: 0.0, y: -0.02, z: 0.38, rx: 1.4, ry: 0.78, rz: 0.32, rot: 0.12 },
-            { x: -0.9, y: -0.15, z: 0.62, rx: 0.82, ry: 0.62, rz: 0.55, rot: -0.24 },
-            { x: 0.15, y: 0.02, z: 0.98, rx: 1.0, ry: 0.72, rz: 0.85, rot: 0.15 },
-            { x: 0.95, y: 0.45, z: 0.66, rx: 0.68, ry: 0.58, rz: 0.55, rot: 0.42 },
-          ],
+          edgeSoftness: 0.42,
+          edgeFloor: 0.44,
+          surfaceNoise: 0.07,
           light: "Low",
           flow: "Medium",
           parMin: 30,
           parMax: 70,
-          notes: "Small front-right sandbed rock with a visible sand gap before the main right rock.",
+          notes: "Front sandbed rock under the shelf opening, separate from the right rock with a sand gap.",
         },
         {
           id: "right-rock",
           name: "Right rock",
           type: "profile-rock",
-          x: 10.1,
-          y: -1.9,
+          x: 10.35,
+          y: 1.1,
           z: 1.3,
-          width: 7.6,
-          depth: 5.7,
-          height: 4.1,
-          footprint: [[-3.7, -1.65], [-2.55, -2.35], [-0.55, -2.48], [1.55, -2.2], [3.35, -1.2], [3.65, 0.55], [2.65, 1.88], [1.05, 2.55], [-1.05, 2.38], [-2.75, 1.55], [-3.82, 0.28]],
+          width: 7.9,
+          depth: 8.3,
+          height: 4.8,
+          footprint: [[-3.85, -2.75], [-2.7, -3.35], [-1.25, -3.48], [0.65, -3.1], [2.4, -2.45], [3.55, -1.25], [3.85, 0.38], [3.35, 1.95], [3.55, 3.25], [2.55, 4.25], [1.05, 4.85], [-0.85, 4.7], [-2.35, 3.85], [-3.45, 2.28], [-3.95, 0.35]],
+          frontProfile: [[-3.85, 0.75], [-3.1, 1.42], [-2.1, 2.35], [-0.85, 3.55], [0.45, 4.45], [1.55, 4.18], [2.65, 3.0], [3.45, 1.95], [3.85, 0.82]],
+          sideProfile: [[-3.48, 0.9], [-2.3, 1.75], [-0.75, 3.45], [0.7, 4.7], [2.25, 4.35], [3.65, 3.55], [4.85, 2.35]],
           heightPoints: [
-            { x: -2.55, y: -1.15, h: 2.2, r: 1.2 },
-            { x: -1.25, y: -0.9, h: 2.75, r: 1.05 },
-            { x: 0.15, y: -0.62, h: 3.2, r: 1.05 },
-            { x: 1.35, y: -0.3, h: 2.85, r: 0.95 },
-            { x: 2.45, y: 0.18, h: 2.35, r: 0.92 },
-            { x: -0.65, y: 1.1, h: 3.65, r: 1.05 },
-            { x: 0.9, y: 1.28, h: 4.05, r: 0.95 },
-            { x: 2.1, y: 1.08, h: 2.7, r: 0.82 },
+            { x: -2.35, y: -1.15, h: 0.24, r: 1.0 },
+            { x: -0.65, y: -0.45, h: 0.38, r: 1.2 },
+            { x: 0.75, y: 0.65, h: 0.45, r: 1.15 },
+            { x: 1.95, y: 1.65, h: 0.28, r: 0.9 },
           ],
           ridges: [
-            { from: [-2.45, -1.05], to: [1.15, -0.45], h: 0.85, r: 0.42 },
-            { from: [-0.45, 1.05], to: [1.9, 1.1], h: 1.15, r: 0.5 },
+            { from: [-2.65, -1.55], to: [2.2, 1.2], h: 0.34, r: 0.62 },
+            { from: [-0.8, 1.2], to: [2.4, 2.45], h: 0.28, r: 0.52 },
           ],
           depressions: [
-            { x: -2.9, y: 0.48, h: 0.55, r: 0.72 },
-            { x: 1.85, y: -1.25, h: 0.42, r: 0.55 },
+            { x: -3.05, y: 0.25, h: 0.24, r: 0.7 },
+            { x: 2.15, y: -1.4, h: 0.2, r: 0.58 },
           ],
-          edgeSoftness: 0.72,
-          surfaceNoise: 0.16,
-          lobes: [
-            { x: -0.85, y: -0.72, z: 0.58, rx: 2.65, ry: 1.2, rz: 0.48, rot: 0.02 },
-            { x: 0.85, y: 0.75, z: 0.68, rx: 2.45, ry: 1.12, rz: 0.54, rot: 0.12 },
-            { x: -2.65, y: -1.15, z: 0.72, rx: 1.18, ry: 0.78, rz: 0.66, rot: -0.35 },
-            { x: -1.45, y: -0.95, z: 1.08, rx: 1.22, ry: 0.88, rz: 0.9, rot: 0.18 },
-            { x: -0.25, y: -0.72, z: 1.28, rx: 1.28, ry: 0.98, rz: 1.05, rot: -0.05 },
-            { x: 1.1, y: -0.55, z: 1.12, rx: 1.38, ry: 0.92, rz: 0.92, rot: 0.12 },
-            { x: 2.2, y: -0.08, z: 0.92, rx: 1.0, ry: 0.78, rz: 0.76, rot: 0.45 },
-            { x: -0.92, y: 0.82, z: 1.42, rx: 1.08, ry: 0.95, rz: 1.12, rot: -0.28 },
-            { x: 0.45, y: 1.12, z: 1.82, rx: 1.22, ry: 0.92, rz: 1.36, rot: 0.08 },
-            { x: 1.65, y: 0.95, z: 1.36, rx: 1.02, ry: 0.85, rz: 1.0, rot: 0.35 },
-            { x: 2.75, y: 0.62, z: 0.8, rx: 0.72, ry: 0.66, rz: 0.62, rot: -0.14 },
-          ],
+          edgeSoftness: 0.65,
+          edgeFloor: 0.5,
+          surfaceNoise: 0.08,
           light: "Low-Medium",
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Ruler-refined right sandbed rock: broad low mound, clear sand around base, highest ridge set slightly rear/right.",
+          notes: "Back-glass-touching right rock. Broad continuous footprint from top/right outlines; tallest mass sits toward the rear.",
         },
         {
           id: "center-shelf",
           name: "Shelf rock",
           type: "profile-rock",
-          x: 0.8,
-          y: 0.1,
-          z: 7.45,
-          width: 13.6,
-          depth: 5.9,
-          height: 4.35,
-          footprint: [[-6.7, -2.45], [-4.5, -2.75], [-1.35, -2.45], [2.85, -2.2], [6.55, -1.15], [6.85, 0.45], [4.85, 2.15], [1.35, 2.55], [-2.75, 2.3], [-5.75, 1.35], [-6.95, -0.55]],
+          x: 0.15,
+          y: 1.35,
+          z: 6.75,
+          width: 13.8,
+          depth: 6.8,
+          height: 6.6,
+          footprint: [[-6.85, -1.95], [-5.65, -2.28], [-4.45, -1.95], [-3.15, -2.1], [-1.7, -1.72], [-0.2, -1.95], [1.2, -1.55], [2.65, -1.75], [4.25, -1.25], [5.55, -0.75], [6.7, 0.35], [6.45, 1.85], [5.15, 3.05], [3.25, 3.75], [1.2, 4.3], [-0.75, 4.55], [-2.8, 4.28], [-4.65, 3.65], [-6.05, 2.65], [-6.9, 1.08]],
+          bottomProfile: [[-6.85, 0.0], [-5.55, 0.32], [-4.35, 0.08], [-3.25, 0.72], [-2.15, 0.45], [-1.05, 0.88], [0.0, 0.55], [1.05, 0.7], [2.0, 0.42], [3.05, 0.62], [4.2, 0.18], [5.45, 0.38], [6.7, 0.0]],
+          frontProfile: [[-6.85, 1.0], [-5.9, 2.55], [-4.65, 4.0], [-3.45, 5.1], [-2.0, 5.45], [-0.65, 4.75], [0.35, 5.75], [1.65, 5.35], [2.95, 5.05], [4.25, 4.2], [5.45, 2.85], [6.7, 1.2]],
+          sideProfile: [[-2.28, 0.95], [-1.05, 2.85], [0.8, 4.85], [2.35, 5.75], [3.65, 5.2], [4.55, 3.8]],
           heightPoints: [
-            { x: -4.85, y: -0.55, h: 3.35, r: 1.5 },
-            { x: -2.35, y: 0.2, h: 4.2, r: 1.65 },
-            { x: 0.6, y: 0.25, h: 4.05, r: 1.8 },
-            { x: 3.35, y: -0.2, h: 3.65, r: 1.45 },
-            { x: 5.35, y: -0.15, h: 2.45, r: 1.0 },
+            { x: -4.4, y: -0.55, h: 0.35, r: 1.25 },
+            { x: -2.45, y: 0.25, h: 0.52, r: 1.35 },
+            { x: 0.35, y: 1.0, h: 0.58, r: 1.5 },
+            { x: 2.55, y: 0.55, h: 0.46, r: 1.2 },
+            { x: 4.75, y: 0.25, h: 0.25, r: 0.95 },
           ],
           ridges: [
-            { from: [-5.2, -0.6], to: [4.6, -0.08], h: 1.05, r: 0.72 },
-            { from: [-3.6, 1.0], to: [2.8, 1.15], h: 0.72, r: 0.6 },
+            { from: [-5.35, -0.55], to: [5.2, 0.62], h: 0.4, r: 0.7 },
+            { from: [-3.25, 1.55], to: [3.4, 2.3], h: 0.28, r: 0.58 },
           ],
           depressions: [
-            { x: 1.75, y: -1.45, h: 0.55, r: 0.95 },
-            { x: -3.2, y: -1.55, h: 0.5, r: 0.85 },
+            { x: 1.75, y: -1.25, h: 0.25, r: 0.85 },
+            { x: -3.15, y: -1.35, h: 0.22, r: 0.82 },
           ],
-          edgeSoftness: 0.85,
-          surfaceNoise: 0.14,
-          lobes: [
-            { x: -3.75, y: -0.25, z: 0.58, rx: 2.7, ry: 0.78, rz: 0.42, rot: 0.05 },
-            { x: -0.55, y: -0.1, z: 0.68, rx: 2.95, ry: 0.82, rz: 0.46, rot: -0.04 },
-            { x: 2.75, y: -0.28, z: 0.58, rx: 2.8, ry: 0.72, rz: 0.42, rot: 0.08 },
-            { x: -5.55, y: -0.55, z: 0.92, rx: 1.45, ry: 0.92, rz: 0.82, rot: -0.2 },
-            { x: -4.25, y: 0.2, z: 1.55, rx: 1.6, ry: 1.0, rz: 1.15, rot: 0.25 },
-            { x: -2.55, y: 0.42, z: 2.02, rx: 1.72, ry: 1.08, rz: 1.38, rot: -0.08 },
-            { x: -0.75, y: 0.15, z: 2.08, rx: 1.8, ry: 1.16, rz: 1.42, rot: 0.06 },
-            { x: 1.05, y: 0.0, z: 2.0, rx: 1.72, ry: 1.08, rz: 1.35, rot: -0.18 },
-            { x: 2.85, y: -0.18, z: 1.72, rx: 1.55, ry: 0.98, rz: 1.16, rot: 0.24 },
-            { x: 4.35, y: -0.35, z: 1.25, rx: 1.35, ry: 0.82, rz: 0.95, rot: -0.1 },
-            { x: 5.65, y: -0.72, z: 0.78, rx: 0.95, ry: 0.58, rz: 0.58, rot: 0.28 },
-            { x: -2.2, y: -1.05, z: 0.78, rx: 1.1, ry: 0.65, rz: 0.52, rot: -0.3 },
-            { x: 1.85, y: -1.05, z: 0.72, rx: 1.2, ry: 0.62, rz: 0.5, rot: 0.18 },
-          ],
+          edgeSoftness: 0.72,
+          edgeFloor: 0.54,
+          surfaceNoise: 0.075,
           light: "Medium-High",
           flow: "High",
           parMin: 130,
           parMax: 260,
-          notes: "Only rock structure not resting on the sandbed; raised shelf with shaded underside and high-light top.",
+          notes: "Raised shelf rock, anchored to the back glass with a broad irregular top outline and open sand below.",
         },
       ],
     };
@@ -511,7 +472,11 @@
       heightPoints: normalizeHeightPoints(structure.heightPoints, fallback.heightPoints),
       ridges: normalizeRidges(structure.ridges, fallback.ridges),
       depressions: normalizeHeightPoints(structure.depressions, fallback.depressions),
+      bottomProfile: normalizePointPairs(structure.bottomProfile, fallback.bottomProfile),
+      frontProfile: normalizePointPairs(structure.frontProfile, fallback.frontProfile),
+      sideProfile: normalizePointPairs(structure.sideProfile, fallback.sideProfile),
       edgeSoftness: positiveNumber(structure.edgeSoftness, fallback.edgeSoftness || 0.65),
+      edgeFloor: positiveNumber(structure.edgeFloor, fallback.edgeFloor || 0.4),
       surfaceNoise: nonNegativeNumber(structure.surfaceNoise, fallback.surfaceNoise || 0.14),
       lobes: normalizeRockLobes(structure.lobes, fallback.lobes),
       notes: structure.notes || fallback.notes || "",
@@ -1391,7 +1356,7 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = dimensions.scaleReference?.includes("2 inch") ? "Ruler refined" : "Photo draft";
+    $("mapQualityPill").textContent = state.map.modelVersion >= 5 ? "Outline traced" : dimensions.scaleReference?.includes("2 inch") ? "Ruler refined" : "Photo draft";
     $$("[data-map-layer]").forEach((button) => {
       button.classList.toggle("active", Boolean(state.map.layers?.[button.dataset.mapLayer]));
     });
@@ -1747,19 +1712,10 @@
   function createRockStructure(structure, index) {
     const group = new THREE.Group();
     group.name = structure.id;
-    const hasLobes = Array.isArray(structure.lobes) && structure.lobes.length > 0;
-
-    if (hasLobes) {
-      structure.lobes.forEach((lobe, lobeIndex) => {
-        const lobeMesh = createRockLobeMesh(structure, lobe, index + lobeIndex);
-        group.add(lobeMesh);
-      });
-    } else {
-      const baseMesh = new THREE.Mesh(createProfileRockGeometry(structure, index), createRockMeshMaterial());
-      baseMesh.castShadow = true;
-      baseMesh.receiveShadow = true;
-      group.add(baseMesh);
-    }
+    const baseMesh = new THREE.Mesh(createProfileRockGeometry(structure, index), createRockMeshMaterial());
+    baseMesh.castShadow = true;
+    baseMesh.receiveShadow = true;
+    group.add(baseMesh);
 
     return group;
   }
@@ -1883,14 +1839,14 @@
       return vertexIndex;
     };
 
-    const bottomRing = perimeter.map((point) => addVertex(point[0], point[1], base, dark));
+    const bottomRing = perimeter.map((point) => addVertex(point[0], point[1], base + rockBottomAt(structure, point[0]), dark));
     for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
       const nextIndex = (pointIndex + 1) % perimeter.length;
       indices.push(outerRing[pointIndex], bottomRing[pointIndex], outerRing[nextIndex]);
       indices.push(outerRing[nextIndex], bottomRing[pointIndex], bottomRing[nextIndex]);
     }
 
-    const bottomCenter = addVertex(center[0], center[1], base, bottom);
+    const bottomCenter = addVertex(center[0], center[1], base + rockBottomAt(structure, center[0]), bottom);
     for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
       const nextIndex = (pointIndex + 1) % perimeter.length;
       indices.push(bottomCenter, bottomRing[nextIndex], bottomRing[pointIndex]);
@@ -1920,6 +1876,41 @@
   }
 
   function rockHeightAt(structure, footprint, x, y) {
+    if (Array.isArray(structure.frontProfile) && structure.frontProfile.length >= 2) {
+      const frontLimit = profileValueAt(structure.frontProfile, x, structure.height);
+      const sideLimit = Array.isArray(structure.sideProfile) && structure.sideProfile.length >= 2
+        ? profileValueAt(structure.sideProfile, y, structure.height)
+        : structure.height;
+      const bottom = rockBottomAt(structure, x);
+      const silhouetteLimit = Math.min(structure.height, Math.max(0.12, Math.min(frontLimit, sideLimit) + bottom));
+      const edgeDistance = distanceToPolygonEdge([x, y], footprint);
+      const edgeTaper = smoothstep(0, structure.edgeSoftness || 0.65, edgeDistance);
+      const edgeFloor = clamp(0.2, 0.8, structure.edgeFloor || 0.42);
+      let relief =
+        0.9 +
+        (surfaceNoise(`${structure.id}-profile`, x * 0.72, y * 0.72) - 0.5) * 0.16 +
+        (surfaceNoise(`${structure.id}-fine-profile`, x * 2.3, y * 2.3) - 0.5) * (structure.surfaceNoise || 0.08) * 0.9;
+
+      structure.heightPoints.forEach((point) => {
+        const distance = Math.hypot(x - point.x, y - point.y);
+        relief += (point.h / Math.max(1, structure.height)) * Math.exp(-(distance * distance) / (2 * point.r * point.r));
+      });
+
+      structure.ridges.forEach((ridge) => {
+        const distance = distanceToSegment([x, y], ridge.from, ridge.to);
+        relief += (ridge.h / Math.max(1, structure.height)) * Math.exp(-(distance * distance) / (2 * ridge.r * ridge.r));
+      });
+
+      structure.depressions.forEach((point) => {
+        const distance = Math.hypot(x - point.x, y - point.y);
+        relief -= (point.h / Math.max(1, structure.height)) * Math.exp(-(distance * distance) / (2 * point.r * point.r));
+      });
+
+      const rockFloor = Math.max(structure.id === "center-shelf" ? 0.2 : 0.06, bottom + 0.04);
+      const edgeShape = edgeFloor + (1 - edgeFloor) * edgeTaper;
+      return clamp(rockFloor, structure.height, silhouetteLimit * clamp(0.65, 1.06, relief) * edgeShape);
+    }
+
     const edgeDistance = distanceToPolygonEdge([x, y], footprint);
     const edgeTaper = smoothstep(0, structure.edgeSoftness || 0.65, edgeDistance);
     const baseLip = structure.id === "center-shelf" ? 0.32 : 0.06;
@@ -1945,17 +1936,40 @@
     return clamp(baseLip, structure.height, baseLip + shapedHeight * (0.18 + edgeTaper * 0.82));
   }
 
+  function profileValueAt(points, coordinate, fallback) {
+    if (!Array.isArray(points) || points.length < 2) return fallback;
+    const sorted = [...points].sort((a, b) => a[0] - b[0]);
+    if (coordinate <= sorted[0][0]) return sorted[0][1];
+    for (let index = 1; index < sorted.length; index += 1) {
+      const previous = sorted[index - 1];
+      const current = sorted[index];
+      if (coordinate <= current[0]) {
+        const t = (coordinate - previous[0]) / ((current[0] - previous[0]) || 1e-6);
+        return lerp(previous[1], current[1], smoothstep(0, 1, t));
+      }
+    }
+    return sorted[sorted.length - 1][1];
+  }
+
+  function rockBottomAt(structure, x) {
+    return Array.isArray(structure.bottomProfile) && structure.bottomProfile.length >= 2
+      ? profileValueAt(structure.bottomProfile, x, 0)
+      : 0;
+  }
+
   function rockVertexColor(structure, x, y, z, salt) {
-    const purple = new THREE.Color(0x783257);
-    const darkPurple = new THREE.Color(0x36242f);
-    const olive = new THREE.Color(0x3f6542);
-    const tan = new THREE.Color(0x6a563b);
-    const n = surfaceNoise(`${structure.id}-color-${Math.floor(salt / 9)}`, x * 0.62, y * 0.62);
+    const purple = new THREE.Color(0x6a3150);
+    const darkPurple = new THREE.Color(0x342833);
+    const olive = new THREE.Color(0x40533f);
+    const tan = new THREE.Color(0x5a4d3a);
+    const n = surfaceNoise(`${structure.id}-color`, x * 0.82, y * 0.82);
+    const speckle = surfaceNoise(`${structure.id}-speckle`, x * 3.4 + salt * 0.001, y * 3.4);
     const heightBlend = clamp(0, 1, z / Math.max(0.01, structure.height));
     const color = purple.clone().lerp(darkPurple, 0.22 + (1 - heightBlend) * 0.18);
-    if (n > 0.72) color.lerp(olive, 0.24);
-    if (n < 0.14) color.lerp(tan, 0.2);
-    if (structure.id === "center-shelf") color.lerp(new THREE.Color(0x943667), 0.14);
+    if (n > 0.67) color.lerp(olive, 0.28);
+    if (n < 0.18) color.lerp(tan, 0.18);
+    if (speckle > 0.76) color.lerp(new THREE.Color(0x8b6f5d), 0.12);
+    if (structure.id === "center-shelf") color.lerp(new THREE.Color(0x813f63), 0.08);
     return color;
   }
 
@@ -2632,8 +2646,8 @@
         z: "vertical inches from tank bottom",
       },
       calibration: {
-        source: "five-rock structured mesh from traced-style footprints, lobe geometry, height control points, ridge lines, and photo/ruler-calibrated profiles",
-        referenceImageCount: 18,
+        source: "five-rock outline-driven mesh from traced front/top/right silhouettes, calibrated with 3 inch cards and the 2 inch in-tank ruler",
+        referenceImageCount: 28,
         rawReferenceImagesStoredInApp: false,
       },
       structures: state.map.structures.map((structure) => ({
@@ -2644,11 +2658,14 @@
         size: { width: structure.width, depth: structure.depth, height: structure.height },
         geometry: {
           footprint: structure.footprint,
+          bottomProfile: structure.bottomProfile,
+          frontProfile: structure.frontProfile,
+          sideProfile: structure.sideProfile,
           heightPoints: structure.heightPoints,
           ridges: structure.ridges,
           depressions: structure.depressions,
-          lobes: structure.lobes,
           edgeSoftness: structure.edgeSoftness,
+          edgeFloor: structure.edgeFloor,
           surfaceNoise: structure.surfaceNoise,
         },
         light: structure.light,
