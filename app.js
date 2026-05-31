@@ -1,6 +1,7 @@
 (function () {
   const STORAGE_KEY = "reefCommandState.v1";
   const BACKEND_KEY = "reefCommandBackend.v1";
+  const PRE_PULL_BACKUP_KEY = "reefCommandState.beforeRemotePull.v1";
   const SHARED_STATE_ID = "default";
   const PHOTO_BUCKET = "reef-photos";
   const PHOTO_ROOT = "shared";
@@ -3266,6 +3267,13 @@
     }
 
     isRemoteHydrating = true;
+    if (localHasData) {
+      writeJson(PRE_PULL_BACKUP_KEY, {
+        backedUpAt: new Date().toISOString(),
+        reason: "before-remote-pull",
+        state,
+      });
+    }
     state = remoteState;
     writeJson(STORAGE_KEY, state);
     isRemoteHydrating = false;
