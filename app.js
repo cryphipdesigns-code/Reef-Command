@@ -126,7 +126,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 2,
+      modelVersion: 4,
       dimensions: {
         width: 30,
         depth: 12,
@@ -134,26 +134,49 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock model: left, front left, front right, right, and shelf. Right rock refined from top/front/right close-ups with 2 inch ruler.",
+        calibrationNotes: "Five-rock structure-only mesh: left, front left, front right, right, and shelf. Rock geometry uses measured footprints, perimeter-ring meshes, height controls, and photo/ruler-calibrated profiles.",
       },
       view: "orbit",
       layers: {
-        par: true,
-        livestock: true,
-        flow: true,
-        equipment: true,
+        par: false,
+        livestock: false,
+        flow: false,
+        equipment: false,
       },
       structures: [
         {
           id: "left-rock",
           name: "Left rock",
-          type: "mound",
+          type: "profile-rock",
           x: -9.4,
           y: -2.1,
-          z: 1.25,
+          z: 1.3,
           width: 6.8,
           depth: 5.2,
           height: 4.4,
+          footprint: [[-3.4, -2.25], [-1.35, -2.55], [1.55, -2.2], [3.25, -0.95], [3.1, 1.05], [1.35, 2.45], [-1.35, 2.35], [-3.25, 1.1], [-3.55, -0.75]],
+          heightPoints: [
+            { x: -2.2, y: -1.1, h: 2.5, r: 1.55 },
+            { x: -0.25, y: -0.55, h: 4.2, r: 1.8 },
+            { x: 1.55, y: 0.35, h: 3.2, r: 1.45 },
+            { x: -1.45, y: 1.25, h: 2.4, r: 1.2 },
+          ],
+          ridges: [
+            { from: [-2.6, -0.65], to: [2.15, 0.85], h: 1.35, r: 0.62 },
+          ],
+          depressions: [
+            { x: 0.75, y: -1.65, h: 0.65, r: 0.95 },
+          ],
+          edgeSoftness: 0.72,
+          surfaceNoise: 0.18,
+          lobes: [
+            { x: -0.35, y: -0.22, z: 0.52, rx: 2.85, ry: 1.45, rz: 0.45, rot: 0.08 },
+            { x: -2.45, y: -1.05, z: 0.85, rx: 1.45, ry: 0.95, rz: 0.82, rot: -0.22 },
+            { x: -1.15, y: -0.25, z: 1.55, rx: 1.45, ry: 1.2, rz: 1.35, rot: 0.12 },
+            { x: 0.35, y: -0.15, z: 1.85, rx: 1.65, ry: 1.25, rz: 1.45, rot: -0.08 },
+            { x: 1.55, y: 0.55, z: 1.35, rx: 1.35, ry: 1.08, rz: 1.1, rot: 0.45 },
+            { x: -1.75, y: 1.2, z: 0.9, rx: 1.05, ry: 0.82, rz: 0.72, rot: 0.2 },
+          ],
           light: "Low-Medium",
           flow: "Medium",
           parMin: 45,
@@ -163,13 +186,31 @@
         {
           id: "front-left-rock",
           name: "Front left rock",
-          type: "mound",
+          type: "profile-rock",
           x: -3.8,
           y: -4.85,
-          z: 1.2,
+          z: 1.3,
           width: 4.2,
           depth: 2.4,
           height: 1.8,
+          footprint: [[-2.05, -1.1], [-0.65, -1.3], [1.7, -0.72], [2.05, 0.42], [0.9, 1.12], [-0.7, 1.18], [-2.0, 0.52]],
+          heightPoints: [
+            { x: -1.2, y: -0.2, h: 1.25, r: 0.95 },
+            { x: 0.35, y: -0.2, h: 1.75, r: 1.05 },
+            { x: 1.15, y: 0.48, h: 1.1, r: 0.72 },
+          ],
+          ridges: [
+            { from: [-1.35, -0.25], to: [1.2, 0.42], h: 0.45, r: 0.38 },
+          ],
+          depressions: [],
+          edgeSoftness: 0.5,
+          surfaceNoise: 0.12,
+          lobes: [
+            { x: 0.0, y: -0.05, z: 0.34, rx: 1.65, ry: 0.72, rz: 0.28, rot: 0.08 },
+            { x: -1.1, y: -0.15, z: 0.48, rx: 0.92, ry: 0.55, rz: 0.45, rot: -0.1 },
+            { x: 0.0, y: 0.0, z: 0.72, rx: 1.05, ry: 0.7, rz: 0.62, rot: 0.2 },
+            { x: 1.05, y: 0.42, z: 0.5, rx: 0.72, ry: 0.5, rz: 0.42, rot: -0.28 },
+          ],
           light: "Low",
           flow: "Low-Medium",
           parMin: 35,
@@ -179,13 +220,31 @@
         {
           id: "front-right-rock",
           name: "Front right rock",
-          type: "mound",
+          type: "profile-rock",
           x: 2.5,
           y: -4.55,
-          z: 1.2,
+          z: 1.3,
           width: 3.5,
           depth: 2.7,
           height: 2.5,
+          footprint: [[-1.75, -1.25], [-0.55, -1.35], [1.35, -0.85], [1.75, 0.55], [0.65, 1.3], [-1.05, 1.05], [-1.85, 0.1]],
+          heightPoints: [
+            { x: -0.85, y: -0.2, h: 1.35, r: 0.85 },
+            { x: 0.35, y: -0.1, h: 2.45, r: 0.9 },
+            { x: 0.9, y: 0.65, h: 1.45, r: 0.62 },
+          ],
+          ridges: [
+            { from: [-0.85, -0.3], to: [0.75, 0.35], h: 0.7, r: 0.35 },
+          ],
+          depressions: [],
+          edgeSoftness: 0.45,
+          surfaceNoise: 0.13,
+          lobes: [
+            { x: 0.0, y: -0.02, z: 0.38, rx: 1.4, ry: 0.78, rz: 0.32, rot: 0.12 },
+            { x: -0.9, y: -0.15, z: 0.62, rx: 0.82, ry: 0.62, rz: 0.55, rot: -0.24 },
+            { x: 0.15, y: 0.02, z: 0.98, rx: 1.0, ry: 0.72, rz: 0.85, rot: 0.15 },
+            { x: 0.95, y: 0.45, z: 0.66, rx: 0.68, ry: 0.58, rz: 0.55, rot: 0.42 },
+          ],
           light: "Low",
           flow: "Medium",
           parMin: 30,
@@ -195,13 +254,47 @@
         {
           id: "right-rock",
           name: "Right rock",
-          type: "right-rock",
+          type: "profile-rock",
           x: 10.1,
           y: -1.9,
-          z: 1.25,
-          width: 7.4,
-          depth: 5.5,
-          height: 3.9,
+          z: 1.3,
+          width: 7.6,
+          depth: 5.7,
+          height: 4.1,
+          footprint: [[-3.7, -1.65], [-2.55, -2.35], [-0.55, -2.48], [1.55, -2.2], [3.35, -1.2], [3.65, 0.55], [2.65, 1.88], [1.05, 2.55], [-1.05, 2.38], [-2.75, 1.55], [-3.82, 0.28]],
+          heightPoints: [
+            { x: -2.55, y: -1.15, h: 2.2, r: 1.2 },
+            { x: -1.25, y: -0.9, h: 2.75, r: 1.05 },
+            { x: 0.15, y: -0.62, h: 3.2, r: 1.05 },
+            { x: 1.35, y: -0.3, h: 2.85, r: 0.95 },
+            { x: 2.45, y: 0.18, h: 2.35, r: 0.92 },
+            { x: -0.65, y: 1.1, h: 3.65, r: 1.05 },
+            { x: 0.9, y: 1.28, h: 4.05, r: 0.95 },
+            { x: 2.1, y: 1.08, h: 2.7, r: 0.82 },
+          ],
+          ridges: [
+            { from: [-2.45, -1.05], to: [1.15, -0.45], h: 0.85, r: 0.42 },
+            { from: [-0.45, 1.05], to: [1.9, 1.1], h: 1.15, r: 0.5 },
+          ],
+          depressions: [
+            { x: -2.9, y: 0.48, h: 0.55, r: 0.72 },
+            { x: 1.85, y: -1.25, h: 0.42, r: 0.55 },
+          ],
+          edgeSoftness: 0.72,
+          surfaceNoise: 0.16,
+          lobes: [
+            { x: -0.85, y: -0.72, z: 0.58, rx: 2.65, ry: 1.2, rz: 0.48, rot: 0.02 },
+            { x: 0.85, y: 0.75, z: 0.68, rx: 2.45, ry: 1.12, rz: 0.54, rot: 0.12 },
+            { x: -2.65, y: -1.15, z: 0.72, rx: 1.18, ry: 0.78, rz: 0.66, rot: -0.35 },
+            { x: -1.45, y: -0.95, z: 1.08, rx: 1.22, ry: 0.88, rz: 0.9, rot: 0.18 },
+            { x: -0.25, y: -0.72, z: 1.28, rx: 1.28, ry: 0.98, rz: 1.05, rot: -0.05 },
+            { x: 1.1, y: -0.55, z: 1.12, rx: 1.38, ry: 0.92, rz: 0.92, rot: 0.12 },
+            { x: 2.2, y: -0.08, z: 0.92, rx: 1.0, ry: 0.78, rz: 0.76, rot: 0.45 },
+            { x: -0.92, y: 0.82, z: 1.42, rx: 1.08, ry: 0.95, rz: 1.12, rot: -0.28 },
+            { x: 0.45, y: 1.12, z: 1.82, rx: 1.22, ry: 0.92, rz: 1.36, rot: 0.08 },
+            { x: 1.65, y: 0.95, z: 1.36, rx: 1.02, ry: 0.85, rz: 1.0, rot: 0.35 },
+            { x: 2.75, y: 0.62, z: 0.8, rx: 0.72, ry: 0.66, rz: 0.62, rot: -0.14 },
+          ],
           light: "Low-Medium",
           flow: "Medium-High",
           parMin: 55,
@@ -211,13 +304,46 @@
         {
           id: "center-shelf",
           name: "Shelf rock",
-          type: "shelf",
+          type: "profile-rock",
           x: 0.8,
           y: 0.1,
-          z: 7.7,
-          width: 13.4,
-          depth: 5.8,
-          height: 4.5,
+          z: 7.45,
+          width: 13.6,
+          depth: 5.9,
+          height: 4.35,
+          footprint: [[-6.7, -2.45], [-4.5, -2.75], [-1.35, -2.45], [2.85, -2.2], [6.55, -1.15], [6.85, 0.45], [4.85, 2.15], [1.35, 2.55], [-2.75, 2.3], [-5.75, 1.35], [-6.95, -0.55]],
+          heightPoints: [
+            { x: -4.85, y: -0.55, h: 3.35, r: 1.5 },
+            { x: -2.35, y: 0.2, h: 4.2, r: 1.65 },
+            { x: 0.6, y: 0.25, h: 4.05, r: 1.8 },
+            { x: 3.35, y: -0.2, h: 3.65, r: 1.45 },
+            { x: 5.35, y: -0.15, h: 2.45, r: 1.0 },
+          ],
+          ridges: [
+            { from: [-5.2, -0.6], to: [4.6, -0.08], h: 1.05, r: 0.72 },
+            { from: [-3.6, 1.0], to: [2.8, 1.15], h: 0.72, r: 0.6 },
+          ],
+          depressions: [
+            { x: 1.75, y: -1.45, h: 0.55, r: 0.95 },
+            { x: -3.2, y: -1.55, h: 0.5, r: 0.85 },
+          ],
+          edgeSoftness: 0.85,
+          surfaceNoise: 0.14,
+          lobes: [
+            { x: -3.75, y: -0.25, z: 0.58, rx: 2.7, ry: 0.78, rz: 0.42, rot: 0.05 },
+            { x: -0.55, y: -0.1, z: 0.68, rx: 2.95, ry: 0.82, rz: 0.46, rot: -0.04 },
+            { x: 2.75, y: -0.28, z: 0.58, rx: 2.8, ry: 0.72, rz: 0.42, rot: 0.08 },
+            { x: -5.55, y: -0.55, z: 0.92, rx: 1.45, ry: 0.92, rz: 0.82, rot: -0.2 },
+            { x: -4.25, y: 0.2, z: 1.55, rx: 1.6, ry: 1.0, rz: 1.15, rot: 0.25 },
+            { x: -2.55, y: 0.42, z: 2.02, rx: 1.72, ry: 1.08, rz: 1.38, rot: -0.08 },
+            { x: -0.75, y: 0.15, z: 2.08, rx: 1.8, ry: 1.16, rz: 1.42, rot: 0.06 },
+            { x: 1.05, y: 0.0, z: 2.0, rx: 1.72, ry: 1.08, rz: 1.35, rot: -0.18 },
+            { x: 2.85, y: -0.18, z: 1.72, rx: 1.55, ry: 0.98, rz: 1.16, rot: 0.24 },
+            { x: 4.35, y: -0.35, z: 1.25, rx: 1.35, ry: 0.82, rz: 0.95, rot: -0.1 },
+            { x: 5.65, y: -0.72, z: 0.78, rx: 0.95, ry: 0.58, rz: 0.58, rot: 0.28 },
+            { x: -2.2, y: -1.05, z: 0.78, rx: 1.1, ry: 0.65, rz: 0.52, rot: -0.3 },
+            { x: 1.85, y: -1.05, z: 0.72, rx: 1.2, ry: 0.62, rz: 0.5, rot: 0.18 },
+          ],
           light: "Medium-High",
           flow: "High",
           parMin: 130,
@@ -381,8 +507,67 @@
       flow: structure.flow || fallback.flow || "Medium",
       parMin: nonNegativeNumber(structure.parMin, fallback.parMin || 0),
       parMax: nonNegativeNumber(structure.parMax, fallback.parMax || 0),
+      footprint: normalizePointPairs(structure.footprint, fallback.footprint),
+      heightPoints: normalizeHeightPoints(structure.heightPoints, fallback.heightPoints),
+      ridges: normalizeRidges(structure.ridges, fallback.ridges),
+      depressions: normalizeHeightPoints(structure.depressions, fallback.depressions),
+      edgeSoftness: positiveNumber(structure.edgeSoftness, fallback.edgeSoftness || 0.65),
+      surfaceNoise: nonNegativeNumber(structure.surfaceNoise, fallback.surfaceNoise || 0.14),
+      lobes: normalizeRockLobes(structure.lobes, fallback.lobes),
       notes: structure.notes || fallback.notes || "",
     };
+  }
+
+  function normalizePointPairs(value, fallback = []) {
+    const source = Array.isArray(value) && value.length ? value : fallback;
+    return Array.isArray(source)
+      ? source
+          .map((point) => Array.isArray(point) && point.length >= 2 ? [finiteNumber(point[0], 0), finiteNumber(point[1], 0)] : null)
+          .filter(Boolean)
+      : [];
+  }
+
+  function normalizeHeightPoints(value, fallback = []) {
+    const source = Array.isArray(value) && value.length ? value : fallback;
+    return Array.isArray(source)
+      ? source.map((point) => ({
+          x: finiteNumber(point.x, 0),
+          y: finiteNumber(point.y, 0),
+          h: nonNegativeNumber(point.h, 0),
+          r: positiveNumber(point.r, 1),
+        }))
+      : [];
+  }
+
+  function normalizeRidges(value, fallback = []) {
+    const source = Array.isArray(value) && value.length ? value : fallback;
+    return Array.isArray(source)
+      ? source
+          .map((ridge) => ({
+            from: normalizePointPairs([ridge.from], [[0, 0]])[0],
+            to: normalizePointPairs([ridge.to], [[0, 0]])[0],
+            h: nonNegativeNumber(ridge.h, 0),
+            r: positiveNumber(ridge.r, 1),
+          }))
+          .filter((ridge) => ridge.from && ridge.to)
+      : [];
+  }
+
+  function normalizeRockLobes(value, fallback = []) {
+    const source = Array.isArray(value) && value.length ? value : fallback;
+    return Array.isArray(source)
+      ? source.map((lobe) => ({
+          x: finiteNumber(lobe.x, 0),
+          y: finiteNumber(lobe.y, 0),
+          z: nonNegativeNumber(lobe.z, 0.5),
+          rx: positiveNumber(lobe.rx, 0.8),
+          ry: positiveNumber(lobe.ry, 0.8),
+          rz: positiveNumber(lobe.rz, 0.6),
+          rot: finiteNumber(lobe.rot, 0),
+          tiltX: finiteNumber(lobe.tiltX, 0),
+          tiltY: finiteNumber(lobe.tiltY, 0),
+        }))
+      : [];
   }
 
   function finiteNumber(value, fallback) {
@@ -1371,7 +1556,6 @@
     state.map.structures.forEach((structure, index) => {
       mapRoot.add(createRockStructure(structure, index));
       if (state.map.layers.par) mapRoot.add(createParHalo(structure));
-      mapRoot.add(createMapLabel(structure.name, structureLabelPosition(structure), "#075f5b"));
     });
 
     if (state.map.layers.flow) addFlowArrows(dimensions);
@@ -1563,175 +1747,330 @@
   function createRockStructure(structure, index) {
     const group = new THREE.Group();
     group.name = structure.id;
-    if (structure.type === "right-rock") return createRightRockStructure(structure);
+    const hasLobes = Array.isArray(structure.lobes) && structure.lobes.length > 0;
 
-    const random = seededRandom(structure.id || `structure-${index}`);
-    const blobCount = structure.type === "shelf" ? 30 : 16;
-    for (let blobIndex = 0; blobIndex < blobCount; blobIndex += 1) {
-      const isShelf = structure.type === "shelf";
-      const localX = (random() - 0.5) * structure.width * (isShelf ? 1.05 : 0.9);
-      const localY = (random() - 0.5) * structure.depth * (isShelf ? 0.95 : 0.85);
-      const heightBias = isShelf ? 0.58 + random() * 0.35 : Math.pow(random(), 0.78);
-      const localZ = Math.max(0.25, heightBias * structure.height);
-      const radius = (isShelf ? 0.78 : 0.58) + random() * (isShelf ? 1 : 0.72);
-      const mesh = createRockBlob(
-        `${structure.id}-${blobIndex}`,
-        radius,
-        rockColor(random, structure.type),
-        {
-          x: isShelf ? 1.25 + random() * 1.1 : 0.9 + random() * 0.85,
-          y: isShelf ? 0.65 + random() * 0.7 : 0.8 + random() * 0.85,
-          z: isShelf ? 0.45 + random() * 0.42 : 0.52 + random() * 0.74,
-        },
-      );
-      mesh.position.set(structure.x + localX, structure.y + localY, structure.z + localZ);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
+    if (hasLobes) {
+      structure.lobes.forEach((lobe, lobeIndex) => {
+        const lobeMesh = createRockLobeMesh(structure, lobe, index + lobeIndex);
+        group.add(lobeMesh);
+      });
+    } else {
+      const baseMesh = new THREE.Mesh(createProfileRockGeometry(structure, index), createRockMeshMaterial());
+      baseMesh.castShadow = true;
+      baseMesh.receiveShadow = true;
+      group.add(baseMesh);
     }
 
-    addCoralAccents(group, structure, random);
     return group;
   }
 
-  function createRightRockStructure(structure) {
-    const group = new THREE.Group();
-    group.name = structure.id;
-    const lobes = [
-      { x: -2.9, y: -1.45, z: 0.75, r: 1.05, s: [1.65, 1.05, 0.46], c: 0x6f273e },
-      { x: -1.7, y: -1.75, z: 0.95, r: 1.15, s: [1.35, 0.95, 0.58], c: 0x7d314f },
-      { x: -0.45, y: -1.25, z: 1.15, r: 1.22, s: [1.42, 1.05, 0.66], c: 0x5b4535 },
-      { x: 0.9, y: -1.25, z: 1.18, r: 1.18, s: [1.38, 0.94, 0.64], c: 0x843853 },
-      { x: 2.2, y: -1.0, z: 0.95, r: 1.02, s: [1.25, 0.9, 0.52], c: 0x5d382f },
-      { x: -2.25, y: 0.15, z: 1.15, r: 1.06, s: [1.2, 1.08, 0.62], c: 0x4f5f38 },
-      { x: -0.7, y: 0.2, z: 1.72, r: 1.22, s: [1.25, 1.08, 0.78], c: 0x7a2f54 },
-      { x: 0.8, y: 0.15, z: 1.68, r: 1.16, s: [1.26, 1.04, 0.76], c: 0x5c4b34 },
-      { x: 2.45, y: 0.2, z: 1.18, r: 1.02, s: [1.15, 1.18, 0.62], c: 0x763450 },
-      { x: -1.45, y: 1.42, z: 1.58, r: 0.98, s: [1.18, 1.05, 0.66], c: 0x4e693f },
-      { x: 0.25, y: 1.42, z: 2.08, r: 1.02, s: [1.28, 1, 0.72], c: 0x633238 },
-      { x: 1.75, y: 1.28, z: 1.46, r: 0.96, s: [1.15, 1.12, 0.62], c: 0x823a58 },
-      { x: 3.05, y: 0.98, z: 0.9, r: 0.8, s: [1.2, 0.9, 0.48], c: 0x5d3f32 },
-    ];
+  function createProfileRockGeometry(structure, index, heightScale = 1) {
+    const footprint = getRockFootprint(structure);
+    const bounds = getPointBounds(footprint);
+    const maxDimension = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+    const perimeterLength = getPerimeterLength(footprint);
+    const sampleCount = Math.round(clamp(56, 132, perimeterLength / 0.16));
+    const ringCount = Math.round(clamp(16, 34, maxDimension / 0.24));
+    const perimeter = sampleFootprintPerimeter(footprint, sampleCount);
+    const center = polygonCentroid(footprint);
+    const vertices = [];
+    const colors = [];
+    const indices = [];
+    const addVertex = (x, y, z, color) => {
+      const vertexIndex = vertices.length / 3;
+      vertices.push(structure.x + x, structure.y + y, structure.z + z);
+      colors.push(color.r, color.g, color.b);
+      return vertexIndex;
+    };
 
-    lobes.forEach((lobe, lobeIndex) => {
-      const mesh = createRockBlob(
-        `${structure.id}-ruler-lobe-${lobeIndex}`,
-        lobe.r,
-        lobe.c,
-        { x: lobe.s[0], y: lobe.s[1], z: lobe.s[2] },
-        { smoothness: 0.92, wobble: 0.12, segments: 32 },
-      );
-      mesh.position.set(structure.x + lobe.x, structure.y + lobe.y, structure.z + lobe.z);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
-    });
+    const centerZ = scaleRockProfileHeight(structure, rockHeightAt(structure, footprint, center[0], center[1]), heightScale);
+    const centerIndex = addVertex(center[0], center[1], centerZ, rockVertexColor(structure, center[0], center[1], centerZ, index));
+    const rings = [];
 
-    addRockBaseSkirt(group, structure, [
-      [-3.15, -1.65],
-      [-1.35, -2.35],
-      [0.85, -2.1],
-      [2.9, -1.25],
-      [3.25, 0.95],
-      [1.4, 2.2],
-      [-1.25, 2.2],
-      [-3.35, 0.8],
-    ]);
-    addRightRockCorals(group, structure);
-    return group;
-  }
-
-  function createRockBlob(seed, radius, color, scale, options = {}) {
-    const random = seededRandom(seed);
-    const segments = options.segments || 24;
-    const geometry = new THREE.SphereGeometry(radius, segments, Math.max(12, Math.floor(segments * 0.62)));
-    const positions = geometry.attributes.position;
-    const vector = new THREE.Vector3();
-    for (let index = 0; index < positions.count; index += 1) {
-      vector.fromBufferAttribute(positions, index);
-      const wobbleAmount = options.wobble ?? 0.18;
-      const smoothness = options.smoothness ?? 0.86;
-      const wobble = smoothness + random() * wobbleAmount + Math.sin(vector.x * 1.7 + vector.y * 1.1 + vector.z * 0.9) * wobbleAmount * 0.28;
-      vector.set(vector.x * scale.x * wobble, vector.y * scale.y * wobble, vector.z * scale.z * wobble);
-      positions.setXYZ(index, vector.x, vector.y, vector.z);
+    for (let ringIndex = 1; ringIndex <= ringCount; ringIndex += 1) {
+      const t = ringIndex / ringCount;
+      const ring = [];
+      perimeter.forEach((point, pointIndex) => {
+        const x = lerp(center[0], point[0], t);
+        const y = lerp(center[1], point[1], t);
+        const z = scaleRockProfileHeight(structure, rockHeightAt(structure, footprint, x, y), heightScale);
+        ring.push(addVertex(x, y, z, rockVertexColor(structure, x, y, z, index + pointIndex)));
+      });
+      rings.push(ring);
     }
+
+    for (let pointIndex = 0; pointIndex < sampleCount; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % sampleCount;
+      indices.push(centerIndex, rings[0][pointIndex], rings[0][nextIndex]);
+    }
+
+    for (let ringIndex = 1; ringIndex < rings.length; ringIndex += 1) {
+      const innerRing = rings[ringIndex - 1];
+      const outerRing = rings[ringIndex];
+      for (let pointIndex = 0; pointIndex < sampleCount; pointIndex += 1) {
+        const nextIndex = (pointIndex + 1) % sampleCount;
+        const innerA = innerRing[pointIndex];
+        const innerB = innerRing[nextIndex];
+        const outerA = outerRing[pointIndex];
+        const outerB = outerRing[nextIndex];
+        indices.push(innerA, outerA, innerB, innerB, outerA, outerB);
+      }
+    }
+
+    addFootprintSkirt(structure, footprint, perimeter, rings[rings.length - 1], vertices, colors, indices);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setIndex(indices);
     geometry.computeVertexNormals();
-    return new THREE.Mesh(
-      geometry,
-      new THREE.MeshStandardMaterial({
-        color,
-        roughness: 0.92,
-        metalness: 0.02,
-        flatShading: false,
-      }),
-    );
+    return geometry;
   }
 
-  function addRockBaseSkirt(group, structure, points) {
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x4a342d,
-      roughness: 0.95,
-      transparent: true,
-      opacity: 0.82,
-    });
-    const shape = new THREE.Shape();
-    points.forEach(([x, y], index) => {
-      if (index === 0) shape.moveTo(x, y);
-      else shape.lineTo(x, y);
-    });
-    shape.closePath();
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.18,
-      bevelEnabled: true,
-      bevelThickness: 0.08,
-      bevelSize: 0.12,
-      bevelSegments: 4,
-    });
-    const skirt = new THREE.Mesh(geometry, material);
-    skirt.position.set(structure.x, structure.y, structure.z + 0.08);
-    skirt.castShadow = true;
-    skirt.receiveShadow = true;
-    group.add(skirt);
+  function scaleRockProfileHeight(structure, z, heightScale) {
+    const baseLip = structure.id === "center-shelf" ? 0.24 : 0.04;
+    return baseLip + Math.max(0, z - baseLip) * heightScale;
   }
 
-  function addRightRockCorals(group, structure) {
-    const corals = [
-      { x: -2.45, y: -1.45, z: 2.0, r: 0.5, color: 0x8f5f45, tilt: 0.25 },
-      { x: -0.15, y: -0.75, z: 2.58, r: 0.48, color: 0x4e8d70, tilt: -0.12 },
-      { x: 1.25, y: -0.82, z: 2.32, r: 0.43, color: 0x9a6c58, tilt: 0.18 },
-      { x: 1.9, y: 0.18, z: 2.34, r: 0.35, color: 0x855a50, tilt: -0.1 },
-      { x: 0.35, y: 1.35, z: 3.0, r: 0.38, color: 0x6b9b84, tilt: 0.08 },
-      { x: 2.75, y: 0.82, z: 1.78, r: 0.27, color: 0x92735b, tilt: 0.22 },
-    ];
-    corals.forEach((coral) => {
-      const material = new THREE.MeshStandardMaterial({ color: coral.color, roughness: 0.72 });
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(coral.r, coral.r * 0.72, 0.08, 30), material);
-      cap.position.set(structure.x + coral.x, structure.y + coral.y, structure.z + coral.z);
-      cap.rotation.x = coral.tilt;
-      cap.rotation.y = coral.tilt * 0.7;
-      cap.castShadow = true;
-      group.add(cap);
-    });
+  function createRockLobeMesh(structure, lobe, salt) {
+    const mesh = new THREE.Mesh(createCraggyRockGeometry(structure, lobe, salt), createRockMeshMaterial());
+    mesh.position.set(structure.x + lobe.x, structure.y + lobe.y, structure.z + lobe.z);
+    mesh.rotation.set(lobe.tiltX || 0, lobe.tiltY || 0, lobe.rot || 0);
+    mesh.scale.set(lobe.rx, lobe.ry, lobe.rz);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
   }
 
-  function addCoralAccents(group, structure, random) {
-    const accentPalette = [0xe18839, 0xc7899d, 0xd8c77c, 0x9b7ac8, 0xb77f4f, 0x7ab67e];
-    const count = structure.type === "shelf" ? 12 : structure.type === "ledge" ? 3 : 7;
-    for (let index = 0; index < count; index += 1) {
-      const color = accentPalette[Math.floor(random() * accentPalette.length)];
-      const material = new THREE.MeshStandardMaterial({ color, roughness: 0.78 });
-      const radius = 0.26 + random() * 0.48;
-      const coral = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * (0.84 + random() * 0.22), 0.08 + random() * 0.08, 28), material);
-      coral.position.set(
-        structure.x + (random() - 0.5) * structure.width * 0.72,
-        structure.y + (random() - 0.5) * structure.depth * 0.7,
-        structure.z + structure.height * (0.72 + random() * 0.35),
-      );
-      coral.rotation.x = (random() - 0.5) * 0.32;
-      coral.rotation.y = (random() - 0.5) * 0.32;
-      coral.castShadow = true;
-      group.add(coral);
+  function createCraggyRockGeometry(structure, lobe, salt) {
+    const geometry = new THREE.SphereGeometry(1, 30, 18);
+    const positions = geometry.attributes.position;
+    const colors = [];
+
+    for (let vertexIndex = 0; vertexIndex < positions.count; vertexIndex += 1) {
+      const x = positions.getX(vertexIndex);
+      const y = positions.getY(vertexIndex);
+      const z = positions.getZ(vertexIndex);
+      const angularNoise = surfaceNoise(`${structure.id}-lobe-${salt}`, x * 2.8 + z * 0.9, y * 2.8 - z * 0.7);
+      const cragNoise = surfaceNoise(`${structure.id}-crag-${salt}`, x * 7.4 + y * 1.3, z * 7.4 - y * 0.8);
+      const flattenBottom = z < -0.58 ? smoothstep(-1, -0.58, z) : 1;
+      const radius = 0.94 + (angularNoise - 0.5) * 0.26 + (cragNoise - 0.5) * 0.12;
+      const warpedX = x * radius * (0.96 + Math.abs(z) * 0.04);
+      const warpedY = y * radius * (0.96 + Math.abs(z) * 0.035);
+      const warpedZ = z * radius * (0.9 + flattenBottom * 0.1);
+      positions.setXYZ(vertexIndex, warpedX, warpedY, warpedZ);
+
+      const localX = lobe.x + warpedX * lobe.rx;
+      const localY = lobe.y + warpedY * lobe.ry;
+      const localZ = lobe.z + warpedZ * lobe.rz;
+      const color = rockVertexColor(structure, localX, localY, localZ, salt + vertexIndex);
+      colors.push(color.r, color.g, color.b);
     }
+
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
+  function addFootprintSkirt(structure, footprint, perimeter, outerRing, vertices, colors, indices) {
+    const dark = new THREE.Color(0x3e2b2d);
+    const bottom = new THREE.Color(0x33262a);
+    const center = polygonCentroid(footprint);
+    const base = structure.id === "center-shelf" ? 0 : -0.05;
+    const addVertex = (x, y, z, color) => {
+      const vertexIndex = vertices.length / 3;
+      vertices.push(structure.x + x, structure.y + y, structure.z + z);
+      colors.push(color.r, color.g, color.b);
+      return vertexIndex;
+    };
+
+    const bottomRing = perimeter.map((point) => addVertex(point[0], point[1], base, dark));
+    for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % perimeter.length;
+      indices.push(outerRing[pointIndex], bottomRing[pointIndex], outerRing[nextIndex]);
+      indices.push(outerRing[nextIndex], bottomRing[pointIndex], bottomRing[nextIndex]);
+    }
+
+    const bottomCenter = addVertex(center[0], center[1], base, bottom);
+    for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % perimeter.length;
+      indices.push(bottomCenter, bottomRing[nextIndex], bottomRing[pointIndex]);
+    }
+  }
+
+  function createRockMeshMaterial() {
+    return new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.96,
+      metalness: 0.01,
+      flatShading: false,
+    });
+  }
+
+  function getRockFootprint(structure) {
+    if (Array.isArray(structure.footprint) && structure.footprint.length >= 3) return structure.footprint;
+    const points = [];
+    for (let index = 0; index < 16; index += 1) {
+      const angle = (index / 16) * Math.PI * 2;
+      points.push([
+        Math.cos(angle) * structure.width * 0.5,
+        Math.sin(angle) * structure.depth * 0.5,
+      ]);
+    }
+    return points;
+  }
+
+  function rockHeightAt(structure, footprint, x, y) {
+    const edgeDistance = distanceToPolygonEdge([x, y], footprint);
+    const edgeTaper = smoothstep(0, structure.edgeSoftness || 0.65, edgeDistance);
+    const baseLip = structure.id === "center-shelf" ? 0.32 : 0.06;
+    let height = structure.height * 0.08;
+
+    structure.heightPoints.forEach((point) => {
+      const distance = Math.hypot(x - point.x, y - point.y);
+      height += point.h * Math.exp(-(distance * distance) / (2 * point.r * point.r));
+    });
+
+    structure.ridges.forEach((ridge) => {
+      const distance = distanceToSegment([x, y], ridge.from, ridge.to);
+      height += ridge.h * Math.exp(-(distance * distance) / (2 * ridge.r * ridge.r));
+    });
+
+    structure.depressions.forEach((point) => {
+      const distance = Math.hypot(x - point.x, y - point.y);
+      height -= point.h * Math.exp(-(distance * distance) / (2 * point.r * point.r));
+    });
+
+    const roughness = (surfaceNoise(structure.id, x, y) - 0.5) * 2 * (structure.surfaceNoise || 0.14) * structure.height;
+    const shapedHeight = Math.max(0, height + roughness);
+    return clamp(baseLip, structure.height, baseLip + shapedHeight * (0.18 + edgeTaper * 0.82));
+  }
+
+  function rockVertexColor(structure, x, y, z, salt) {
+    const purple = new THREE.Color(0x783257);
+    const darkPurple = new THREE.Color(0x36242f);
+    const olive = new THREE.Color(0x3f6542);
+    const tan = new THREE.Color(0x6a563b);
+    const n = surfaceNoise(`${structure.id}-color-${Math.floor(salt / 9)}`, x * 0.62, y * 0.62);
+    const heightBlend = clamp(0, 1, z / Math.max(0.01, structure.height));
+    const color = purple.clone().lerp(darkPurple, 0.22 + (1 - heightBlend) * 0.18);
+    if (n > 0.72) color.lerp(olive, 0.24);
+    if (n < 0.14) color.lerp(tan, 0.2);
+    if (structure.id === "center-shelf") color.lerp(new THREE.Color(0x943667), 0.14);
+    return color;
+  }
+
+  function getPointBounds(points) {
+    return points.reduce((bounds, point) => ({
+      minX: Math.min(bounds.minX, point[0]),
+      maxX: Math.max(bounds.maxX, point[0]),
+      minY: Math.min(bounds.minY, point[1]),
+      maxY: Math.max(bounds.maxY, point[1]),
+    }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+  }
+
+  function getPerimeterLength(points) {
+    return points.reduce((total, point, index) => total + distance2d(point, points[(index + 1) % points.length]), 0);
+  }
+
+  function sampleFootprintPerimeter(points, sampleCount) {
+    const perimeterLength = getPerimeterLength(points);
+    const samples = [];
+    let edgeIndex = 0;
+    let edgeStartLength = 0;
+    let edgeLength = distance2d(points[0], points[1]);
+
+    for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+      const targetLength = (sampleIndex / sampleCount) * perimeterLength;
+      while (targetLength > edgeStartLength + edgeLength && edgeIndex < points.length - 1) {
+        edgeStartLength += edgeLength;
+        edgeIndex += 1;
+        edgeLength = distance2d(points[edgeIndex], points[(edgeIndex + 1) % points.length]);
+      }
+      const start = points[edgeIndex];
+      const end = points[(edgeIndex + 1) % points.length];
+      const t = clamp(0, 1, (targetLength - edgeStartLength) / (edgeLength || 1e-6));
+      samples.push([lerp(start[0], end[0], t), lerp(start[1], end[1], t)]);
+    }
+
+    return samples;
+  }
+
+  function polygonCentroid(points) {
+    let twiceArea = 0;
+    let x = 0;
+    let y = 0;
+    points.forEach((point, index) => {
+      const next = points[(index + 1) % points.length];
+      const cross = point[0] * next[1] - next[0] * point[1];
+      twiceArea += cross;
+      x += (point[0] + next[0]) * cross;
+      y += (point[1] + next[1]) * cross;
+    });
+
+    if (Math.abs(twiceArea) < 1e-6) {
+      return points.reduce((total, point) => [total[0] + point[0] / points.length, total[1] + point[1] / points.length], [0, 0]);
+    }
+
+    return [x / (3 * twiceArea), y / (3 * twiceArea)];
+  }
+
+  function pointInPolygon(point, polygon) {
+    const [x, y] = point;
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+      const xi = polygon[i][0];
+      const yi = polygon[i][1];
+      const xj = polygon[j][0];
+      const yj = polygon[j][1];
+      const intersects = ((yi > y) !== (yj > y)) && x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-6) + xi;
+      if (intersects) inside = !inside;
+    }
+    return inside || distanceToPolygonEdge(point, polygon) < 0.08;
+  }
+
+  function distanceToPolygonEdge(point, polygon) {
+    let minDistance = Infinity;
+    polygon.forEach((start, index) => {
+      const end = polygon[(index + 1) % polygon.length];
+      minDistance = Math.min(minDistance, distanceToSegment(point, start, end));
+    });
+    return minDistance;
+  }
+
+  function distanceToSegment(point, start, end) {
+    const vx = end[0] - start[0];
+    const vy = end[1] - start[1];
+    const wx = point[0] - start[0];
+    const wy = point[1] - start[1];
+    const lengthSq = vx * vx + vy * vy || 1e-6;
+    const t = clamp(0, 1, (wx * vx + wy * vy) / lengthSq);
+    return Math.hypot(point[0] - (start[0] + t * vx), point[1] - (start[1] + t * vy));
+  }
+
+  function distance2d(a, b) {
+    return Math.hypot(a[0] - b[0], a[1] - b[1]);
+  }
+
+  function surfaceNoise(seed, x, y) {
+    const offset = (hashString(seed) % 10000) / 1000;
+    const value =
+      Math.sin(x * 1.73 + y * 0.91 + offset) * 0.48 +
+      Math.sin(x * 4.11 - y * 2.07 + offset * 1.7) * 0.32 +
+      Math.sin(x * 7.31 + y * 5.13 + offset * 0.6) * 0.2;
+    return value * 0.5 + 0.5;
+  }
+
+  function smoothstep(edge0, edge1, value) {
+    const t = clamp(0, 1, (value - edge0) / ((edge1 - edge0) || 1e-6));
+    return t * t * (3 - 2 * t);
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function clamp(min, max, value) {
+    return Math.max(min, Math.min(max, value));
   }
 
   function createParHalo(structure) {
@@ -1806,15 +2145,17 @@
   function getPlacementAnchor(structure, seed) {
     if (!window.THREE) return null;
     const random = seededRandom(`placement-${seed}`);
-    return new THREE.Vector3(
-      structure.x + (random() - 0.5) * structure.width * 0.55,
-      structure.y + (random() - 0.5) * structure.depth * 0.55,
-      structure.z + structure.height + 0.42 + random() * 0.35,
-    );
-  }
-
-  function structureLabelPosition(structure) {
-    return new THREE.Vector3(structure.x, structure.y, structure.z + structure.height + 1.05);
+    const footprint = getRockFootprint(structure);
+    const bounds = getPointBounds(footprint);
+    let x = 0;
+    let y = 0;
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      x = lerp(bounds.minX, bounds.maxX, random());
+      y = lerp(bounds.minY, bounds.maxY, random());
+      if (pointInPolygon([x, y], footprint)) break;
+    }
+    const z = rockHeightAt(structure, footprint, x, y) + 0.22;
+    return new THREE.Vector3(structure.x + x, structure.y + y, structure.z + z);
   }
 
   function createMapLabel(text, position, color) {
@@ -1858,13 +2199,6 @@
   function shortenLabel(value) {
     const text = String(value || "");
     return text.length > 26 ? `${text.slice(0, 23)}...` : text;
-  }
-
-  function rockColor(random, type) {
-    const shelfPalette = [0x9c2f62, 0xb13c77, 0x7b294d, 0x5f4939, 0x3f6848];
-    const moundPalette = [0x79304d, 0x8e3e38, 0x57422f, 0x4b7143, 0xaa4e75];
-    const palette = type === "shelf" ? shelfPalette : moundPalette;
-    return palette[Math.floor(random() * palette.length)];
   }
 
   function livestockColor(category) {
@@ -2298,7 +2632,7 @@
         z: "vertical inches from tank bottom",
       },
       calibration: {
-        source: "manual five-rock draft from front, right, and top photo sets; right rock refined with close-ups and 2 inch in-tank ruler",
+        source: "five-rock structured mesh from traced-style footprints, lobe geometry, height control points, ridge lines, and photo/ruler-calibrated profiles",
         referenceImageCount: 18,
         rawReferenceImagesStoredInApp: false,
       },
@@ -2308,6 +2642,15 @@
         type: structure.type,
         position: { x: structure.x, y: structure.y, z: structure.z },
         size: { width: structure.width, depth: structure.depth, height: structure.height },
+        geometry: {
+          footprint: structure.footprint,
+          heightPoints: structure.heightPoints,
+          ridges: structure.ridges,
+          depressions: structure.depressions,
+          lobes: structure.lobes,
+          edgeSoftness: structure.edgeSoftness,
+          surfaceNoise: structure.surfaceNoise,
+        },
         light: structure.light,
         flow: structure.flow,
         parRange: { min: structure.parMin, max: structure.parMax },
