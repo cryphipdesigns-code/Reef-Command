@@ -1216,6 +1216,7 @@
     const observations = Array.isArray(result.observations) ? result.observations : [];
     const nextActions = Array.isArray(result.next_actions) ? result.next_actions : [];
     const missingData = Array.isArray(result.missing_data) ? result.missing_data : [];
+    const dataRequests = Array.isArray(result.data_requests) ? result.data_requests : [];
 
     return `
       <article class="insight-card">
@@ -1230,6 +1231,7 @@
       `).join("")}
       ${renderInsightList("Observations", observations)}
       ${renderInsightList("Next Actions", nextActions)}
+      ${renderInsightRequests(dataRequests)}
       ${renderInsightList("Missing Data", missingData)}
     `;
   }
@@ -1241,6 +1243,24 @@
         <strong>${escapeHtml(title)}</strong>
         <ul>
           ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </article>
+    `;
+  }
+
+  function renderInsightRequests(requests) {
+    if (!requests.length) return "";
+    return `
+      <article class="insight-card">
+        <strong>Raw Data Requests</strong>
+        <ul>
+          ${requests.map((request) => {
+            if (typeof request === "string") return `<li>${escapeHtml(request)}</li>`;
+            const label = request.label || request.data_type || "Raw data";
+            const priority = request.priority ? ` (${request.priority})` : "";
+            const reason = request.reason ? `: ${request.reason}` : "";
+            return `<li>${escapeHtml(`${label}${priority}${reason}`)}</li>`;
+          }).join("")}
         </ul>
       </article>
     `;
@@ -1258,9 +1278,20 @@
     const latestFeeding = getLatestEvent("feeding");
     const { lightingPhotoDataUrl, lightingPhoto, lightingPhotos, ...profile } = state.profile;
     const lightingImageCount = getLightingPhotos().length;
+    const livestockPhotoInventory = [];
     const livestock = state.livestock.map((item) => {
       const { photoDataUrl, photos, ...safeItem } = item;
       const photoCount = getLivestockPhotos(item).length;
+      if (photoCount) {
+        livestockPhotoInventory.push({
+          id: item.id,
+          species: item.species || item.name || "Unknown",
+          category: item.category || "Other",
+          status: item.status || "",
+          photoCount,
+          currentness: "unknown",
+        });
+      }
       return {
         ...safeItem,
         photoCount,
@@ -1293,6 +1324,25 @@
       latestWaterChange,
       latestFeeding,
       currentLightPhase: getLightPhase().label,
+      rawDataInventory: {
+        lighting: {
+          imageCount: lightingImageCount,
+          summaryAvailable: Boolean(state.profile.lightingSummary),
+          canRequestRawImages: lightingImageCount > 0,
+        },
+        livestockPhotos: livestockPhotoInventory,
+        map: {
+          modelAvailable: false,
+          referenceImageCount: 0,
+          parMapAvailable: state.zones.some((zone) => zone.parMin || zone.parMax),
+        },
+        logs: {
+          waterTestCount: state.waterTests.length,
+          feedingCount: state.events.filter((event) => event.type === "feeding").length,
+          maintenanceCount: state.events.filter((event) => event.type === "maintenance").length,
+          waterChangeCount: state.events.filter((event) => event.type === "water_change").length,
+        },
+      },
       derived: latestWaterTest
         ? {
             latestTestLightPhase: latestWaterTest.timing?.lightPhase || getLightPhase(latestWaterTest.measuredAt).label,
@@ -1309,6 +1359,7 @@
     const observations = [];
     const nextActions = [];
     const missingData = [];
+    const dataRequests = [];
     const latest = context.latestWaterTest;
 
     if (!context.profile.displayVolume) missingData.push("Display volume");
@@ -1317,6 +1368,13 @@
     if (!context.profile.hasLightingScreenshot) missingData.push("Lighting screenshot or intensity schedule");
     if (context.profile.lightingImageCount && !context.profile.lightingSummary) {
       missingData.push("Lighting summary from schedule images");
+      dataRequests.push({
+        label: "Lighting schedule images",
+        data_type: "lighting_images",
+        reason: "Lighting images exist, but the compact lighting summary is empty.",
+        target_id: "profile.lightingPhotos",
+        priority: "medium",
+      });
     }
     if (!context.zones.length) missingData.push("Placement zones");
     if (!latest) missingData.push("Recent water test");
@@ -1377,6 +1435,16 @@
           why: `${unplaced.length} active livestock record${unplaced.length === 1 ? "" : "s"} do not have a placement zone.`,
         });
       }
+      const photographed = context.rawDataInventory.livestockPhotos;
+      if (photographed.length) {
+        dataRequests.push({
+          label: "Livestock photos",
+          data_type: "livestock_photos",
+          reason: "Photos are available and may help with coral health or placement questions, though their currentness is unknown.",
+          target_id: photographed.slice(0, 3).map((item) => item.id).join(","),
+          priority: "low",
+        });
+      }
       nextActions.push("Assign corals and sensitive inverts to zones so light and flow context can be included.");
     }
 
@@ -1404,6 +1472,7 @@
       observations,
       next_actions: nextActions,
       missing_data: [...new Set(missingData)],
+      data_requests: dataRequests,
     };
   }
 

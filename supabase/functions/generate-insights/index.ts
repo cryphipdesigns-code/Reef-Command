@@ -13,7 +13,7 @@ type InsightRequest = {
 const insightSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["headline", "summary", "priorities", "observations", "next_actions", "missing_data"],
+  required: ["headline", "summary", "priorities", "observations", "next_actions", "missing_data", "data_requests"],
   properties: {
     headline: { type: "string" },
     summary: { type: "string" },
@@ -41,6 +41,33 @@ const insightSchema = {
     missing_data: {
       type: "array",
       items: { type: "string" },
+    },
+    data_requests: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["label", "data_type", "reason", "target_id", "priority"],
+        properties: {
+          label: { type: "string" },
+          data_type: {
+            type: "string",
+            enum: [
+              "lighting_images",
+              "livestock_photos",
+              "map_reference_images",
+              "par_map",
+              "water_tests",
+              "feeding_logs",
+              "maintenance_logs",
+              "other",
+            ],
+          },
+          reason: { type: "string" },
+          target_id: { type: "string" },
+          priority: { type: "string", enum: ["low", "medium", "high"] },
+        },
+      },
     },
   },
 };
@@ -132,6 +159,7 @@ Deno.serve(async (request) => {
       observations: [],
       next_actions: [],
       missing_data: [],
+      data_requests: [],
     };
   }
 
@@ -150,6 +178,10 @@ function buildInstructions() {
     "Use the provided tank profile, livestock, placement zones, water tests, feeding, maintenance, and water-change logs.",
     "Pay close attention to timestamps. Relate parameter readings to light schedule phase, recent feeding, and recent water changes when that context is present.",
     "Treat aquascape zones, PAR ranges, light levels, and flow levels as important placement context.",
+    "The phase-1 context may include rawDataInventory. This is a manifest of raw evidence the app can provide later, such as lighting screenshots, livestock photos, map references, PAR maps, and detailed logs.",
+    "Do not ask for raw data by default. If raw evidence would materially improve the answer, add a data_requests item that names the smallest useful evidence bundle and explains why.",
+    "For coral health questions, consider whether non-current livestock photos, lighting schedule images, PAR map/model data, or recent parameter logs would materially change confidence. If so, request them.",
+    "For lighting-sensitive questions, request lighting_images only when the summarized lighting context is insufficient and raw lighting images are available.",
     "Prefer simple, incremental reefkeeping actions. Do not recommend abrupt parameter swings.",
     "Flag detectable ammonia or nitrite as high priority, while asking the user to verify unexpected test results.",
     "Do not invent facts, species requirements, product instructions, or missing measurements. Put missing inputs in missing_data.",
