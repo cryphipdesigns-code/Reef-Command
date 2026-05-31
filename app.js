@@ -8,6 +8,7 @@
   const viewMap = {
     home: "homeView",
     tank: "tankView",
+    map: "mapView",
     livestock: "livestockView",
     logbook: "logbookView",
     insights: "insightsView",
@@ -32,6 +33,18 @@
   let toastTimer = null;
   let pendingLivestockPhotos = [];
   let editingLog = null;
+  let mapRenderer = null;
+  let mapScene = null;
+  let mapCamera = null;
+  let mapRoot = null;
+  let mapAnimationFrame = null;
+  let mapResizeObserver = null;
+  let mapPointerState = null;
+  const mapViewState = {
+    yaw: -0.42,
+    pitch: 0.34,
+    distance: 42,
+  };
 
   function $(id) {
     return document.getElementById(id);
@@ -101,12 +114,132 @@
       waterTests: [],
       events: [],
       insightRuns: [],
+      map: getDefaultMap(),
       ui: {
         activeView: "home",
         logMode: "test",
         livestockFilter: "active",
         insightMode: "health",
       },
+    };
+  }
+
+  function getDefaultMap() {
+    return {
+      dimensions: {
+        width: 30,
+        depth: 12,
+        height: 18,
+        sandDepth: 1.3,
+        waterline: 16.4,
+        scaleReference: "3 inch sticky-note scale cards",
+        calibrationNotes: "Front, right, and top center photos are treated as primary calibration references.",
+      },
+      view: "orbit",
+      layers: {
+        par: true,
+        livestock: true,
+        flow: true,
+        equipment: true,
+      },
+      structures: [
+        {
+          id: "left-island",
+          name: "Left front island",
+          type: "mound",
+          x: -9.9,
+          y: -3.8,
+          z: 1.4,
+          width: 7.1,
+          depth: 4.9,
+          height: 4.8,
+          light: "Low-Medium",
+          flow: "Medium",
+          parMin: 45,
+          parMax: 120,
+          notes: "Low front-left rock cluster with soft coral placement surfaces.",
+        },
+        {
+          id: "right-island",
+          name: "Right front island",
+          type: "mound",
+          x: 10.1,
+          y: -3.6,
+          z: 1.3,
+          width: 7.2,
+          depth: 5.2,
+          height: 4.4,
+          light: "Low-Medium",
+          flow: "Medium-High",
+          parMin: 55,
+          parMax: 135,
+          notes: "Right lower reef cluster under the strongest side flow.",
+        },
+        {
+          id: "front-center-rock",
+          name: "Front center rock",
+          type: "mound",
+          x: 2.2,
+          y: -4.5,
+          z: 1.2,
+          width: 3.4,
+          depth: 2.8,
+          height: 2.4,
+          light: "Low",
+          flow: "Medium",
+          parMin: 35,
+          parMax: 85,
+          notes: "Small foreground rock and sand transition area.",
+        },
+        {
+          id: "front-purple-ledge",
+          name: "Front purple ledge",
+          type: "ledge",
+          x: -2.2,
+          y: -5.1,
+          z: 0.9,
+          width: 6.3,
+          depth: 1.7,
+          height: 1.1,
+          light: "Low",
+          flow: "Low-Medium",
+          parMin: 30,
+          parMax: 70,
+          notes: "Low horizontal ledge near the front glass.",
+        },
+        {
+          id: "center-shelf",
+          name: "Elevated center shelf",
+          type: "shelf",
+          x: 0.8,
+          y: 0.1,
+          z: 7.7,
+          width: 13.4,
+          depth: 5.8,
+          height: 4.5,
+          light: "Medium-High",
+          flow: "High",
+          parMin: 130,
+          parMax: 260,
+          notes: "Dominant raised bridge/shelf with shaded underside and high-light top surface.",
+        },
+        {
+          id: "rear-support",
+          name: "Rear support column",
+          type: "support",
+          x: 0.7,
+          y: 2.6,
+          z: 1.2,
+          width: 1,
+          depth: 1,
+          height: 8.1,
+          light: "Shade",
+          flow: "Medium",
+          parMin: 20,
+          parMax: 65,
+          notes: "Dark rear riser/support visible behind the elevated shelf.",
+        },
+      ],
     };
   }
 
@@ -122,6 +255,7 @@
       waterTests: Array.isArray(raw.waterTests) ? raw.waterTests : [],
       events: Array.isArray(raw.events) ? raw.events : [],
       insightRuns: Array.isArray(raw.insightRuns) ? raw.insightRuns : [],
+      map: normalizeMap(raw.map, base.map),
     };
 
     const lightingPhotos = normalizePhotoArray([
@@ -203,6 +337,78 @@
     }));
 
     return next;
+  }
+
+  function normalizeMap(raw = {}, defaults = getDefaultMap()) {
+    const source = raw && typeof raw === "object" ? raw : {};
+    const defaultDimensions = defaults.dimensions;
+    const dimensions = {
+      width: positiveNumber(source.dimensions?.width, defaultDimensions.width),
+      depth: positiveNumber(source.dimensions?.depth, defaultDimensions.depth),
+      height: positiveNumber(source.dimensions?.height, defaultDimensions.height),
+      sandDepth: nonNegativeNumber(source.dimensions?.sandDepth, defaultDimensions.sandDepth),
+      waterline: nonNegativeNumber(source.dimensions?.waterline, defaultDimensions.waterline),
+      scaleReference: source.dimensions?.scaleReference || defaultDimensions.scaleReference,
+      calibrationNotes: source.dimensions?.calibrationNotes || defaultDimensions.calibrationNotes,
+    };
+
+    dimensions.sandDepth = Math.min(dimensions.sandDepth, dimensions.height - 0.5);
+    dimensions.waterline = Math.min(Math.max(dimensions.waterline, dimensions.sandDepth + 0.5), dimensions.height);
+
+    const defaultLayers = defaults.layers;
+    const layers = {
+      par: source.layers?.par ?? defaultLayers.par,
+      livestock: source.layers?.livestock ?? defaultLayers.livestock,
+      flow: source.layers?.flow ?? defaultLayers.flow,
+      equipment: source.layers?.equipment ?? defaultLayers.equipment,
+    };
+
+    const structureSource = Array.isArray(source.structures) && source.structures.length
+      ? source.structures
+      : defaults.structures;
+
+    return {
+      dimensions,
+      view: source.view || defaults.view,
+      layers,
+      structures: structureSource.map((structure, index) =>
+        normalizeMapStructure(structure, defaults.structures[index] || defaults.structures[0]),
+      ),
+    };
+  }
+
+  function normalizeMapStructure(structure = {}, fallback = {}) {
+    return {
+      id: structure.id || fallback.id || uid(),
+      name: structure.name || fallback.name || "Reef structure",
+      type: structure.type || fallback.type || "mound",
+      x: finiteNumber(structure.x, fallback.x || 0),
+      y: finiteNumber(structure.y, fallback.y || 0),
+      z: nonNegativeNumber(structure.z, fallback.z || 0),
+      width: positiveNumber(structure.width, fallback.width || 3),
+      depth: positiveNumber(structure.depth, fallback.depth || 3),
+      height: positiveNumber(structure.height, fallback.height || 2),
+      light: structure.light || fallback.light || "Medium",
+      flow: structure.flow || fallback.flow || "Medium",
+      parMin: nonNegativeNumber(structure.parMin, fallback.parMin || 0),
+      parMax: nonNegativeNumber(structure.parMax, fallback.parMax || 0),
+      notes: structure.notes || fallback.notes || "",
+    };
+  }
+
+  function finiteNumber(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  function positiveNumber(value, fallback) {
+    const number = finiteNumber(value, fallback);
+    return number > 0 ? number : fallback;
+  }
+
+  function nonNegativeNumber(value, fallback) {
+    const number = finiteNumber(value, fallback);
+    return number >= 0 ? number : fallback;
   }
 
   function readJson(key) {
@@ -371,9 +577,11 @@
       if (key === "tankName") return Boolean(profile[key] && profile[key] !== defaults[key]);
       return String(profile[key] ?? "") !== String(defaults[key] ?? "");
     });
+    const mapChanged = JSON.stringify(value?.map || {}) !== JSON.stringify(getDefaultMap());
 
     return Boolean(
       profileChanged ||
+        mapChanged ||
         value?.livestock?.length ||
         value?.waterTests?.length ||
         value?.events?.length ||
@@ -840,6 +1048,9 @@
       button.classList.toggle("active", button.dataset.view === next);
     });
     $("viewTitle").textContent = $(viewMap[next]).dataset.title || "Reef Command";
+    if (next === "map") {
+      requestAnimationFrame(() => renderReefMap({ rebuild: true }));
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
     refreshIcons();
   }
@@ -848,6 +1059,8 @@
     renderTankProfileForm();
     renderDashboard();
     renderZones();
+    renderMapSettings();
+    renderMapSummaries();
     syncLivestockDateControls();
     renderLivestock();
     renderPhotoLibrary();
@@ -994,6 +1207,682 @@
       ...state.zones.map((zone) => `<option value="${zone.id}">${escapeHtml(zone.name)}</option>`),
     ].join("");
     $("livestockZone").innerHTML = options;
+  }
+
+  function renderMapSettings() {
+    if (!$("mapSettingsForm")) return;
+    const dimensions = state.map.dimensions;
+    $$("[data-map-dimension]").forEach((input) => {
+      const key = input.dataset.mapDimension;
+      input.value = dimensions[key] ?? "";
+    });
+    $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
+    $("mapQualityPill").textContent = dimensions.scaleReference ? "Photo draft" : "Draft";
+    $$("[data-map-layer]").forEach((button) => {
+      button.classList.toggle("active", Boolean(state.map.layers?.[button.dataset.mapLayer]));
+    });
+    $$("[data-map-view]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.mapView === (state.map.view || "orbit"));
+    });
+  }
+
+  function updateMapFromSettings() {
+    const dimensions = { ...state.map.dimensions };
+    $$("[data-map-dimension]").forEach((input) => {
+      const key = input.dataset.mapDimension;
+      if (input.type === "number") {
+        dimensions[key] = input.value === "" ? "" : Number(input.value);
+      } else {
+        dimensions[key] = input.value;
+      }
+    });
+    state.map = normalizeMap({ ...state.map, dimensions }, getDefaultMap());
+    saveState();
+    renderMapSettings();
+    renderMapSummaries();
+    renderReefMap({ rebuild: true });
+    renderInsightsContext();
+  }
+
+  function renderMapSummaries() {
+    if (!$("mapStructureList")) return;
+    const structures = state.map.structures || [];
+    $("mapStructureCountPill").textContent = `${structures.length} structures`;
+    $("mapStructureList").innerHTML = structures.length
+      ? structures.map((structure) => `
+        <article class="data-card">
+          <div class="data-card-header">
+            <div class="data-card-title">
+              <strong>${escapeHtml(structure.name)}</strong>
+              <p class="card-meta">${escapeHtml(structure.light)} light · ${escapeHtml(structure.flow)} flow · ${escapeHtml(formatStructureSize(structure))}</p>
+            </div>
+            <span class="category-pill">${escapeHtml(structure.type)}</span>
+          </div>
+          <div class="map-stat-row">
+            <span class="map-stat">PAR ${escapeHtml(formatParRange(structure))}</span>
+            <span class="map-stat">X ${escapeHtml(formatValue(structure.x, "in"))}</span>
+            <span class="map-stat">Y ${escapeHtml(formatValue(structure.y, "in"))}</span>
+            <span class="map-stat">Z ${escapeHtml(formatValue(structure.z, "in"))}</span>
+          </div>
+          ${structure.notes ? `<p class="card-meta">${escapeHtml(structure.notes)}</p>` : ""}
+        </article>
+      `).join("")
+      : `<div class="empty-state">No structures mapped.</div>`;
+
+    const placements = getLivestockMapPlacements();
+    const placedCount = placements.filter((placement) => placement.zone).length;
+    $("mapPlacementCountPill").textContent = `${placedCount}/${placements.length} placed`;
+    $("mapPlacementList").innerHTML = placements.length
+      ? placements.map((placement) => `
+        <article class="data-card">
+          <div class="data-card-header">
+            <div class="data-card-title">
+              <strong>${escapeHtml(placement.species)}</strong>
+              <p class="card-meta">${escapeHtml(placement.category)} · ${escapeHtml(placement.zone || "Unplaced")}</p>
+            </div>
+            <span class="category-pill">${escapeHtml(placement.structure?.name || "No zone")}</span>
+          </div>
+          <div class="map-stat-row">
+            <span class="map-stat">${escapeHtml(placement.health || "Health untracked")}</span>
+            <span class="map-stat">${escapeHtml(placement.growth || "Growth untracked")}</span>
+          </div>
+        </article>
+      `).join("")
+      : `<div class="empty-state">No stock to place yet.</div>`;
+  }
+
+  function formatStructureSize(structure) {
+    return `${formatValue(structure.width, "in")} x ${formatValue(structure.depth, "in")} x ${formatValue(structure.height, "in")}`;
+  }
+
+  function formatParRange(structure) {
+    if (!structure.parMin && !structure.parMax) return "unknown";
+    return `${structure.parMin || "?"}-${structure.parMax || "?"}`;
+  }
+
+  function renderReefMap(options = {}) {
+    if (!$("reefMapStage")) return;
+    if (!window.THREE) {
+      $("reefMapFallback").hidden = false;
+      return;
+    }
+    $("reefMapFallback").hidden = true;
+    if (!ensureMapRenderer()) return;
+    resizeMapRenderer();
+    if (options.rebuild || !mapRoot) rebuildReefMapScene();
+    updateMapCamera();
+    mapRenderer.render(mapScene, mapCamera);
+  }
+
+  function ensureMapRenderer() {
+    if (mapRenderer) return true;
+    const canvas = $("reefMapCanvas");
+    if (!canvas || !window.THREE) return false;
+
+    mapScene = new THREE.Scene();
+    mapScene.fog = new THREE.Fog(0xeaf6f5, 42, 92);
+    mapCamera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
+    mapRenderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
+    mapRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    if ("outputColorSpace" in mapRenderer && THREE.SRGBColorSpace) {
+      mapRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    }
+    mapRenderer.shadowMap.enabled = true;
+    mapRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    bindMapPointerEvents($("reefMapStage"));
+    mapResizeObserver = new ResizeObserver(() => renderReefMap());
+    mapResizeObserver.observe($("reefMapStage"));
+    startMapAnimation();
+    return true;
+  }
+
+  function resizeMapRenderer() {
+    const stage = $("reefMapStage");
+    const rect = stage.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    const canvas = mapRenderer.domElement;
+    if (canvas.width !== Math.floor(width * mapRenderer.getPixelRatio()) || canvas.height !== Math.floor(height * mapRenderer.getPixelRatio())) {
+      mapRenderer.setSize(width, height, false);
+      mapCamera.aspect = width / height;
+      mapCamera.updateProjectionMatrix();
+    }
+  }
+
+  function startMapAnimation() {
+    if (mapAnimationFrame) cancelAnimationFrame(mapAnimationFrame);
+    const tick = () => {
+      if (mapRenderer && $("mapView")?.classList.contains("active")) {
+        updateMapCamera();
+        mapRenderer.render(mapScene, mapCamera);
+      }
+      mapAnimationFrame = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  function rebuildReefMapScene() {
+    clearMapScene();
+    mapRoot = new THREE.Group();
+    mapScene.add(mapRoot);
+
+    const dimensions = state.map.dimensions;
+    addMapLighting(dimensions);
+    addTankEnvelope(dimensions);
+    addSandBed(dimensions);
+    addBackGlassTexture(dimensions);
+    if (state.map.layers.equipment) addEquipmentGhosts(dimensions);
+
+    state.map.structures.forEach((structure, index) => {
+      mapRoot.add(createRockStructure(structure, index));
+      if (state.map.layers.par) mapRoot.add(createParHalo(structure));
+      mapRoot.add(createMapLabel(structure.name, structureLabelPosition(structure), "#075f5b"));
+    });
+
+    if (state.map.layers.flow) addFlowArrows(dimensions);
+    if (state.map.layers.livestock) addLivestockMarkers();
+  }
+
+  function clearMapScene() {
+    if (!mapScene) return;
+    while (mapScene.children.length) {
+      const child = mapScene.children.pop();
+      disposeThreeObject(child);
+    }
+    mapRoot = null;
+  }
+
+  function disposeThreeObject(object) {
+    object.traverse?.((child) => {
+      if (child.geometry) child.geometry.dispose();
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      materials.filter(Boolean).forEach((material) => {
+        if (material.map) material.map.dispose();
+        material.dispose?.();
+      });
+    });
+  }
+
+  function addMapLighting(dimensions) {
+    const ambient = new THREE.HemisphereLight(0xdff6ff, 0x35534f, 1.8);
+    mapScene.add(ambient);
+
+    const key = new THREE.DirectionalLight(0xffffff, 3.2);
+    key.position.set(0, -dimensions.depth * 0.35, dimensions.height * 1.85);
+    key.castShadow = true;
+    key.shadow.mapSize.width = 2048;
+    key.shadow.mapSize.height = 2048;
+    key.shadow.camera.near = 1;
+    key.shadow.camera.far = 80;
+    key.shadow.camera.left = -dimensions.width;
+    key.shadow.camera.right = dimensions.width;
+    key.shadow.camera.top = dimensions.height;
+    key.shadow.camera.bottom = -dimensions.height;
+    mapScene.add(key);
+
+    const fill = new THREE.PointLight(0x77d3d4, 1.1, 80);
+    fill.position.set(-dimensions.width * 0.45, -dimensions.depth * 0.7, dimensions.height * 0.55);
+    mapScene.add(fill);
+  }
+
+  function addTankEnvelope(dimensions) {
+    const glassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xcdecea,
+      transparent: true,
+      opacity: 0.13,
+      roughness: 0.05,
+      metalness: 0,
+      transmission: 0.25,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const tank = new THREE.Mesh(new THREE.BoxGeometry(dimensions.width, dimensions.depth, dimensions.height), glassMaterial);
+    tank.position.z = dimensions.height / 2;
+    mapRoot.add(tank);
+
+    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x294442, transparent: true, opacity: 0.75 });
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(tank.geometry), edgeMaterial);
+    edges.position.copy(tank.position);
+    mapRoot.add(edges);
+
+    const waterMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x7fcfd2,
+      transparent: true,
+      opacity: 0.22,
+      roughness: 0.08,
+      metalness: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(dimensions.width, dimensions.depth), waterMaterial);
+    water.position.z = dimensions.waterline;
+    mapRoot.add(water);
+  }
+
+  function addSandBed(dimensions) {
+    const random = seededRandom("sand-bed");
+    const geometry = new THREE.PlaneGeometry(dimensions.width, dimensions.depth, 58, 24);
+    const positions = geometry.attributes.position;
+    for (let index = 0; index < positions.count; index += 1) {
+      const x = positions.getX(index);
+      const y = positions.getY(index);
+      const ripple = Math.sin(x * 0.72 + y * 1.18) * 0.06 + Math.cos(y * 1.9) * 0.04;
+      positions.setZ(index, dimensions.sandDepth + ripple + random() * 0.08);
+    }
+    geometry.computeVertexNormals();
+    const sand = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({ color: 0xdccfae, roughness: 0.96, metalness: 0 }),
+    );
+    sand.receiveShadow = true;
+    mapRoot.add(sand);
+
+    const pebbleMaterial = new THREE.MeshStandardMaterial({ color: 0xbfae89, roughness: 1 });
+    for (let index = 0; index < 110; index += 1) {
+      const pebble = new THREE.Mesh(new THREE.SphereGeometry(0.035 + random() * 0.055, 7, 5), pebbleMaterial);
+      pebble.position.set(
+        (random() - 0.5) * dimensions.width * 0.92,
+        (random() - 0.5) * dimensions.depth * 0.88,
+        dimensions.sandDepth + 0.04 + random() * 0.08,
+      );
+      mapRoot.add(pebble);
+    }
+  }
+
+  function addBackGlassTexture(dimensions) {
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x6b8c63,
+      transparent: true,
+      opacity: 0.16,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    [-0.34, 0, 0.34].forEach((offset, index) => {
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(dimensions.width * 0.18, dimensions.height * 0.62), material.clone());
+      panel.material.opacity = index === 1 ? 0.12 : 0.2;
+      panel.position.set(dimensions.width * offset, dimensions.depth / 2 + 0.035, dimensions.height * 0.55);
+      panel.rotation.x = Math.PI / 2;
+      mapRoot.add(panel);
+    });
+  }
+
+  function addEquipmentGhosts(dimensions) {
+    const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x1f2f31, roughness: 0.55, transparent: true, opacity: 0.55 });
+    const yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xe0b21f, roughness: 0.5, transparent: true, opacity: 0.76 });
+    const acrylicMaterial = new THREE.MeshPhysicalMaterial({ color: 0xd7eeee, transparent: true, opacity: 0.24, roughness: 0.05, side: THREE.DoubleSide, depthWrite: false });
+
+    const overflow = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.1, 6.6), darkMaterial);
+    overflow.position.set(-dimensions.width / 2 + 2.6, dimensions.depth / 2 - 0.65, dimensions.height * 0.63);
+    mapRoot.add(overflow);
+
+    const filterBox = new THREE.Mesh(new THREE.BoxGeometry(6.2, 1.2, 2.2), acrylicMaterial);
+    filterBox.position.set(0, dimensions.depth / 2 + 0.42, dimensions.waterline + 0.5);
+    mapRoot.add(filterBox);
+
+    [0, 0.65].forEach((offset) => {
+      const heater = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 7.2, 16), yellowMaterial);
+      heater.rotation.x = Math.PI / 2;
+      heater.position.set(dimensions.width / 2 - 1.4 - offset, dimensions.depth / 2 - 0.4, dimensions.height * 0.44);
+      mapRoot.add(heater);
+    });
+
+    [
+      { z: dimensions.height * 0.67, y: dimensions.depth / 2 - 1.8 },
+      { z: dimensions.height * 0.54, y: dimensions.depth / 2 - 1.2 },
+    ].forEach((pump) => {
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.9, 28), darkMaterial);
+      body.rotation.z = Math.PI / 2;
+      body.position.set(dimensions.width / 2 - 0.7, pump.y, pump.z);
+      mapRoot.add(body);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.54, 0.04, 8, 24), darkMaterial);
+      ring.rotation.y = Math.PI / 2;
+      ring.position.copy(body.position);
+      mapRoot.add(ring);
+    });
+  }
+
+  function addFlowArrows(dimensions) {
+    const arrowMaterialColor = 0x2f9bb3;
+    const flows = [
+      { start: [dimensions.width / 2 - 1.1, dimensions.depth / 2 - 1.7, dimensions.height * 0.66], dir: [-1, -0.25, -0.08], length: dimensions.width * 0.38 },
+      { start: [dimensions.width / 2 - 1.1, dimensions.depth / 2 - 1.0, dimensions.height * 0.53], dir: [-1, -0.45, -0.18], length: dimensions.width * 0.34 },
+      { start: [-dimensions.width / 2 + 1.8, dimensions.depth / 2 - 1.3, dimensions.height * 0.43], dir: [0.75, -0.45, 0.04], length: dimensions.width * 0.22 },
+    ];
+    flows.forEach((flow) => {
+      const direction = new THREE.Vector3(...flow.dir).normalize();
+      const origin = new THREE.Vector3(...flow.start);
+      const arrow = new THREE.ArrowHelper(direction, origin, flow.length, arrowMaterialColor, 0.75, 0.34);
+      arrow.cone.material.transparent = true;
+      arrow.cone.material.opacity = 0.55;
+      arrow.line.material.transparent = true;
+      arrow.line.material.opacity = 0.5;
+      mapRoot.add(arrow);
+    });
+  }
+
+  function createRockStructure(structure, index) {
+    const group = new THREE.Group();
+    group.name = structure.id;
+    if (structure.type === "support") {
+      const material = new THREE.MeshStandardMaterial({ color: 0x202627, roughness: 0.72 });
+      const support = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.44, structure.height, 20), material);
+      support.rotation.x = Math.PI / 2;
+      support.position.set(structure.x, structure.y, structure.z + structure.height / 2);
+      support.castShadow = true;
+      group.add(support);
+      return group;
+    }
+
+    const random = seededRandom(structure.id || `structure-${index}`);
+    const blobCount = structure.type === "shelf" ? 34 : structure.type === "ledge" ? 12 : 22;
+    for (let blobIndex = 0; blobIndex < blobCount; blobIndex += 1) {
+      const isShelf = structure.type === "shelf";
+      const localX = (random() - 0.5) * structure.width * (isShelf ? 1.05 : 0.9);
+      const localY = (random() - 0.5) * structure.depth * (isShelf ? 0.95 : 0.85);
+      const heightBias = isShelf ? 0.58 + random() * 0.35 : Math.pow(random(), 0.62);
+      const localZ = Math.max(0.25, heightBias * structure.height);
+      const radius = (isShelf ? 0.78 : 0.62) + random() * (isShelf ? 1.04 : 0.82);
+      const mesh = createRockBlob(
+        `${structure.id}-${blobIndex}`,
+        radius,
+        rockColor(random, structure.type),
+        {
+          x: isShelf ? 1.25 + random() * 1.1 : 0.9 + random() * 0.85,
+          y: isShelf ? 0.65 + random() * 0.7 : 0.8 + random() * 0.85,
+          z: isShelf ? 0.45 + random() * 0.42 : 0.65 + random() * 0.92,
+        },
+      );
+      mesh.position.set(structure.x + localX, structure.y + localY, structure.z + localZ);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
+
+    addCoralAccents(group, structure, random);
+    return group;
+  }
+
+  function createRockBlob(seed, radius, color, scale) {
+    const random = seededRandom(seed);
+    const geometry = new THREE.IcosahedronGeometry(radius, 3);
+    const positions = geometry.attributes.position;
+    const vector = new THREE.Vector3();
+    for (let index = 0; index < positions.count; index += 1) {
+      vector.fromBufferAttribute(positions, index);
+      const wobble = 0.72 + random() * 0.48 + Math.sin(vector.x * 2.1 + vector.y * 1.4) * 0.08;
+      vector.set(vector.x * scale.x * wobble, vector.y * scale.y * wobble, vector.z * scale.z * wobble);
+      positions.setXYZ(index, vector.x, vector.y, vector.z);
+    }
+    geometry.computeVertexNormals();
+    return new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.92,
+        metalness: 0.02,
+      }),
+    );
+  }
+
+  function addCoralAccents(group, structure, random) {
+    const accentPalette = [0xe18839, 0xc7899d, 0xd8c77c, 0x9b7ac8, 0xb77f4f, 0x7ab67e];
+    const count = structure.type === "shelf" ? 12 : structure.type === "ledge" ? 3 : 7;
+    for (let index = 0; index < count; index += 1) {
+      const color = accentPalette[Math.floor(random() * accentPalette.length)];
+      const material = new THREE.MeshStandardMaterial({ color, roughness: 0.78 });
+      const radius = 0.26 + random() * 0.48;
+      const coral = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * (0.84 + random() * 0.22), 0.08 + random() * 0.08, 28), material);
+      coral.position.set(
+        structure.x + (random() - 0.5) * structure.width * 0.72,
+        structure.y + (random() - 0.5) * structure.depth * 0.7,
+        structure.z + structure.height * (0.72 + random() * 0.35),
+      );
+      coral.rotation.x = (random() - 0.5) * 0.32;
+      coral.rotation.y = (random() - 0.5) * 0.32;
+      coral.castShadow = true;
+      group.add(coral);
+    }
+  }
+
+  function createParHalo(structure) {
+    const color = structure.parMax >= 180 ? 0xf2c94c : structure.parMax >= 100 ? 0x46b87e : 0x4d9de0;
+    const material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.2,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(1, 48), material);
+    halo.scale.set(Math.max(1.4, structure.width * 0.55), Math.max(1.1, structure.depth * 0.55), 1);
+    halo.position.set(structure.x, structure.y, structure.z + structure.height + 0.18);
+    return halo;
+  }
+
+  function addLivestockMarkers() {
+    getLivestockMapPlacements().forEach((placement, index) => {
+      if (!placement.zone || !placement.structure || !placement.anchor) return;
+      const anchor = placement.anchor;
+      const color = livestockColor(placement.category);
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 18, 12),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.22, roughness: 0.4 }),
+      );
+      marker.position.copy(anchor);
+      marker.castShadow = true;
+      mapRoot.add(marker);
+      if (index < 18) {
+        mapRoot.add(createMapLabel(placement.species, anchor.clone().add(new THREE.Vector3(0, 0, 0.85)), "#405856"));
+      }
+    });
+  }
+
+  function getLivestockMapPlacements() {
+    return state.livestock
+      .filter((item) => isCasualStockCategory(item.category) || item.status === "active")
+      .map((item, index) => {
+        const zone = state.zones.find((entry) => entry.id === item.zoneId);
+        const structure = getStructureForZone(zone, item, index);
+        return {
+          id: item.id,
+          species: item.species || item.name || "Unknown",
+          category: item.category || "Other",
+          zone: zone?.name || "",
+          health: item.health || "",
+          growth: item.growthMetric || item.growthTrend || "",
+          structure,
+          anchor: structure ? getPlacementAnchor(structure, item.id || `${index}`) : null,
+        };
+      });
+  }
+
+  function getStructureForZone(zone, item, index) {
+    if (!zone) return null;
+    const name = `${zone.name || ""} ${item.species || ""}`.toLowerCase();
+    if (name.includes("left")) return findMapStructure("left-island");
+    if (name.includes("right")) return findMapStructure("right-island");
+    if (name.includes("sand") || name.includes("low")) return findMapStructure("front-center-rock") || findMapStructure("front-purple-ledge");
+    if (name.includes("top") || name.includes("shelf") || zone.light === "High") return findMapStructure("center-shelf");
+    if (name.includes("mid") || zone.light === "Medium") return findMapStructure("center-shelf") || findMapStructure("left-island");
+    return state.map.structures[index % state.map.structures.length] || null;
+  }
+
+  function findMapStructure(id) {
+    return state.map.structures.find((structure) => structure.id === id);
+  }
+
+  function getPlacementAnchor(structure, seed) {
+    if (!window.THREE) return null;
+    const random = seededRandom(`placement-${seed}`);
+    return new THREE.Vector3(
+      structure.x + (random() - 0.5) * structure.width * 0.55,
+      structure.y + (random() - 0.5) * structure.depth * 0.55,
+      structure.z + structure.height + 0.42 + random() * 0.35,
+    );
+  }
+
+  function structureLabelPosition(structure) {
+    return new THREE.Vector3(structure.x, structure.y, structure.z + structure.height + 1.05);
+  }
+
+  function createMapLabel(text, position, color) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 128;
+    const context = canvas.getContext("2d");
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "rgba(255, 255, 255, 0.86)";
+    roundRect(context, 12, 22, 488, 84, 18);
+    context.fill();
+    context.strokeStyle = "rgba(167, 200, 191, 0.95)";
+    context.lineWidth = 3;
+    context.stroke();
+    context.fillStyle = color;
+    context.font = "700 34px Manrope, Arial, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(shortenLabel(text), canvas.width / 2, canvas.height / 2 + 3, 452);
+    const texture = new THREE.CanvasTexture(canvas);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+    sprite.position.copy(position);
+    sprite.scale.set(4.4, 1.1, 1);
+    return sprite;
+  }
+
+  function roundRect(context, x, y, width, height, radius) {
+    context.beginPath();
+    context.moveTo(x + radius, y);
+    context.lineTo(x + width - radius, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + radius);
+    context.lineTo(x + width, y + height - radius);
+    context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    context.lineTo(x + radius, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - radius);
+    context.lineTo(x, y + radius);
+    context.quadraticCurveTo(x, y, x + radius, y);
+    context.closePath();
+  }
+
+  function shortenLabel(value) {
+    const text = String(value || "");
+    return text.length > 26 ? `${text.slice(0, 23)}...` : text;
+  }
+
+  function rockColor(random, type) {
+    const shelfPalette = [0x9c2f62, 0xb13c77, 0x7b294d, 0x5f4939, 0x3f6848];
+    const moundPalette = [0x79304d, 0x8e3e38, 0x57422f, 0x4b7143, 0xaa4e75];
+    const palette = type === "shelf" ? shelfPalette : moundPalette;
+    return palette[Math.floor(random() * palette.length)];
+  }
+
+  function livestockColor(category) {
+    if (category === "Coral") return 0xe079a0;
+    if (category === "Fish") return 0x4098d7;
+    if (category === "Invert" || category === "Cleanup crew") return 0xe0ad3b;
+    if (category === "Noticed pest") return 0xc2413a;
+    if (category === "Microfauna") return 0x2f855a;
+    return 0x6d7d87;
+  }
+
+  function updateMapCamera() {
+    if (!mapCamera) return;
+    const dimensions = state.map.dimensions;
+    const target = new THREE.Vector3(0, 0, dimensions.height * 0.46);
+    const pitch = Math.max(-1.2, Math.min(1.42, mapViewState.pitch));
+    const distance = Math.max(18, Math.min(95, mapViewState.distance));
+    const horizontal = Math.cos(pitch) * distance;
+    mapCamera.position.set(
+      Math.sin(mapViewState.yaw) * horizontal,
+      -Math.cos(mapViewState.yaw) * horizontal,
+      target.z + Math.sin(pitch) * distance,
+    );
+    mapCamera.lookAt(target);
+  }
+
+  function setMapViewPreset(view) {
+    state.map.view = view;
+    const dimensions = state.map.dimensions;
+    const maxDimension = Math.max(dimensions.width, dimensions.depth, dimensions.height);
+    if (view === "front") {
+      mapViewState.yaw = 0;
+      mapViewState.pitch = 0.08;
+      mapViewState.distance = maxDimension * 1.45;
+    } else if (view === "right") {
+      mapViewState.yaw = Math.PI / 2;
+      mapViewState.pitch = 0.1;
+      mapViewState.distance = maxDimension * 1.35;
+    } else if (view === "top") {
+      mapViewState.yaw = 0;
+      mapViewState.pitch = 1.37;
+      mapViewState.distance = maxDimension * 1.25;
+    } else {
+      mapViewState.yaw = -0.42;
+      mapViewState.pitch = 0.34;
+      mapViewState.distance = maxDimension * 1.55;
+    }
+    saveState();
+    renderMapSettings();
+    renderReefMap();
+  }
+
+  function bindMapPointerEvents(stage) {
+    stage.addEventListener("pointerdown", (event) => {
+      mapPointerState = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+      };
+      stage.setPointerCapture(event.pointerId);
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (!mapPointerState || mapPointerState.id !== event.pointerId) return;
+      const dx = event.clientX - mapPointerState.x;
+      const dy = event.clientY - mapPointerState.y;
+      mapPointerState.x = event.clientX;
+      mapPointerState.y = event.clientY;
+      mapViewState.yaw -= dx * 0.008;
+      mapViewState.pitch += dy * 0.006;
+      mapViewState.pitch = Math.max(-0.75, Math.min(1.42, mapViewState.pitch));
+      state.map.view = "orbit";
+      renderMapSettings();
+    });
+    stage.addEventListener("pointerup", () => {
+      mapPointerState = null;
+    });
+    stage.addEventListener("pointercancel", () => {
+      mapPointerState = null;
+    });
+    stage.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      mapViewState.distance += event.deltaY * 0.025;
+      mapViewState.distance = Math.max(18, Math.min(95, mapViewState.distance));
+    }, { passive: false });
+  }
+
+  function seededRandom(seed) {
+    let value = hashString(seed);
+    return () => {
+      value += 0x6d2b79f5;
+      let next = value;
+      next = Math.imul(next ^ (next >>> 15), next | 1);
+      next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
+      return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function hashString(value) {
+    let hash = 2166136261;
+    String(value).split("").forEach((character) => {
+      hash ^= character.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    });
+    return hash >>> 0;
   }
 
   function renderLivestock() {
@@ -1298,6 +2187,49 @@
         hasPhoto: photoCount > 0,
       };
     });
+    const mapPlacements = getLivestockMapPlacements().map((placement) => ({
+      id: placement.id,
+      species: placement.species,
+      category: placement.category,
+      zone: placement.zone || "",
+      structureId: placement.structure?.id || "",
+      structureName: placement.structure?.name || "",
+      coordinateInches: placement.anchor
+        ? {
+            x: Number(placement.anchor.x.toFixed(2)),
+            y: Number(placement.anchor.y.toFixed(2)),
+            z: Number(placement.anchor.z.toFixed(2)),
+          }
+        : null,
+      health: placement.health,
+      growth: placement.growth,
+    }));
+    const mapModel = {
+      dimensions: state.map.dimensions,
+      coordinateSystem: {
+        x: "left/right across front glass",
+        y: "front/back depth; negative is front glass, positive is back glass",
+        z: "vertical inches from tank bottom",
+      },
+      calibration: {
+        source: "manual draft from front, right, and top photo set with scale cards",
+        referenceImageCount: 9,
+        rawReferenceImagesStoredInApp: false,
+      },
+      structures: state.map.structures.map((structure) => ({
+        id: structure.id,
+        name: structure.name,
+        type: structure.type,
+        position: { x: structure.x, y: structure.y, z: structure.z },
+        size: { width: structure.width, depth: structure.depth, height: structure.height },
+        light: structure.light,
+        flow: structure.flow,
+        parRange: { min: structure.parMin, max: structure.parMax },
+        notes: structure.notes,
+      })),
+      livestockPlacements: mapPlacements,
+      layers: state.map.layers,
+    };
 
     return {
       generatedAt: new Date().toISOString(),
@@ -1316,6 +2248,7 @@
         },
       },
       zones: state.zones,
+      mapModel,
       livestock,
       activeLivestock: livestock.filter((item) => isLifecycleStock(item) && item.status === "active"),
       recentWaterTests,
@@ -1332,8 +2265,11 @@
         },
         livestockPhotos: livestockPhotoInventory,
         map: {
-          modelAvailable: false,
-          referenceImageCount: 0,
+          modelAvailable: true,
+          structureCount: state.map.structures.length,
+          placedLivestockCount: mapPlacements.filter((placement) => placement.zone).length,
+          referenceImageCount: 9,
+          canRequestRawReferenceImages: false,
           parMapAvailable: state.zones.some((zone) => zone.parMin || zone.parMax),
         },
         logs: {
@@ -1789,6 +2725,8 @@
     $("zoneFlow").value = "Medium";
     saveState();
     renderZones();
+    renderMapSummaries();
+    renderReefMap({ rebuild: true });
     renderInsightsContext();
     showToast("Zone added.");
   }
@@ -1917,6 +2855,8 @@
       saveState();
       renderLivestock();
       renderPhotoLibrary();
+      renderMapSummaries();
+      renderReefMap({ rebuild: true });
       renderDashboard();
       renderInsightsContext();
       showToast(existing ? "Stock updated." : "Stock added.");
@@ -2236,6 +3176,23 @@
       return;
     }
 
+    const mapView = event.target.closest("[data-map-view]");
+    if (mapView) {
+      setMapViewPreset(mapView.dataset.mapView);
+      return;
+    }
+
+    const mapLayer = event.target.closest("[data-map-layer]");
+    if (mapLayer) {
+      const layer = mapLayer.dataset.mapLayer;
+      state.map.layers[layer] = !state.map.layers[layer];
+      saveState();
+      renderMapSettings();
+      renderReefMap({ rebuild: true });
+      renderInsightsContext();
+      return;
+    }
+
     const zoneDelete = event.target.closest("[data-zone-delete]");
     if (zoneDelete) {
       const id = zoneDelete.dataset.zoneDelete;
@@ -2246,6 +3203,8 @@
       saveState();
       renderZones();
       renderLivestock();
+      renderMapSummaries();
+      renderReefMap({ rebuild: true });
       renderInsightsContext();
       showToast("Zone deleted.");
       return;
@@ -2295,6 +3254,8 @@
     saveState();
     renderLivestock();
     renderPhotoLibrary();
+    renderMapSummaries();
+    renderReefMap({ rebuild: true });
     renderDashboard();
     renderInsightsContext();
     showToast("Livestock updated.");
@@ -2330,6 +3291,11 @@
       input.addEventListener("input", updateProfileFromForm);
       input.addEventListener("change", updateProfileFromForm);
     });
+    $$("[data-map-dimension]").forEach((input) => {
+      input.addEventListener("input", updateMapFromSettings);
+      input.addEventListener("change", updateMapFromSettings);
+    });
+    $("mapSettingsForm").addEventListener("submit", (event) => event.preventDefault());
     $("lightingPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "lighting"));
     $("zoneForm").addEventListener("submit", addZone);
     $("livestockForm").addEventListener("submit", addLivestock);

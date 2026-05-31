@@ -20,6 +20,7 @@
     />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="./vendor/three.min.js"></script>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -273,6 +274,119 @@
               </button>
             </form>
             <div id="zoneList" class="card-list"></div>
+          </section>
+        </section>
+
+        <section id="mapView" class="app-view" data-title="Map">
+          <section class="map-surface">
+            <div class="section-heading map-heading">
+              <div>
+                <h2>Tank Map</h2>
+                <p id="mapCalibrationSummary" class="muted-line">Photo-calibrated draft</p>
+              </div>
+              <span id="mapQualityPill" class="status-pill">Draft</span>
+            </div>
+
+            <div class="reef-map-stage" id="reefMapStage">
+              <canvas id="reefMapCanvas"></canvas>
+              <div id="reefMapFallback" class="map-fallback" hidden>
+                3D renderer unavailable.
+              </div>
+              <div class="map-corner-label map-corner-label-front">Front glass</div>
+              <div class="map-corner-label map-corner-label-right">Right side</div>
+            </div>
+
+            <div class="map-toolbar" role="toolbar" aria-label="Map controls">
+              <button class="mini-button active" type="button" data-map-view="orbit">
+                <i data-lucide="refresh-cw"></i>
+                Orbit
+              </button>
+              <button class="mini-button" type="button" data-map-view="front">
+                <i data-lucide="square"></i>
+                Front
+              </button>
+              <button class="mini-button" type="button" data-map-view="right">
+                <i data-lucide="arrow-right"></i>
+                Right
+              </button>
+              <button class="mini-button" type="button" data-map-view="top">
+                <i data-lucide="arrow-up"></i>
+                Top
+              </button>
+            </div>
+            <div class="map-toolbar map-layer-toolbar" role="toolbar" aria-label="Map layers">
+              <button class="mini-button active" type="button" data-map-layer="par">
+                <i data-lucide="sun"></i>
+                PAR
+              </button>
+              <button class="mini-button active" type="button" data-map-layer="livestock">
+                <i data-lucide="map-pin"></i>
+                Stock
+              </button>
+              <button class="mini-button active" type="button" data-map-layer="flow">
+                <i data-lucide="waves"></i>
+                Flow
+              </button>
+              <button class="mini-button active" type="button" data-map-layer="equipment">
+                <i data-lucide="plug"></i>
+                Gear
+              </button>
+            </div>
+          </section>
+
+          <section class="form-surface">
+            <div class="section-heading">
+              <h2>Model Calibration</h2>
+              <span class="status-pill">Inches</span>
+            </div>
+            <form id="mapSettingsForm" class="field-grid">
+              <label>
+                Width
+                <input id="mapWidth" type="number" min="1" step="0.1" data-map-dimension="width" />
+              </label>
+              <label>
+                Depth
+                <input id="mapDepth" type="number" min="1" step="0.1" data-map-dimension="depth" />
+              </label>
+              <label>
+                Height
+                <input id="mapHeight" type="number" min="1" step="0.1" data-map-dimension="height" />
+              </label>
+              <label>
+                Sand Depth
+                <input id="mapSandDepth" type="number" min="0" step="0.1" data-map-dimension="sandDepth" />
+              </label>
+              <label>
+                Waterline
+                <input id="mapWaterline" type="number" min="0" step="0.1" data-map-dimension="waterline" />
+              </label>
+              <label>
+                Scale Card
+                <input id="mapScaleReference" type="text" data-map-dimension="scaleReference" />
+              </label>
+              <label class="wide-field">
+                Calibration Notes
+                <input id="mapCalibrationNotes" type="text" data-map-dimension="calibrationNotes" />
+              </label>
+            </form>
+          </section>
+
+          <section class="map-grid">
+            <div class="section-block">
+              <div class="section-heading">
+                <h2>Reef Structures</h2>
+                <span id="mapStructureCountPill" class="status-pill">0</span>
+              </div>
+              <div id="mapStructureList" class="card-list"></div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-heading">
+                <h2>Stock Placements</h2>
+                <span id="mapPlacementCountPill" class="status-pill">0</span>
+              </div>
+              <div id="mapPlacementList" class="card-list"></div>
+            </div>
           </section>
         </section>
 
@@ -676,6 +790,10 @@
         <button type="button" data-view="tank">
           <i data-lucide="ship-wheel"></i>
           <span>Tank</span>
+        </button>
+        <button type="button" data-view="map">
+          <i data-lucide="map"></i>
+          <span>Map</span>
         </button>
         <button type="button" data-view="livestock">
           <i data-lucide="fish"></i>
