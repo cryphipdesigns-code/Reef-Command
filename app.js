@@ -126,14 +126,15 @@
 
   function getDefaultMap() {
     return {
+      modelVersion: 2,
       dimensions: {
         width: 30,
         depth: 12,
         height: 18,
         sandDepth: 1.3,
         waterline: 16.4,
-        scaleReference: "3 inch sticky-note scale cards",
-        calibrationNotes: "Front, right, and top center photos are treated as primary calibration references.",
+        scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
+        calibrationNotes: "Five-rock model: left, front left, front right, right, and shelf. Right rock refined from top/front/right close-ups with 2 inch ruler.",
       },
       view: "orbit",
       layers: {
@@ -144,72 +145,72 @@
       },
       structures: [
         {
-          id: "left-island",
-          name: "Left front island",
+          id: "left-rock",
+          name: "Left rock",
           type: "mound",
-          x: -9.9,
-          y: -3.8,
-          z: 1.4,
-          width: 7.1,
-          depth: 4.9,
-          height: 4.8,
+          x: -9.4,
+          y: -2.1,
+          z: 1.25,
+          width: 6.8,
+          depth: 5.2,
+          height: 4.4,
           light: "Low-Medium",
           flow: "Medium",
           parMin: 45,
           parMax: 120,
-          notes: "Low front-left rock cluster with soft coral placement surfaces.",
+          notes: "Separate sandbed rock on the left side with clear sand gaps around it.",
         },
         {
-          id: "right-island",
-          name: "Right front island",
+          id: "front-left-rock",
+          name: "Front left rock",
           type: "mound",
+          x: -3.8,
+          y: -4.85,
+          z: 1.2,
+          width: 4.2,
+          depth: 2.4,
+          height: 1.8,
+          light: "Low",
+          flow: "Low-Medium",
+          parMin: 35,
+          parMax: 85,
+          notes: "Low front-left sandbed rock, separated from the left rock and shelf by sand.",
+        },
+        {
+          id: "front-right-rock",
+          name: "Front right rock",
+          type: "mound",
+          x: 2.5,
+          y: -4.55,
+          z: 1.2,
+          width: 3.5,
+          depth: 2.7,
+          height: 2.5,
+          light: "Low",
+          flow: "Medium",
+          parMin: 30,
+          parMax: 70,
+          notes: "Small front-right sandbed rock with a visible sand gap before the main right rock.",
+        },
+        {
+          id: "right-rock",
+          name: "Right rock",
+          type: "right-rock",
           x: 10.1,
-          y: -3.6,
-          z: 1.3,
-          width: 7.2,
-          depth: 5.2,
-          height: 4.4,
+          y: -1.9,
+          z: 1.25,
+          width: 7.4,
+          depth: 5.5,
+          height: 3.9,
           light: "Low-Medium",
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Right lower reef cluster under the strongest side flow.",
-        },
-        {
-          id: "front-center-rock",
-          name: "Front center rock",
-          type: "mound",
-          x: 2.2,
-          y: -4.5,
-          z: 1.2,
-          width: 3.4,
-          depth: 2.8,
-          height: 2.4,
-          light: "Low",
-          flow: "Medium",
-          parMin: 35,
-          parMax: 85,
-          notes: "Small foreground rock and sand transition area.",
-        },
-        {
-          id: "front-purple-ledge",
-          name: "Front purple ledge",
-          type: "ledge",
-          x: -2.2,
-          y: -5.1,
-          z: 0.9,
-          width: 6.3,
-          depth: 1.7,
-          height: 1.1,
-          light: "Low",
-          flow: "Low-Medium",
-          parMin: 30,
-          parMax: 70,
-          notes: "Low horizontal ledge near the front glass.",
+          notes: "Ruler-refined right sandbed rock: broad low mound, clear sand around base, highest ridge set slightly rear/right.",
         },
         {
           id: "center-shelf",
-          name: "Elevated center shelf",
+          name: "Shelf rock",
           type: "shelf",
           x: 0.8,
           y: 0.1,
@@ -221,23 +222,7 @@
           flow: "High",
           parMin: 130,
           parMax: 260,
-          notes: "Dominant raised bridge/shelf with shaded underside and high-light top surface.",
-        },
-        {
-          id: "rear-support",
-          name: "Rear support column",
-          type: "support",
-          x: 0.7,
-          y: 2.6,
-          z: 1.2,
-          width: 1,
-          depth: 1,
-          height: 8.1,
-          light: "Shade",
-          flow: "Medium",
-          parMin: 20,
-          parMax: 65,
-          notes: "Dark rear riser/support visible behind the elevated shelf.",
+          notes: "Only rock structure not resting on the sandbed; raised shelf with shaded underside and high-light top.",
         },
       ],
     };
@@ -342,14 +327,17 @@
   function normalizeMap(raw = {}, defaults = getDefaultMap()) {
     const source = raw && typeof raw === "object" ? raw : {};
     const defaultDimensions = defaults.dimensions;
+    const sourceVersion = Number(source.modelVersion || 0);
+    const defaultVersion = Number(defaults.modelVersion || 1);
+    const shouldMigrateStructures = sourceVersion < defaultVersion;
     const dimensions = {
       width: positiveNumber(source.dimensions?.width, defaultDimensions.width),
       depth: positiveNumber(source.dimensions?.depth, defaultDimensions.depth),
       height: positiveNumber(source.dimensions?.height, defaultDimensions.height),
       sandDepth: nonNegativeNumber(source.dimensions?.sandDepth, defaultDimensions.sandDepth),
       waterline: nonNegativeNumber(source.dimensions?.waterline, defaultDimensions.waterline),
-      scaleReference: source.dimensions?.scaleReference || defaultDimensions.scaleReference,
-      calibrationNotes: source.dimensions?.calibrationNotes || defaultDimensions.calibrationNotes,
+      scaleReference: shouldMigrateStructures ? defaultDimensions.scaleReference : source.dimensions?.scaleReference || defaultDimensions.scaleReference,
+      calibrationNotes: shouldMigrateStructures ? defaultDimensions.calibrationNotes : source.dimensions?.calibrationNotes || defaultDimensions.calibrationNotes,
     };
 
     dimensions.sandDepth = Math.min(dimensions.sandDepth, dimensions.height - 0.5);
@@ -363,11 +351,12 @@
       equipment: source.layers?.equipment ?? defaultLayers.equipment,
     };
 
-    const structureSource = Array.isArray(source.structures) && source.structures.length
+    const structureSource = !shouldMigrateStructures && Array.isArray(source.structures) && source.structures.length
       ? source.structures
       : defaults.structures;
 
     return {
+      modelVersion: defaultVersion,
       dimensions,
       view: source.view || defaults.view,
       layers,
@@ -1217,7 +1206,7 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = dimensions.scaleReference ? "Photo draft" : "Draft";
+    $("mapQualityPill").textContent = dimensions.scaleReference?.includes("2 inch") ? "Ruler refined" : "Photo draft";
     $$("[data-map-layer]").forEach((button) => {
       button.classList.toggle("active", Boolean(state.map.layers?.[button.dataset.mapLayer]));
     });
@@ -1525,6 +1514,11 @@
     filterBox.position.set(0, dimensions.depth / 2 + 0.42, dimensions.waterline + 0.5);
     mapRoot.add(filterBox);
 
+    const shelfStand = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.42, 8.2), darkMaterial);
+    shelfStand.position.set(0.7, 2.6, dimensions.sandDepth + 4.1);
+    shelfStand.castShadow = true;
+    mapRoot.add(shelfStand);
+
     [0, 0.65].forEach((offset) => {
       const heater = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 7.2, 16), yellowMaterial);
       heater.rotation.x = Math.PI / 2;
@@ -1569,25 +1563,17 @@
   function createRockStructure(structure, index) {
     const group = new THREE.Group();
     group.name = structure.id;
-    if (structure.type === "support") {
-      const material = new THREE.MeshStandardMaterial({ color: 0x202627, roughness: 0.72 });
-      const support = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.44, structure.height, 20), material);
-      support.rotation.x = Math.PI / 2;
-      support.position.set(structure.x, structure.y, structure.z + structure.height / 2);
-      support.castShadow = true;
-      group.add(support);
-      return group;
-    }
+    if (structure.type === "right-rock") return createRightRockStructure(structure);
 
     const random = seededRandom(structure.id || `structure-${index}`);
-    const blobCount = structure.type === "shelf" ? 34 : structure.type === "ledge" ? 12 : 22;
+    const blobCount = structure.type === "shelf" ? 30 : 16;
     for (let blobIndex = 0; blobIndex < blobCount; blobIndex += 1) {
       const isShelf = structure.type === "shelf";
       const localX = (random() - 0.5) * structure.width * (isShelf ? 1.05 : 0.9);
       const localY = (random() - 0.5) * structure.depth * (isShelf ? 0.95 : 0.85);
-      const heightBias = isShelf ? 0.58 + random() * 0.35 : Math.pow(random(), 0.62);
+      const heightBias = isShelf ? 0.58 + random() * 0.35 : Math.pow(random(), 0.78);
       const localZ = Math.max(0.25, heightBias * structure.height);
-      const radius = (isShelf ? 0.78 : 0.62) + random() * (isShelf ? 1.04 : 0.82);
+      const radius = (isShelf ? 0.78 : 0.58) + random() * (isShelf ? 1 : 0.72);
       const mesh = createRockBlob(
         `${structure.id}-${blobIndex}`,
         radius,
@@ -1595,7 +1581,7 @@
         {
           x: isShelf ? 1.25 + random() * 1.1 : 0.9 + random() * 0.85,
           y: isShelf ? 0.65 + random() * 0.7 : 0.8 + random() * 0.85,
-          z: isShelf ? 0.45 + random() * 0.42 : 0.65 + random() * 0.92,
+          z: isShelf ? 0.45 + random() * 0.42 : 0.52 + random() * 0.74,
         },
       );
       mesh.position.set(structure.x + localX, structure.y + localY, structure.z + localZ);
@@ -1608,14 +1594,64 @@
     return group;
   }
 
-  function createRockBlob(seed, radius, color, scale) {
+  function createRightRockStructure(structure) {
+    const group = new THREE.Group();
+    group.name = structure.id;
+    const lobes = [
+      { x: -2.9, y: -1.45, z: 0.75, r: 1.05, s: [1.65, 1.05, 0.46], c: 0x6f273e },
+      { x: -1.7, y: -1.75, z: 0.95, r: 1.15, s: [1.35, 0.95, 0.58], c: 0x7d314f },
+      { x: -0.45, y: -1.25, z: 1.15, r: 1.22, s: [1.42, 1.05, 0.66], c: 0x5b4535 },
+      { x: 0.9, y: -1.25, z: 1.18, r: 1.18, s: [1.38, 0.94, 0.64], c: 0x843853 },
+      { x: 2.2, y: -1.0, z: 0.95, r: 1.02, s: [1.25, 0.9, 0.52], c: 0x5d382f },
+      { x: -2.25, y: 0.15, z: 1.15, r: 1.06, s: [1.2, 1.08, 0.62], c: 0x4f5f38 },
+      { x: -0.7, y: 0.2, z: 1.72, r: 1.22, s: [1.25, 1.08, 0.78], c: 0x7a2f54 },
+      { x: 0.8, y: 0.15, z: 1.68, r: 1.16, s: [1.26, 1.04, 0.76], c: 0x5c4b34 },
+      { x: 2.45, y: 0.2, z: 1.18, r: 1.02, s: [1.15, 1.18, 0.62], c: 0x763450 },
+      { x: -1.45, y: 1.42, z: 1.58, r: 0.98, s: [1.18, 1.05, 0.66], c: 0x4e693f },
+      { x: 0.25, y: 1.42, z: 2.08, r: 1.02, s: [1.28, 1, 0.72], c: 0x633238 },
+      { x: 1.75, y: 1.28, z: 1.46, r: 0.96, s: [1.15, 1.12, 0.62], c: 0x823a58 },
+      { x: 3.05, y: 0.98, z: 0.9, r: 0.8, s: [1.2, 0.9, 0.48], c: 0x5d3f32 },
+    ];
+
+    lobes.forEach((lobe, lobeIndex) => {
+      const mesh = createRockBlob(
+        `${structure.id}-ruler-lobe-${lobeIndex}`,
+        lobe.r,
+        lobe.c,
+        { x: lobe.s[0], y: lobe.s[1], z: lobe.s[2] },
+        { smoothness: 0.92, wobble: 0.12, segments: 32 },
+      );
+      mesh.position.set(structure.x + lobe.x, structure.y + lobe.y, structure.z + lobe.z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    });
+
+    addRockBaseSkirt(group, structure, [
+      [-3.15, -1.65],
+      [-1.35, -2.35],
+      [0.85, -2.1],
+      [2.9, -1.25],
+      [3.25, 0.95],
+      [1.4, 2.2],
+      [-1.25, 2.2],
+      [-3.35, 0.8],
+    ]);
+    addRightRockCorals(group, structure);
+    return group;
+  }
+
+  function createRockBlob(seed, radius, color, scale, options = {}) {
     const random = seededRandom(seed);
-    const geometry = new THREE.IcosahedronGeometry(radius, 3);
+    const segments = options.segments || 24;
+    const geometry = new THREE.SphereGeometry(radius, segments, Math.max(12, Math.floor(segments * 0.62)));
     const positions = geometry.attributes.position;
     const vector = new THREE.Vector3();
     for (let index = 0; index < positions.count; index += 1) {
       vector.fromBufferAttribute(positions, index);
-      const wobble = 0.72 + random() * 0.48 + Math.sin(vector.x * 2.1 + vector.y * 1.4) * 0.08;
+      const wobbleAmount = options.wobble ?? 0.18;
+      const smoothness = options.smoothness ?? 0.86;
+      const wobble = smoothness + random() * wobbleAmount + Math.sin(vector.x * 1.7 + vector.y * 1.1 + vector.z * 0.9) * wobbleAmount * 0.28;
       vector.set(vector.x * scale.x * wobble, vector.y * scale.y * wobble, vector.z * scale.z * wobble);
       positions.setXYZ(index, vector.x, vector.y, vector.z);
     }
@@ -1626,8 +1662,56 @@
         color,
         roughness: 0.92,
         metalness: 0.02,
+        flatShading: false,
       }),
     );
+  }
+
+  function addRockBaseSkirt(group, structure, points) {
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x4a342d,
+      roughness: 0.95,
+      transparent: true,
+      opacity: 0.82,
+    });
+    const shape = new THREE.Shape();
+    points.forEach(([x, y], index) => {
+      if (index === 0) shape.moveTo(x, y);
+      else shape.lineTo(x, y);
+    });
+    shape.closePath();
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.18,
+      bevelEnabled: true,
+      bevelThickness: 0.08,
+      bevelSize: 0.12,
+      bevelSegments: 4,
+    });
+    const skirt = new THREE.Mesh(geometry, material);
+    skirt.position.set(structure.x, structure.y, structure.z + 0.08);
+    skirt.castShadow = true;
+    skirt.receiveShadow = true;
+    group.add(skirt);
+  }
+
+  function addRightRockCorals(group, structure) {
+    const corals = [
+      { x: -2.45, y: -1.45, z: 2.0, r: 0.5, color: 0x8f5f45, tilt: 0.25 },
+      { x: -0.15, y: -0.75, z: 2.58, r: 0.48, color: 0x4e8d70, tilt: -0.12 },
+      { x: 1.25, y: -0.82, z: 2.32, r: 0.43, color: 0x9a6c58, tilt: 0.18 },
+      { x: 1.9, y: 0.18, z: 2.34, r: 0.35, color: 0x855a50, tilt: -0.1 },
+      { x: 0.35, y: 1.35, z: 3.0, r: 0.38, color: 0x6b9b84, tilt: 0.08 },
+      { x: 2.75, y: 0.82, z: 1.78, r: 0.27, color: 0x92735b, tilt: 0.22 },
+    ];
+    corals.forEach((coral) => {
+      const material = new THREE.MeshStandardMaterial({ color: coral.color, roughness: 0.72 });
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(coral.r, coral.r * 0.72, 0.08, 30), material);
+      cap.position.set(structure.x + coral.x, structure.y + coral.y, structure.z + coral.z);
+      cap.rotation.x = coral.tilt;
+      cap.rotation.y = coral.tilt * 0.7;
+      cap.castShadow = true;
+      group.add(cap);
+    });
   }
 
   function addCoralAccents(group, structure, random) {
@@ -1705,11 +1789,13 @@
   function getStructureForZone(zone, item, index) {
     if (!zone) return null;
     const name = `${zone.name || ""} ${item.species || ""}`.toLowerCase();
-    if (name.includes("left")) return findMapStructure("left-island");
-    if (name.includes("right")) return findMapStructure("right-island");
-    if (name.includes("sand") || name.includes("low")) return findMapStructure("front-center-rock") || findMapStructure("front-purple-ledge");
+    if (name.includes("front") && name.includes("left")) return findMapStructure("front-left-rock");
+    if (name.includes("front") && name.includes("right")) return findMapStructure("front-right-rock");
+    if (name.includes("left")) return findMapStructure("left-rock");
+    if (name.includes("right")) return findMapStructure("right-rock");
+    if (name.includes("sand") || name.includes("low")) return findMapStructure("front-left-rock") || findMapStructure("front-right-rock");
     if (name.includes("top") || name.includes("shelf") || zone.light === "High") return findMapStructure("center-shelf");
-    if (name.includes("mid") || zone.light === "Medium") return findMapStructure("center-shelf") || findMapStructure("left-island");
+    if (name.includes("mid") || zone.light === "Medium") return findMapStructure("center-shelf") || findMapStructure("left-rock");
     return state.map.structures[index % state.map.structures.length] || null;
   }
 
@@ -2212,8 +2298,8 @@
         z: "vertical inches from tank bottom",
       },
       calibration: {
-        source: "manual draft from front, right, and top photo set with scale cards",
-        referenceImageCount: 9,
+        source: "manual five-rock draft from front, right, and top photo sets; right rock refined with close-ups and 2 inch in-tank ruler",
+        referenceImageCount: 18,
         rawReferenceImagesStoredInApp: false,
       },
       structures: state.map.structures.map((structure) => ({
@@ -2266,9 +2352,10 @@
         livestockPhotos: livestockPhotoInventory,
         map: {
           modelAvailable: true,
+          modelVersion: state.map.modelVersion || 1,
           structureCount: state.map.structures.length,
           placedLivestockCount: mapPlacements.filter((placement) => placement.zone).length,
-          referenceImageCount: 9,
+          referenceImageCount: 18,
           canRequestRawReferenceImages: false,
           parMapAvailable: state.zones.some((zone) => zone.parMin || zone.parMax),
         },
