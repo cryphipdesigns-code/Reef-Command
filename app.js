@@ -603,6 +603,37 @@
     if (error) console.warn("Could not remove stored photos", error);
   }
 
+  async function processImageFiles(files, options) {
+    const saved = [];
+    const failed = [];
+
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      const label = options.label || "image";
+      try {
+        showToast(`Processing ${label} ${index + 1} of ${files.length}.`);
+        const dataUrl = await compressImageFile(file, options.maxDimension, options.quality);
+        const pendingPhoto = createPendingPhoto(dataUrl);
+        saved.push(await options.savePhoto(pendingPhoto));
+      } catch (error) {
+        console.error("Image processing failed", file?.name || index + 1, error);
+        failed.push(file?.name || `${label} ${index + 1}`);
+      }
+    }
+
+    return { saved, failed };
+  }
+
+  function showImageSaveResult(savedCount, failedCount, label) {
+    if (savedCount && failedCount) {
+      showToast(`${savedCount} ${label}${savedCount === 1 ? "" : "s"} saved, ${failedCount} skipped.`);
+    } else if (savedCount) {
+      showToast(`${savedCount} ${label}${savedCount === 1 ? "" : "s"} saved.`);
+    } else {
+      showToast(`No ${label}s saved. Try JPEG, PNG, or WebP.`);
+    }
+  }
+
   function renderPhotoPreview(previewId, photoValue, altText) {
     const preview = $(previewId);
     if (!preview) return;
@@ -651,23 +682,32 @@
     input.disabled = true;
     try {
       if (target === "lighting") {
-        const dataUrls = await Promise.all(files.map((file) => compressImageFile(file, 1400, 0.82)));
-        const pendingPhotos = dataUrls.map(createPendingPhoto);
-        const photos = [];
-        for (const photo of pendingPhotos) {
-          photos.push(supabaseClient ? await uploadPhotoRecord(photo, "profile", "lighting") : photo);
+        const result = await processImageFiles(files, {
+          label: "lighting image",
+          maxDimension: 1200,
+          quality: 0.76,
+          savePhoto: (photo) => (supabaseClient ? uploadPhotoRecord(photo, "profile", "lighting") : photo),
+        });
+        if (result.saved.length) {
+          setLightingPhotos([...getLightingPhotos(), ...result.saved]);
+          saveState();
+          renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
+          renderPhotoLibrary();
+          renderInsightsContext();
         }
-        setLightingPhotos([...getLightingPhotos(), ...photos]);
-        saveState();
-        renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
-        renderPhotoLibrary();
-        renderInsightsContext();
-        showToast(`${photos.length} lighting image${photos.length === 1 ? "" : "s"} saved.`);
+        showImageSaveResult(result.saved.length, result.failed.length, "lighting image");
       } else {
-        const dataUrls = await Promise.all(files.map((file) => compressImageFile(file, 1100, 0.78)));
-        pendingLivestockPhotos = [...pendingLivestockPhotos, ...dataUrls.map(createPendingPhoto)];
-        renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
-        showToast(`${dataUrls.length} photo${dataUrls.length === 1 ? "" : "s"} ready.`);
+        const result = await processImageFiles(files, {
+          label: "photo",
+          maxDimension: 1100,
+          quality: 0.78,
+          savePhoto: (photo) => photo,
+        });
+        if (result.saved.length) {
+          pendingLivestockPhotos = [...pendingLivestockPhotos, ...result.saved];
+          renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
+        }
+        showImageSaveResult(result.saved.length, result.failed.length, "photo");
       }
     } catch (error) {
       console.error(error);
