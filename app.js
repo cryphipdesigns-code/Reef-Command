@@ -126,7 +126,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 5,
+      modelVersion: 6,
       dimensions: {
         width: 30,
         depth: 12,
@@ -134,7 +134,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock outline-driven mesh from the traced front, top, and right-view references. Left rock, right rock, and shelf are anchored to the back glass; front rocks remain separate on the sandbed.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from the traced front, top, and right-view references. The left rock, right rock, and shelf are hard-anchored to the back glass; the two front rocks remain separate on the sandbed.",
       },
       view: "orbit",
       layers: {
@@ -142,6 +142,7 @@
         livestock: false,
         flow: false,
         equipment: false,
+        trace: true,
       },
       structures: [
         {
@@ -154,6 +155,7 @@
           width: 7.8,
           depth: 8.6,
           height: 5.2,
+          touchesBackGlass: true,
           footprint: [[-3.95, -2.65], [-3.45, -3.75], [-2.2, -3.92], [-1.25, -3.35], [0.35, -3.55], [1.55, -2.95], [2.85, -2.15], [3.35, -0.82], [3.15, 1.2], [2.55, 2.75], [1.85, 4.12], [0.65, 4.85], [-1.35, 4.75], [-2.65, 3.88], [-3.45, 2.35], [-3.9, 0.45]],
           frontProfile: [[-3.95, 0.8], [-3.35, 1.7], [-2.65, 2.65], [-1.65, 3.85], [-0.45, 4.95], [0.75, 4.72], [1.75, 3.65], [2.7, 2.55], [3.35, 1.08]],
           sideProfile: [[-3.75, 0.9], [-2.4, 2.15], [-0.65, 3.55], [1.35, 4.65], [3.15, 4.92], [4.85, 3.55]],
@@ -168,9 +170,9 @@
           depressions: [
             { x: 2.15, y: -1.85, h: 0.3, r: 0.8 },
           ],
-          edgeSoftness: 0.62,
-          edgeFloor: 0.48,
-          surfaceNoise: 0.08,
+          edgeSoftness: 0.32,
+          edgeFloor: 0.94,
+          surfaceNoise: 0.045,
           light: "Low-Medium",
           flow: "Medium",
           parMin: 45,
@@ -198,9 +200,9 @@
             { from: [-1.55, -0.18], to: [1.45, 0.25], h: 0.18, r: 0.42 },
           ],
           depressions: [],
-          edgeSoftness: 0.4,
-          edgeFloor: 0.4,
-          surfaceNoise: 0.07,
+          edgeSoftness: 0.28,
+          edgeFloor: 0.88,
+          surfaceNoise: 0.04,
           light: "Low",
           flow: "Low-Medium",
           parMin: 35,
@@ -228,9 +230,9 @@
             { from: [-1.4, -0.35], to: [1.5, 0.3], h: 0.22, r: 0.44 },
           ],
           depressions: [],
-          edgeSoftness: 0.42,
-          edgeFloor: 0.44,
-          surfaceNoise: 0.07,
+          edgeSoftness: 0.28,
+          edgeFloor: 0.9,
+          surfaceNoise: 0.04,
           light: "Low",
           flow: "Medium",
           parMin: 30,
@@ -247,6 +249,7 @@
           width: 7.9,
           depth: 8.3,
           height: 4.8,
+          touchesBackGlass: true,
           footprint: [[-3.85, -2.75], [-2.7, -3.35], [-1.25, -3.48], [0.65, -3.1], [2.4, -2.45], [3.55, -1.25], [3.85, 0.38], [3.35, 1.95], [3.55, 3.25], [2.55, 4.25], [1.05, 4.85], [-0.85, 4.7], [-2.35, 3.85], [-3.45, 2.28], [-3.95, 0.35]],
           frontProfile: [[-3.85, 0.75], [-3.1, 1.42], [-2.1, 2.35], [-0.85, 3.55], [0.45, 4.45], [1.55, 4.18], [2.65, 3.0], [3.45, 1.95], [3.85, 0.82]],
           sideProfile: [[-3.48, 0.9], [-2.3, 1.75], [-0.75, 3.45], [0.7, 4.7], [2.25, 4.35], [3.65, 3.55], [4.85, 2.35]],
@@ -264,9 +267,9 @@
             { x: -3.05, y: 0.25, h: 0.24, r: 0.7 },
             { x: 2.15, y: -1.4, h: 0.2, r: 0.58 },
           ],
-          edgeSoftness: 0.65,
-          edgeFloor: 0.5,
-          surfaceNoise: 0.08,
+          edgeSoftness: 0.34,
+          edgeFloor: 0.95,
+          surfaceNoise: 0.045,
           light: "Low-Medium",
           flow: "Medium-High",
           parMin: 55,
@@ -283,6 +286,7 @@
           width: 13.8,
           depth: 6.8,
           height: 6.6,
+          touchesBackGlass: true,
           footprint: [[-6.85, -1.95], [-5.65, -2.28], [-4.45, -1.95], [-3.15, -2.1], [-1.7, -1.72], [-0.2, -1.95], [1.2, -1.55], [2.65, -1.75], [4.25, -1.25], [5.55, -0.75], [6.7, 0.35], [6.45, 1.85], [5.15, 3.05], [3.25, 3.75], [1.2, 4.3], [-0.75, 4.55], [-2.8, 4.28], [-4.65, 3.65], [-6.05, 2.65], [-6.9, 1.08]],
           bottomProfile: [[-6.85, 0.0], [-5.55, 0.32], [-4.35, 0.08], [-3.25, 0.72], [-2.15, 0.45], [-1.05, 0.88], [0.0, 0.55], [1.05, 0.7], [2.0, 0.42], [3.05, 0.62], [4.2, 0.18], [5.45, 0.38], [6.7, 0.0]],
           frontProfile: [[-6.85, 1.0], [-5.9, 2.55], [-4.65, 4.0], [-3.45, 5.1], [-2.0, 5.45], [-0.65, 4.75], [0.35, 5.75], [1.65, 5.35], [2.95, 5.05], [4.25, 4.2], [5.45, 2.85], [6.7, 1.2]],
@@ -302,9 +306,9 @@
             { x: 1.75, y: -1.25, h: 0.25, r: 0.85 },
             { x: -3.15, y: -1.35, h: 0.22, r: 0.82 },
           ],
-          edgeSoftness: 0.72,
-          edgeFloor: 0.54,
-          surfaceNoise: 0.075,
+          edgeSoftness: 0.3,
+          edgeFloor: 0.97,
+          surfaceNoise: 0.04,
           light: "Medium-High",
           flow: "High",
           parMin: 130,
@@ -436,6 +440,7 @@
       livestock: source.layers?.livestock ?? defaultLayers.livestock,
       flow: source.layers?.flow ?? defaultLayers.flow,
       equipment: source.layers?.equipment ?? defaultLayers.equipment,
+      trace: source.layers?.trace ?? defaultLayers.trace,
     };
 
     const structureSource = !shouldMigrateStructures && Array.isArray(source.structures) && source.structures.length
@@ -464,6 +469,7 @@
       width: positiveNumber(structure.width, fallback.width || 3),
       depth: positiveNumber(structure.depth, fallback.depth || 3),
       height: positiveNumber(structure.height, fallback.height || 2),
+      touchesBackGlass: Boolean(structure.touchesBackGlass ?? fallback.touchesBackGlass ?? false),
       light: structure.light || fallback.light || "Medium",
       flow: structure.flow || fallback.flow || "Medium",
       parMin: nonNegativeNumber(structure.parMin, fallback.parMin || 0),
@@ -478,7 +484,6 @@
       edgeSoftness: positiveNumber(structure.edgeSoftness, fallback.edgeSoftness || 0.65),
       edgeFloor: positiveNumber(structure.edgeFloor, fallback.edgeFloor || 0.4),
       surfaceNoise: nonNegativeNumber(structure.surfaceNoise, fallback.surfaceNoise || 0.14),
-      lobes: normalizeRockLobes(structure.lobes, fallback.lobes),
       notes: structure.notes || fallback.notes || "",
     };
   }
@@ -1356,7 +1361,9 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = state.map.modelVersion >= 5 ? "Outline traced" : dimensions.scaleReference?.includes("2 inch") ? "Ruler refined" : "Photo draft";
+    $("mapQualityPill").textContent = state.map.modelVersion >= 6
+      ? "Silhouette locked"
+      : state.map.modelVersion >= 5 ? "Outline traced" : dimensions.scaleReference?.includes("2 inch") ? "Ruler refined" : "Photo draft";
     $$("[data-map-layer]").forEach((button) => {
       button.classList.toggle("active", Boolean(state.map.layers?.[button.dataset.mapLayer]));
     });
@@ -1523,6 +1530,7 @@
       if (state.map.layers.par) mapRoot.add(createParHalo(structure));
     });
 
+    if (state.map.layers.trace) addTraceOutlines(dimensions);
     if (state.map.layers.flow) addFlowArrows(dimensions);
     if (state.map.layers.livestock) addLivestockMarkers();
   }
@@ -1709,6 +1717,82 @@
     });
   }
 
+  function addTraceOutlines(dimensions) {
+    const group = new THREE.Group();
+    group.name = "silhouette-trace";
+    const frontY = -dimensions.depth / 2 - 0.08;
+    const rightX = dimensions.width / 2 + 0.08;
+
+    state.map.structures.forEach((structure) => {
+      const footprint = getRockFootprint(structure);
+      const perimeter = sampleFootprintPerimeter(footprint, Math.round(clamp(64, 150, getPerimeterLength(footprint) / 0.14)));
+      const topTrace = perimeter.map((point) => {
+        const z = scaleRockProfileHeight(structure, rockHeightAt(structure, footprint, point[0], point[1]), 1);
+        return new THREE.Vector3(structure.x + point[0], structure.y + point[1], structure.z + z + 0.08);
+      });
+      group.add(createTraceLine(topTrace, 0xf7f2df, 0.9, true));
+
+      if (Array.isArray(structure.frontProfile) && structure.frontProfile.length >= 2) {
+        const frontProfile = [...structure.frontProfile]
+          .sort((a, b) => a[0] - b[0])
+          .map((point) => new THREE.Vector3(structure.x + point[0], frontY, structure.z + point[1] + 0.04));
+        group.add(createTraceLine(frontProfile, 0xffffff, 0.82, false));
+      }
+
+      if (Array.isArray(structure.bottomProfile) && structure.bottomProfile.length >= 2) {
+        const bottomProfile = [...structure.bottomProfile]
+          .sort((a, b) => a[0] - b[0])
+          .map((point) => new THREE.Vector3(structure.x + point[0], frontY, structure.z + point[1] + 0.04));
+        group.add(createTraceLine(bottomProfile, 0xc4fff9, 0.68, false));
+      }
+
+      if (Array.isArray(structure.sideProfile) && structure.sideProfile.length >= 2) {
+        const sideProfile = [...structure.sideProfile]
+          .sort((a, b) => a[0] - b[0])
+          .map((point) => new THREE.Vector3(rightX, structure.y + point[0], structure.z + point[1] + 0.04));
+        group.add(createTraceLine(sideProfile, 0xdff5ff, 0.72, false));
+      }
+
+      if (structure.touchesBackGlass) {
+        const backContact = getBackContactPoints(structure, footprint, dimensions)
+          .map((point) => new THREE.Vector3(structure.x + point[0], dimensions.depth / 2 + 0.05, structure.z + point[1]));
+        if (backContact.length >= 2) group.add(createTraceLine(backContact, 0x77f0e0, 0.82, false));
+      }
+    });
+
+    mapRoot.add(group);
+  }
+
+  function createTraceLine(points, color, opacity = 0.85, loop = false) {
+    const linePoints = loop && points.length ? [...points, points[0].clone()] : points;
+    const material = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(linePoints), material);
+    line.renderOrder = 30;
+    return line;
+  }
+
+  function getBackContactPoints(structure, footprint, dimensions) {
+    const targetLocalY = dimensions.depth / 2 - structure.y;
+    const nearBack = footprint
+      .filter((point) => Math.abs(point[1] - targetLocalY) < 0.24)
+      .sort((a, b) => a[0] - b[0]);
+    if (nearBack.length >= 2) {
+      return nearBack.map((point) => [point[0], rockHeightAt(structure, footprint, point[0], point[1]) + 0.12]);
+    }
+
+    const bounds = getPointBounds(footprint);
+    return [
+      [bounds.minX, rockHeightAt(structure, footprint, bounds.minX, targetLocalY) + 0.12],
+      [bounds.maxX, rockHeightAt(structure, footprint, bounds.maxX, targetLocalY) + 0.12],
+    ];
+  }
+
   function createRockStructure(structure, index) {
     const group = new THREE.Group();
     group.name = structure.id;
@@ -1856,6 +1940,8 @@
   function createRockMeshMaterial() {
     return new THREE.MeshStandardMaterial({
       vertexColors: true,
+      emissive: 0x241821,
+      emissiveIntensity: 0.24,
       roughness: 0.96,
       metalness: 0.01,
       flatShading: false,
@@ -1863,7 +1949,9 @@
   }
 
   function getRockFootprint(structure) {
-    if (Array.isArray(structure.footprint) && structure.footprint.length >= 3) return structure.footprint;
+    if (Array.isArray(structure.footprint) && structure.footprint.length >= 3) {
+      return structure.touchesBackGlass ? lockFootprintToBackGlass(structure, structure.footprint) : structure.footprint;
+    }
     const points = [];
     for (let index = 0; index < 16; index += 1) {
       const angle = (index / 16) * Math.PI * 2;
@@ -1872,7 +1960,20 @@
         Math.sin(angle) * structure.depth * 0.5,
       ]);
     }
-    return points;
+    return structure.touchesBackGlass ? lockFootprintToBackGlass(structure, points) : points;
+  }
+
+  function lockFootprintToBackGlass(structure, footprint) {
+    const dimensions = state?.map?.dimensions || { depth: 12 };
+    const targetMaxY = dimensions.depth / 2 - structure.y;
+    const bounds = getPointBounds(footprint);
+    const delta = targetMaxY - bounds.maxY;
+    if (Math.abs(delta) < 0.01) return footprint;
+
+    return footprint.map(([x, y]) => {
+      const rearWeight = smoothstep(bounds.minY, bounds.maxY, y);
+      return [x, y + delta * rearWeight];
+    });
   }
 
   function rockHeightAt(structure, footprint, x, y) {
@@ -1882,14 +1983,15 @@
         ? profileValueAt(structure.sideProfile, y, structure.height)
         : structure.height;
       const bottom = rockBottomAt(structure, x);
-      const silhouetteLimit = Math.min(structure.height, Math.max(0.12, Math.min(frontLimit, sideLimit) + bottom));
+      const sideConstraint = Math.min(frontLimit, Math.max(sideLimit, frontLimit * 0.78));
+      const silhouetteLimit = Math.min(structure.height, Math.max(0.16, sideConstraint + bottom));
       const edgeDistance = distanceToPolygonEdge([x, y], footprint);
       const edgeTaper = smoothstep(0, structure.edgeSoftness || 0.65, edgeDistance);
-      const edgeFloor = clamp(0.2, 0.8, structure.edgeFloor || 0.42);
+      const edgeFloor = clamp(0.78, 0.99, structure.edgeFloor || 0.92);
       let relief =
-        0.9 +
-        (surfaceNoise(`${structure.id}-profile`, x * 0.72, y * 0.72) - 0.5) * 0.16 +
-        (surfaceNoise(`${structure.id}-fine-profile`, x * 2.3, y * 2.3) - 0.5) * (structure.surfaceNoise || 0.08) * 0.9;
+        0.98 +
+        (surfaceNoise(`${structure.id}-profile`, x * 0.72, y * 0.72) - 0.5) * 0.08 +
+        (surfaceNoise(`${structure.id}-fine-profile`, x * 2.3, y * 2.3) - 0.5) * (structure.surfaceNoise || 0.04) * 0.45;
 
       structure.heightPoints.forEach((point) => {
         const distance = Math.hypot(x - point.x, y - point.y);
@@ -1908,7 +2010,7 @@
 
       const rockFloor = Math.max(structure.id === "center-shelf" ? 0.2 : 0.06, bottom + 0.04);
       const edgeShape = edgeFloor + (1 - edgeFloor) * edgeTaper;
-      return clamp(rockFloor, structure.height, silhouetteLimit * clamp(0.65, 1.06, relief) * edgeShape);
+      return clamp(rockFloor, structure.height, silhouetteLimit * clamp(0.9, 1.06, relief) * edgeShape);
     }
 
     const edgeDistance = distanceToPolygonEdge([x, y], footprint);
@@ -2228,7 +2330,7 @@
     if (!mapCamera) return;
     const dimensions = state.map.dimensions;
     const target = new THREE.Vector3(0, 0, dimensions.height * 0.46);
-    const pitch = Math.max(-1.2, Math.min(1.42, mapViewState.pitch));
+    const pitch = Math.max(-1.2, Math.min(1.54, mapViewState.pitch));
     const distance = Math.max(18, Math.min(95, mapViewState.distance));
     const horizontal = Math.cos(pitch) * distance;
     mapCamera.position.set(
@@ -2245,16 +2347,16 @@
     const maxDimension = Math.max(dimensions.width, dimensions.depth, dimensions.height);
     if (view === "front") {
       mapViewState.yaw = 0;
-      mapViewState.pitch = 0.08;
-      mapViewState.distance = maxDimension * 1.45;
+      mapViewState.pitch = 0;
+      mapViewState.distance = maxDimension * 1.5;
     } else if (view === "right") {
       mapViewState.yaw = Math.PI / 2;
-      mapViewState.pitch = 0.1;
-      mapViewState.distance = maxDimension * 1.35;
+      mapViewState.pitch = 0;
+      mapViewState.distance = maxDimension * 1.42;
     } else if (view === "top") {
       mapViewState.yaw = 0;
-      mapViewState.pitch = 1.37;
-      mapViewState.distance = maxDimension * 1.25;
+      mapViewState.pitch = 1.53;
+      mapViewState.distance = maxDimension * 1.28;
     } else {
       mapViewState.yaw = -0.42;
       mapViewState.pitch = 0.34;
@@ -2282,7 +2384,7 @@
       mapPointerState.y = event.clientY;
       mapViewState.yaw -= dx * 0.008;
       mapViewState.pitch += dy * 0.006;
-      mapViewState.pitch = Math.max(-0.75, Math.min(1.42, mapViewState.pitch));
+      mapViewState.pitch = Math.max(-0.75, Math.min(1.54, mapViewState.pitch));
       state.map.view = "orbit";
       renderMapSettings();
     });
