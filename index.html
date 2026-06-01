@@ -21,7 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="./vendor/three.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=22" />
+    <link rel="stylesheet" href="./styles.css?v=23" />
   </head>
   <body>
     <div id="appShell">
@@ -332,6 +332,41 @@
                 Trace
               </button>
             </div>
+
+            <div class="marker-panel">
+              <div class="section-heading">
+                <h2>Markers</h2>
+                <span id="mapMarkerModePill" class="status-pill">Navigate</span>
+              </div>
+              <div class="map-toolbar map-tool-toolbar" role="toolbar" aria-label="Marker tools">
+                <button class="mini-button active" type="button" data-map-tool="navigate">
+                  <i data-lucide="move-3d"></i>
+                  Navigate
+                </button>
+                <button class="mini-button" type="button" data-map-tool="par">
+                  <i data-lucide="sun-medium"></i>
+                  PAR Point
+                </button>
+                <button class="mini-button" type="button" data-map-tool="stock">
+                  <i data-lucide="map-pin-plus"></i>
+                  Stock
+                </button>
+              </div>
+              <form id="mapMarkerForm" class="field-grid">
+                <label id="mapParValueField">
+                  PAR
+                  <input id="mapParValue" type="number" min="0" step="1" inputmode="numeric" />
+                </label>
+                <label id="mapStockSelectField">
+                  Stock
+                  <select id="mapStockSelect"></select>
+                </label>
+                <label class="wide-field">
+                  Note
+                  <input id="mapMarkerNote" type="text" />
+                </label>
+              </form>
+            </div>
           </section>
 
           <section class="form-surface">
@@ -386,6 +421,14 @@
                 <span id="mapPlacementCountPill" class="status-pill">0</span>
               </div>
               <div id="mapPlacementList" class="card-list"></div>
+            </div>
+
+            <div class="section-block">
+              <div class="section-heading">
+                <h2>PAR Markers</h2>
+                <span id="mapParMarkerCountPill" class="status-pill">0</span>
+              </div>
+              <div id="mapParMarkerList" class="card-list"></div>
             </div>
           </section>
         </section>
@@ -812,6 +855,6 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </div>
 
-    <script src="./app.js?v=22"></script>
+    <script src="./app.js?v=23"></script>
   </body>
 </html>

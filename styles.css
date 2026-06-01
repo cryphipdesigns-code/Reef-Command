@@ -598,6 +598,19 @@ textarea:focus {
   border-color: var(--line-strong);
 }
 
+.marker-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.map-tool-toolbar {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .map-grid {
   display: grid;
   gap: 14px;

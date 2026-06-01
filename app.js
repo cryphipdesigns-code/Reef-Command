@@ -122,13 +122,15 @@
         logMode: "test",
         livestockFilter: "active",
         insightMode: "health",
+        mapTool: "navigate",
+        selectedMapStockId: "",
       },
     };
   }
 
   function getDefaultMap() {
     return {
-      modelVersion: 12,
+      modelVersion: 14,
       dimensions: {
         width: 30,
         depth: 12,
@@ -140,12 +142,13 @@
       },
       view: "front",
       layers: {
-        par: false,
-        livestock: false,
+        par: true,
+        livestock: true,
         flow: false,
         equipment: false,
         trace: true,
       },
+      parMarkers: [],
       structures: [
         {
           id: "left-rock",
@@ -399,6 +402,7 @@
         growthMetric: item.growthMetric || "",
         photos,
         photoDataUrl: photos.find((photo) => photo.dataUrl)?.dataUrl || "",
+        mapPosition: normalizeMapPosition(item.mapPosition),
         removedDate: item.removedDate || "",
         outcomeReason: item.outcomeReason || "",
       };
@@ -474,6 +478,7 @@
       dimensions,
       view: shouldMigrateStructures ? defaults.view : source.view || defaults.view,
       layers,
+      parMarkers: normalizeParMarkers(source.parMarkers || defaults.parMarkers),
       structures: structureSource.map((structure, index) =>
         normalizeMapStructure(structure, defaults.structures[index] || defaults.structures[0]),
       ),
@@ -546,6 +551,39 @@
             r: positiveNumber(ridge.r, 1),
           }))
           .filter((ridge) => ridge.from && ridge.to)
+      : [];
+  }
+
+  function normalizeMapPosition(value) {
+    if (!value || typeof value !== "object") return null;
+    const x = finiteNumber(value.x, NaN);
+    const y = finiteNumber(value.y, NaN);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const z = finiteNumber(value.z, NaN);
+    return {
+      x,
+      y,
+      z: Number.isFinite(z) ? z : null,
+      structureId: value.structureId || "",
+      placedAt: value.placedAt || "",
+    };
+  }
+
+  function normalizeParMarkers(value = []) {
+    return Array.isArray(value)
+      ? value
+          .map((marker) => {
+            const position = normalizeMapPosition(marker);
+            if (!position) return null;
+            return {
+              ...position,
+              id: marker.id || uid(),
+              value: marker.value ?? "",
+              note: marker.note || "",
+              measuredAt: marker.measuredAt || "",
+            };
+          })
+          .filter(Boolean)
       : [];
   }
 
@@ -764,6 +802,7 @@
       profileChanged ||
         customZones ||
         customMapDimensions ||
+        value?.map?.parMarkers?.length ||
         value?.livestock?.length ||
         value?.waterTests?.length ||
         value?.events?.length ||
@@ -1243,6 +1282,7 @@
     renderZones();
     renderMapSettings();
     renderMapSummaries();
+    renderMapMarkerControls();
     syncLivestockDateControls();
     renderLivestock();
     renderPhotoLibrary();
@@ -1410,6 +1450,38 @@
     });
   }
 
+  function renderMapMarkerControls() {
+    if (!$("mapMarkerForm")) return;
+    const tool = getMapTool();
+    const stockItems = getMapPlaceableStock();
+    if (state.ui.selectedMapStockId && !stockItems.some((item) => item.id === state.ui.selectedMapStockId)) {
+      state.ui.selectedMapStockId = "";
+    }
+    if (!state.ui.selectedMapStockId && stockItems.length) {
+      state.ui.selectedMapStockId = stockItems[0].id;
+    }
+
+    $$("[data-map-tool]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.mapTool === tool);
+    });
+    $("mapMarkerModePill").textContent = tool === "par" ? "PAR point" : tool === "stock" ? "Stock marker" : "Navigate";
+    $("mapParValueField").hidden = tool !== "par";
+    $("mapStockSelectField").hidden = tool !== "stock";
+    $("mapMarkerNote").disabled = tool === "navigate";
+    $("mapStockSelect").innerHTML = stockItems.length
+      ? stockItems.map((item) => `<option value="${item.id}">${escapeHtml(item.species || item.name || "Unknown")}</option>`).join("")
+      : `<option value="">No active stock</option>`;
+    $("mapStockSelect").value = state.ui.selectedMapStockId || "";
+  }
+
+  function getMapTool() {
+    return ["navigate", "par", "stock"].includes(state.ui.mapTool) ? state.ui.mapTool : "navigate";
+  }
+
+  function getMapPlaceableStock() {
+    return state.livestock.filter((item) => isCasualStockCategory(item.category) || item.status === "active");
+  }
+
   function updateMapFromSettings() {
     const dimensions = { ...state.map.dimensions };
     $$("[data-map-dimension]").forEach((input) => {
@@ -1454,7 +1526,7 @@
       : `<div class="empty-state">No structures mapped.</div>`;
 
     const placements = getLivestockMapPlacements();
-    const placedCount = placements.filter((placement) => placement.zone).length;
+    const placedCount = placements.filter((placement) => placement.anchor).length;
     $("mapPlacementCountPill").textContent = `${placedCount}/${placements.length} placed`;
     $("mapPlacementList").innerHTML = placements.length
       ? placements.map((placement) => `
@@ -1467,12 +1539,38 @@
             <span class="category-pill">${escapeHtml(placement.structure?.name || "No zone")}</span>
           </div>
           <div class="map-stat-row">
+            <span class="map-stat">${escapeHtml(placement.manual ? "Manual" : placement.anchor ? "Zone estimate" : "Unplaced")}</span>
+            ${placement.anchor ? `<span class="map-stat">${escapeHtml(formatMapCoordinate(placement.anchor))}</span>` : ""}
             <span class="map-stat">${escapeHtml(placement.health || "Health untracked")}</span>
             <span class="map-stat">${escapeHtml(placement.growth || "Growth untracked")}</span>
+          </div>
+          <div class="card-actions">
+            <button class="mini-button" type="button" data-map-stock-place="${placement.id}">Place</button>
+            ${placement.manual ? `<button class="mini-button danger" type="button" data-map-stock-clear="${placement.id}">Clear</button>` : ""}
           </div>
         </article>
       `).join("")
       : `<div class="empty-state">No stock to place yet.</div>`;
+
+    const parMarkers = state.map.parMarkers || [];
+    $("mapParMarkerCountPill").textContent = String(parMarkers.length);
+    $("mapParMarkerList").innerHTML = parMarkers.length
+      ? parMarkers.map((marker) => `
+        <article class="data-card">
+          <div class="data-card-header">
+            <div class="data-card-title">
+              <strong>PAR ${escapeHtml(marker.value || "?")}</strong>
+              <p class="card-meta">${escapeHtml(formatMapCoordinate(marker))}${marker.measuredAt ? ` · ${escapeHtml(formatDateTime(marker.measuredAt))}` : ""}</p>
+            </div>
+            <span class="category-pill">${escapeHtml(marker.structureId ? getMapStructureName(marker.structureId) : "Open sand")}</span>
+          </div>
+          ${marker.note ? `<p class="card-meta">${escapeHtml(marker.note)}</p>` : ""}
+          <div class="card-actions">
+            <button class="mini-button danger" type="button" data-par-marker-delete="${marker.id}">Delete</button>
+          </div>
+        </article>
+      `).join("")
+      : `<div class="empty-state">No PAR markers yet.</div>`;
   }
 
   function formatStructureSize(structure) {
@@ -1482,6 +1580,15 @@
   function formatParRange(structure) {
     if (!structure.parMin && !structure.parMax) return "unknown";
     return `${structure.parMin || "?"}-${structure.parMax || "?"}`;
+  }
+
+  function formatMapCoordinate(point) {
+    if (!point) return "No coordinate";
+    return `X ${formatValue(point.x, "in")} · Y ${formatValue(point.y, "in")} · Z ${formatValue(point.z, "in")}`;
+  }
+
+  function getMapStructureName(id) {
+    return state.map.structures.find((structure) => structure.id === id)?.name || "Mapped";
   }
 
   function renderReefMap(options = {}) {
@@ -1569,9 +1676,9 @@
 
     state.map.structures.forEach((structure, index) => {
       mapRoot.add(createRockStructure(structure, index));
-      if (state.map.layers.par) mapRoot.add(createParHalo(structure));
     });
 
+    if (state.map.layers.par) addParMarkers();
     if (state.map.layers.trace) addTraceOutlines(dimensions);
     if (state.map.layers.flow) addFlowArrows(dimensions);
     if (state.map.layers.livestock) addLivestockMarkers();
@@ -2274,9 +2381,25 @@
     return halo;
   }
 
+  function addParMarkers() {
+    (state.map.parMarkers || []).forEach((marker) => {
+      const anchor = getMarkerAnchor(marker);
+      const value = Number(marker.value);
+      const color = Number.isFinite(value) && value >= 180 ? 0xf2c94c : Number.isFinite(value) && value >= 90 ? 0x4dbb7b : 0x4d9de0;
+      const pin = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 18, 12),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3, roughness: 0.35 }),
+      );
+      pin.position.copy(anchor);
+      pin.castShadow = true;
+      mapRoot.add(pin);
+      mapRoot.add(createMapLabel(String(marker.value || "?"), anchor.clone().add(new THREE.Vector3(0, 0, 0.72)), "#36514f"));
+    });
+  }
+
   function addLivestockMarkers() {
     getLivestockMapPlacements().forEach((placement, index) => {
-      if (!placement.zone || !placement.structure || !placement.anchor) return;
+      if (!placement.anchor) return;
       const anchor = placement.anchor;
       const color = livestockColor(placement.category);
       const marker = new THREE.Mesh(
@@ -2297,7 +2420,9 @@
       .filter((item) => isCasualStockCategory(item.category) || item.status === "active")
       .map((item, index) => {
         const zone = state.zones.find((entry) => entry.id === item.zoneId);
-        const structure = getStructureForZone(zone, item, index);
+        const manualPosition = normalizeMapPosition(item.mapPosition);
+        const manualSurface = manualPosition ? getMapSurfaceAt(manualPosition.x, manualPosition.y) : null;
+        const structure = manualSurface?.structure || getStructureForZone(zone, item, index);
         return {
           id: item.id,
           species: item.species || item.name || "Unknown",
@@ -2306,7 +2431,8 @@
           health: item.health || "",
           growth: item.growthMetric || item.growthTrend || "",
           structure,
-          anchor: structure ? getPlacementAnchor(structure, item.id || `${index}`) : null,
+          manual: Boolean(manualPosition),
+          anchor: manualPosition ? getMarkerAnchor(manualPosition) : structure ? getPlacementAnchor(structure, item.id || `${index}`) : null,
         };
       });
   }
@@ -2342,6 +2468,31 @@
     }
     const z = rockHeightAt(structure, footprint, x, y) + 0.22;
     return new THREE.Vector3(structure.x + x, structure.y + y, structure.z + z);
+  }
+
+  function getMarkerAnchor(point) {
+    const surface = getMapSurfaceAt(point.x, point.y);
+    const z = Number.isFinite(Number(point.z)) ? Number(point.z) : surface.z;
+    return new THREE.Vector3(point.x, point.y, Math.max(z, surface.z) + 0.24);
+  }
+
+  function getMapSurfaceAt(x, y) {
+    const dimensions = state.map.dimensions;
+    let best = {
+      z: dimensions.sandDepth + 0.08,
+      structure: null,
+    };
+    state.map.structures.forEach((structure) => {
+      const footprint = getRockFootprint(structure);
+      const localX = x - structure.x;
+      const localY = y - structure.y;
+      if (!pointInPolygon([localX, localY], footprint)) return;
+      const z = structure.z + rockHeightAt(structure, footprint, localX, localY);
+      if (z > best.z) {
+        best = { z, structure };
+      }
+    });
+    return best;
   }
 
   function createMapLabel(text, position, color) {
@@ -2452,8 +2603,11 @@
     stage.addEventListener("pointerdown", (event) => {
       mapPointerState = {
         id: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
         x: event.clientX,
         y: event.clientY,
+        moved: false,
       };
       stage.setPointerCapture(event.pointerId);
     });
@@ -2461,8 +2615,11 @@
       if (!mapPointerState || mapPointerState.id !== event.pointerId) return;
       const dx = event.clientX - mapPointerState.x;
       const dy = event.clientY - mapPointerState.y;
+      const totalMove = Math.hypot(event.clientX - mapPointerState.startX, event.clientY - mapPointerState.startY);
+      if (totalMove > 8) mapPointerState.moved = true;
       mapPointerState.x = event.clientX;
       mapPointerState.y = event.clientY;
+      if (getMapTool() !== "navigate") return;
       mapViewState.yaw -= dx * 0.008;
       mapViewState.pitch += dy * 0.006;
       mapViewState.pitch = Math.max(-0.75, Math.min(1.54, mapViewState.pitch));
@@ -2470,7 +2627,10 @@
       appliedMapViewPreset = "custom";
       renderMapSettings();
     });
-    stage.addEventListener("pointerup", () => {
+    stage.addEventListener("pointerup", (event) => {
+      if (mapPointerState && mapPointerState.id === event.pointerId && !mapPointerState.moved) {
+        handleMapPlacementPointer(event);
+      }
       mapPointerState = null;
     });
     stage.addEventListener("pointercancel", () => {
@@ -2478,9 +2638,89 @@
     });
     stage.addEventListener("wheel", (event) => {
       event.preventDefault();
+      if (getMapTool() !== "navigate") return;
       mapViewState.distance += event.deltaY * 0.025;
       mapViewState.distance = Math.max(18, Math.min(95, mapViewState.distance));
     }, { passive: false });
+  }
+
+  function handleMapPlacementPointer(event) {
+    const tool = getMapTool();
+    if (tool === "navigate") return;
+    if ((state.map.view || "front") !== "top") {
+      setMapViewPreset("top");
+      showToast("Top view selected.");
+      return;
+    }
+    const coordinate = getMapCoordinateFromPointer(event);
+    if (!coordinate) {
+      showToast("Marker missed the tank.");
+      return;
+    }
+    if (tool === "par") {
+      const value = $("mapParValue").value.trim();
+      if (!value) {
+        showToast("Enter a PAR value.");
+        return;
+      }
+      state.map.parMarkers.push({
+        id: uid(),
+        ...coordinate,
+        value,
+        note: $("mapMarkerNote").value.trim(),
+        measuredAt: new Date().toISOString(),
+      });
+      state.map.layers.par = true;
+      $("mapParValue").value = "";
+      $("mapMarkerNote").value = "";
+      showToast("PAR marker placed.");
+    } else if (tool === "stock") {
+      const id = $("mapStockSelect").value || state.ui.selectedMapStockId;
+      const item = state.livestock.find((entry) => entry.id === id);
+      if (!item) {
+        showToast("Choose stock first.");
+        return;
+      }
+      item.mapPosition = {
+        ...coordinate,
+        placedAt: new Date().toISOString(),
+      };
+      state.map.layers.livestock = true;
+      state.ui.selectedMapStockId = id;
+      $("mapMarkerNote").value = "";
+      showToast("Stock marker placed.");
+    }
+    saveState();
+    renderMapMarkerControls();
+    renderMapSummaries();
+    renderReefMap({ rebuild: true });
+    renderInsightsContext();
+  }
+
+  function getMapCoordinateFromPointer(event) {
+    if (!mapCamera || !mapRenderer || !window.THREE) return null;
+    const canvas = mapRenderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    const pointer = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -(((event.clientY - rect.top) / rect.height) * 2 - 1),
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(pointer, mapCamera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -state.map.dimensions.sandDepth);
+    const hit = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(plane, hit)) return null;
+    const dimensions = state.map.dimensions;
+    if (hit.x < -dimensions.width / 2 || hit.x > dimensions.width / 2 || hit.y < -dimensions.depth / 2 || hit.y > dimensions.depth / 2) {
+      return null;
+    }
+    const surface = getMapSurfaceAt(hit.x, hit.y);
+    return {
+      x: Number(hit.x.toFixed(2)),
+      y: Number(hit.y.toFixed(2)),
+      z: Number(surface.z.toFixed(2)),
+      structureId: surface.structure?.id || "",
+    };
   }
 
   function seededRandom(seed) {
@@ -2821,6 +3061,20 @@
         : null,
       health: placement.health,
       growth: placement.growth,
+      source: placement.manual ? "manual" : placement.anchor ? "zone_estimate" : "unplaced",
+    }));
+    const parMarkers = (state.map.parMarkers || []).map((marker) => ({
+      id: marker.id,
+      value: marker.value,
+      note: marker.note || "",
+      measuredAt: marker.measuredAt || "",
+      structureId: marker.structureId || "",
+      structureName: marker.structureId ? getMapStructureName(marker.structureId) : "",
+      coordinateInches: {
+        x: Number(Number(marker.x).toFixed(2)),
+        y: Number(Number(marker.y).toFixed(2)),
+        z: Number(Number(marker.z).toFixed(2)),
+      },
     }));
     const mapModel = {
       dimensions: state.map.dimensions,
@@ -2857,6 +3111,7 @@
         parRange: { min: structure.parMin, max: structure.parMax },
         notes: structure.notes,
       })),
+      parMarkers,
       livestockPlacements: mapPlacements,
       layers: state.map.layers,
     };
@@ -2898,10 +3153,11 @@
           modelAvailable: true,
           modelVersion: state.map.modelVersion || 1,
           structureCount: state.map.structures.length,
-          placedLivestockCount: mapPlacements.filter((placement) => placement.zone).length,
+          placedLivestockCount: mapPlacements.filter((placement) => placement.coordinateInches).length,
+          parMarkerCount: parMarkers.length,
           referenceImageCount: 18,
           canRequestRawReferenceImages: false,
-          parMapAvailable: state.zones.some((zone) => zone.parMin || zone.parMax),
+          parMapAvailable: parMarkers.length > 0 || state.zones.some((zone) => zone.parMin || zone.parMax),
         },
         logs: {
           waterTestCount: state.waterTests.length,
@@ -3501,6 +3757,7 @@
       saveState();
       renderLivestock();
       renderPhotoLibrary();
+      renderMapMarkerControls();
       renderMapSummaries();
       renderReefMap({ rebuild: true });
       renderDashboard();
@@ -3839,6 +4096,49 @@
       return;
     }
 
+    const mapTool = event.target.closest("[data-map-tool]");
+    if (mapTool) {
+      state.ui.mapTool = mapTool.dataset.mapTool;
+      if (state.ui.mapTool !== "navigate") setMapViewPreset("top");
+      saveLocalState();
+      renderMapMarkerControls();
+      return;
+    }
+
+    const parMarkerDelete = event.target.closest("[data-par-marker-delete]");
+    if (parMarkerDelete) {
+      state.map.parMarkers = (state.map.parMarkers || []).filter((marker) => marker.id !== parMarkerDelete.dataset.parMarkerDelete);
+      saveState();
+      renderMapSummaries();
+      renderReefMap({ rebuild: true });
+      renderInsightsContext();
+      showToast("PAR marker deleted.");
+      return;
+    }
+
+    const stockPlace = event.target.closest("[data-map-stock-place]");
+    if (stockPlace) {
+      state.ui.mapTool = "stock";
+      state.ui.selectedMapStockId = stockPlace.dataset.mapStockPlace;
+      setMapViewPreset("top");
+      saveLocalState();
+      renderMapMarkerControls();
+      return;
+    }
+
+    const stockClear = event.target.closest("[data-map-stock-clear]");
+    if (stockClear) {
+      const item = state.livestock.find((entry) => entry.id === stockClear.dataset.mapStockClear);
+      if (item) item.mapPosition = null;
+      saveState();
+      renderMapMarkerControls();
+      renderMapSummaries();
+      renderReefMap({ rebuild: true });
+      renderInsightsContext();
+      showToast("Stock marker cleared.");
+      return;
+    }
+
     const zoneDelete = event.target.closest("[data-zone-delete]");
     if (zoneDelete) {
       const id = zoneDelete.dataset.zoneDelete;
@@ -3849,6 +4149,7 @@
       saveState();
       renderZones();
       renderLivestock();
+      renderMapMarkerControls();
       renderMapSummaries();
       renderReefMap({ rebuild: true });
       renderInsightsContext();
@@ -3900,6 +4201,7 @@
     saveState();
     renderLivestock();
     renderPhotoLibrary();
+    renderMapMarkerControls();
     renderMapSummaries();
     renderReefMap({ rebuild: true });
     renderDashboard();
@@ -3942,6 +4244,11 @@
       input.addEventListener("change", updateMapFromSettings);
     });
     $("mapSettingsForm").addEventListener("submit", (event) => event.preventDefault());
+    $("mapMarkerForm").addEventListener("submit", (event) => event.preventDefault());
+    $("mapStockSelect").addEventListener("change", (event) => {
+      state.ui.selectedMapStockId = event.target.value;
+      saveLocalState();
+    });
     $("lightingPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "lighting"));
     $("zoneForm").addEventListener("submit", addZone);
     $("livestockForm").addEventListener("submit", addLivestock);
