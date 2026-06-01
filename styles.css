@@ -538,6 +538,11 @@ textarea:focus {
     #eaf4f3;
   box-shadow: var(--shadow);
   touch-action: none;
+  cursor: grab;
+}
+
+.reef-map-stage:active {
+  cursor: grabbing;
 }
 
 .reef-map-stage canvas {

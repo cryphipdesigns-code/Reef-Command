@@ -3,3 +3,4 @@ supabase/.temp/
 .env.*
 !.env.example
 config.local.json
+.tmp-backups/

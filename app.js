@@ -810,6 +810,58 @@
     );
   }
 
+  function getStateDataScore(value) {
+    const profile = value?.profile || {};
+    const profileFields = [
+      "displayVolume",
+      "totalVolume",
+      "startDate",
+      "tankStyle",
+      "filtration",
+      "lightingModel",
+      "lightingSummary",
+      "saltMix",
+      "dosing",
+      "notes",
+    ].filter((key) => String(profile[key] || "").trim()).length;
+    const equipmentFlags = ["proteinSkimmer", "refugium", "autoTopOff"].filter((key) => Boolean(profile[key])).length;
+    const lightingPhotos = Array.isArray(profile.lightingPhotos) ? profile.lightingPhotos.length : 0;
+    const zoneDetails = Array.isArray(value?.zones)
+      ? value.zones.filter((zone) => zone.parMin || zone.parMax || zone.notes).length
+      : 0;
+    const score = {
+      livestock: Array.isArray(value?.livestock) ? value.livestock.length : 0,
+      waterTests: Array.isArray(value?.waterTests) ? value.waterTests.length : 0,
+      events: Array.isArray(value?.events) ? value.events.length : 0,
+      insightRuns: Array.isArray(value?.insightRuns) ? value.insightRuns.length : 0,
+      profileFields,
+      equipmentFlags,
+      lightingPhotos,
+      zoneDetails,
+      parMarkers: Array.isArray(value?.map?.parMarkers) ? value.map.parMarkers.length : 0,
+    };
+    score.core =
+      score.livestock +
+      score.waterTests +
+      score.events +
+      score.insightRuns +
+      score.profileFields +
+      score.equipmentFlags +
+      score.lightingPhotos +
+      score.zoneDetails;
+    score.total = score.core + score.parMarkers;
+    return score;
+  }
+
+  function shouldProtectRemoteState(remoteState, localState) {
+    const remoteScore = getStateDataScore(remoteState);
+    const localScore = getStateDataScore(localState);
+    return (
+      remoteScore.core >= localScore.core + 3 ||
+      (remoteScore.livestock > localScore.livestock && remoteScore.core > localScore.core)
+    );
+  }
+
   function uid() {
     return "id_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   }
@@ -2601,25 +2653,50 @@
 
   function bindMapPointerEvents(stage) {
     stage.addEventListener("pointerdown", (event) => {
-      mapPointerState = {
-        id: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
+      stage.setPointerCapture(event.pointerId);
+      if (!mapPointerState) {
+        mapPointerState = {
+          id: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          x: event.clientX,
+          y: event.clientY,
+          moved: false,
+          pointers: new Map(),
+          pinchStartGap: 0,
+          pinchStartDistance: mapViewState.distance,
+        };
+      }
+      mapPointerState.pointers.set(event.pointerId, {
         x: event.clientX,
         y: event.clientY,
-        moved: false,
-      };
-      stage.setPointerCapture(event.pointerId);
+      });
+      if (mapPointerState.pointers.size === 2) {
+        mapPointerState.moved = true;
+        mapPointerState.pinchStartGap = getMapPointerGap(mapPointerState.pointers);
+        mapPointerState.pinchStartDistance = mapViewState.distance;
+      }
     });
     stage.addEventListener("pointermove", (event) => {
-      if (!mapPointerState || mapPointerState.id !== event.pointerId) return;
+      if (!mapPointerState || !mapPointerState.pointers.has(event.pointerId)) return;
+      mapPointerState.pointers.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (mapPointerState.pointers.size >= 2) {
+        const gap = getMapPointerGap(mapPointerState.pointers);
+        if (gap > 0 && mapPointerState.pinchStartGap > 0) {
+          mapViewState.distance = mapPointerState.pinchStartDistance * (mapPointerState.pinchStartGap / gap);
+          mapViewState.distance = Math.max(18, Math.min(95, mapViewState.distance));
+        }
+        return;
+      }
       const dx = event.clientX - mapPointerState.x;
       const dy = event.clientY - mapPointerState.y;
       const totalMove = Math.hypot(event.clientX - mapPointerState.startX, event.clientY - mapPointerState.startY);
       if (totalMove > 8) mapPointerState.moved = true;
       mapPointerState.x = event.clientX;
       mapPointerState.y = event.clientY;
-      if (getMapTool() !== "navigate") return;
       mapViewState.yaw -= dx * 0.008;
       mapViewState.pitch += dy * 0.006;
       mapViewState.pitch = Math.max(-0.75, Math.min(1.54, mapViewState.pitch));
@@ -2631,17 +2708,42 @@
       if (mapPointerState && mapPointerState.id === event.pointerId && !mapPointerState.moved) {
         handleMapPlacementPointer(event);
       }
-      mapPointerState = null;
+      releaseMapPointer(event.pointerId);
     });
-    stage.addEventListener("pointercancel", () => {
-      mapPointerState = null;
+    stage.addEventListener("pointercancel", (event) => {
+      releaseMapPointer(event.pointerId);
     });
     stage.addEventListener("wheel", (event) => {
       event.preventDefault();
-      if (getMapTool() !== "navigate") return;
       mapViewState.distance += event.deltaY * 0.025;
       mapViewState.distance = Math.max(18, Math.min(95, mapViewState.distance));
     }, { passive: false });
+  }
+
+  function releaseMapPointer(pointerId) {
+    if (!mapPointerState) return;
+    mapPointerState.pointers.delete(pointerId);
+    if (!mapPointerState.pointers.size) {
+      mapPointerState = null;
+      return;
+    }
+    const [nextPointerId, nextPointer] = mapPointerState.pointers.entries().next().value;
+    mapPointerState.id = nextPointerId;
+    mapPointerState.startX = nextPointer.x;
+    mapPointerState.startY = nextPointer.y;
+    mapPointerState.x = nextPointer.x;
+    mapPointerState.y = nextPointer.y;
+    mapPointerState.moved = true;
+    if (mapPointerState.pointers.size === 2) {
+      mapPointerState.pinchStartGap = getMapPointerGap(mapPointerState.pointers);
+      mapPointerState.pinchStartDistance = mapViewState.distance;
+    }
+  }
+
+  function getMapPointerGap(pointers) {
+    const points = Array.from(pointers.values());
+    if (points.length < 2) return 0;
+    return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
   }
 
   function handleMapPlacementPointer(event) {
@@ -3512,6 +3614,23 @@
     if (!hasMeaningfulState(state) && !options.allowEmpty) {
       if (!options.silent) showToast("Nothing to sync yet.");
       return;
+    }
+    if (!options.force && !options.allowEmpty) {
+      const { data: remoteRow, error: remoteReadError } = await supabaseClient
+        .from("reef_shared_state")
+        .select("data, updated_at")
+        .eq("id", SHARED_STATE_ID)
+        .maybeSingle();
+      if (!remoteReadError && remoteRow?.data && shouldProtectRemoteState(remoteRow.data, state)) {
+        isRemoteHydrating = true;
+        state = normalizeState(remoteRow.data);
+        saveLocalState();
+        isRemoteHydrating = false;
+        renderAll();
+        updateBackendStatus("Remote data protected; local stale state was refreshed.");
+        if (!options.silent) showToast("Refreshed from remote data.");
+        return;
+      }
     }
     if (remoteSaveInFlight) {
       remoteSaveQueued = true;
