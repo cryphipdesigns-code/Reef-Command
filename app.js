@@ -42,8 +42,8 @@
   let mapResizeObserver = null;
   let mapPointerState = null;
   const mapViewState = {
-    yaw: -0.42,
-    pitch: 0.34,
+    yaw: 0,
+    pitch: 0,
     distance: 42,
   };
 
@@ -127,7 +127,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 6,
+      modelVersion: 11,
       dimensions: {
         width: 30,
         depth: 12,
@@ -135,9 +135,9 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from the traced front, top, and right-view references. The left rock, right rock, and shelf are hard-anchored to the back glass; the two front rocks remain separate on the sandbed.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from the traced front, top, and right-view references. Version 11 extends the shelf footprint over the front-left and front-right rocks, pulls the left and right rocks closer to the front glass, and softens the forward skirts so the rocks taper into the sand while keeping the left rock, right rock, and shelf hard-anchored to the back glass.",
       },
-      view: "orbit",
+      view: "front",
       layers: {
         par: false,
         livestock: false,
@@ -154,12 +154,12 @@
           y: 1.05,
           z: 1.3,
           width: 7.8,
-          depth: 8.6,
+          depth: 10.8,
           height: 5.2,
           touchesBackGlass: true,
-          footprint: [[-3.95, -2.65], [-3.45, -3.75], [-2.2, -3.92], [-1.25, -3.35], [0.35, -3.55], [1.55, -2.95], [2.85, -2.15], [3.35, -0.82], [3.15, 1.2], [2.55, 2.75], [1.85, 4.12], [0.65, 4.85], [-1.35, 4.75], [-2.65, 3.88], [-3.45, 2.35], [-3.9, 0.45]],
+          footprint: [[-4.1, -3.5], [-3.65, -5.2], [-2.4, -5.95], [-1.05, -5.55], [0.8, -5.85], [2.25, -4.9], [3.25, -3.0], [3.35, -0.82], [3.15, 1.2], [2.55, 2.75], [1.85, 4.12], [0.65, 4.85], [-1.35, 4.75], [-2.65, 3.88], [-3.45, 2.35], [-3.9, 0.45]],
           frontProfile: [[-3.95, 0.8], [-3.35, 1.7], [-2.65, 2.65], [-1.65, 3.85], [-0.45, 4.95], [0.75, 4.72], [1.75, 3.65], [2.7, 2.55], [3.35, 1.08]],
-          sideProfile: [[-3.75, 0.9], [-2.4, 2.15], [-0.65, 3.55], [1.35, 4.65], [3.15, 4.92], [4.85, 3.55]],
+          sideProfile: [[-5.95, 0.12], [-5.15, 0.28], [-4.2, 0.85], [-2.4, 2.15], [-0.65, 3.55], [1.35, 4.65], [3.15, 4.92], [4.85, 3.55]],
           heightPoints: [
             { x: -2.2, y: -1.4, h: 0.32, r: 1.35 },
             { x: -0.4, y: 0.25, h: 0.55, r: 1.7 },
@@ -173,6 +173,9 @@
           ],
           edgeSoftness: 0.32,
           edgeFloor: 0.94,
+          frontTaperDepth: 5.2,
+          frontFloor: 0.16,
+          frontSkirtLift: 0.92,
           surfaceNoise: 0.045,
           light: "Low-Medium",
           flow: "Medium",
@@ -192,7 +195,7 @@
           height: 2.0,
           footprint: [[-2.55, -1.05], [-1.65, -1.35], [-0.35, -1.22], [1.35, -0.92], [2.35, -0.25], [2.55, 0.68], [1.35, 1.18], [-0.15, 1.32], [-1.55, 0.98], [-2.42, 0.28]],
           frontProfile: [[-2.55, 0.42], [-1.65, 1.05], [-0.45, 1.6], [0.85, 1.42], [1.85, 0.9], [2.55, 0.45]],
-          sideProfile: [[-1.35, 0.45], [-0.45, 1.35], [0.42, 1.55], [1.32, 0.72]],
+          sideProfile: [[-1.35, 0.18], [-0.45, 1.2], [0.42, 1.55], [1.32, 0.72]],
           heightPoints: [
             { x: -0.95, y: -0.2, h: 0.22, r: 0.8 },
             { x: 0.55, y: 0.1, h: 0.18, r: 0.75 },
@@ -203,6 +206,9 @@
           depressions: [],
           edgeSoftness: 0.28,
           edgeFloor: 0.88,
+          frontTaperDepth: 2.6,
+          frontFloor: 0.16,
+          frontSkirtLift: 0.9,
           surfaceNoise: 0.04,
           light: "Low",
           flow: "Low-Medium",
@@ -222,7 +228,7 @@
           height: 2.7,
           footprint: [[-2.75, -1.25], [-1.55, -1.55], [0.4, -1.38], [2.0, -0.82], [2.65, 0.18], [2.38, 1.15], [1.25, 1.55], [-0.45, 1.35], [-1.9, 0.82], [-2.65, -0.18]],
           frontProfile: [[-2.75, 0.7], [-1.8, 1.35], [-0.5, 2.18], [0.75, 2.35], [1.75, 1.75], [2.65, 0.82]],
-          sideProfile: [[-1.55, 0.85], [-0.55, 2.0], [0.48, 2.25], [1.55, 1.05]],
+          sideProfile: [[-1.55, 0.22], [-0.55, 1.85], [0.48, 2.25], [1.55, 1.05]],
           heightPoints: [
             { x: -0.8, y: -0.2, h: 0.22, r: 0.82 },
             { x: 0.75, y: 0.15, h: 0.28, r: 0.85 },
@@ -233,6 +239,9 @@
           depressions: [],
           edgeSoftness: 0.28,
           edgeFloor: 0.9,
+          frontTaperDepth: 2.7,
+          frontFloor: 0.16,
+          frontSkirtLift: 0.9,
           surfaceNoise: 0.04,
           light: "Low",
           flow: "Medium",
@@ -248,12 +257,12 @@
           y: 1.1,
           z: 1.3,
           width: 7.9,
-          depth: 8.3,
+          depth: 10.7,
           height: 4.8,
           touchesBackGlass: true,
-          footprint: [[-3.85, -2.75], [-2.7, -3.35], [-1.25, -3.48], [0.65, -3.1], [2.4, -2.45], [3.55, -1.25], [3.85, 0.38], [3.35, 1.95], [3.55, 3.25], [2.55, 4.25], [1.05, 4.85], [-0.85, 4.7], [-2.35, 3.85], [-3.45, 2.28], [-3.95, 0.35]],
+          footprint: [[-4.0, -3.65], [-3.1, -5.15], [-1.55, -5.85], [0.55, -5.75], [2.55, -4.75], [3.75, -3.1], [3.85, 0.38], [3.35, 1.95], [3.55, 3.25], [2.55, 4.25], [1.05, 4.85], [-0.85, 4.7], [-2.35, 3.85], [-3.45, 2.28], [-3.95, 0.35]],
           frontProfile: [[-3.85, 0.75], [-3.1, 1.42], [-2.1, 2.35], [-0.85, 3.55], [0.45, 4.45], [1.55, 4.18], [2.65, 3.0], [3.45, 1.95], [3.85, 0.82]],
-          sideProfile: [[-3.48, 0.9], [-2.3, 1.75], [-0.75, 3.45], [0.7, 4.7], [2.25, 4.35], [3.65, 3.55], [4.85, 2.35]],
+          sideProfile: [[-5.85, 0.12], [-5.0, 0.3], [-3.75, 0.92], [-2.3, 1.75], [-0.75, 3.45], [0.7, 4.7], [2.25, 4.35], [3.65, 3.55], [4.85, 2.35]],
           heightPoints: [
             { x: -2.35, y: -1.15, h: 0.24, r: 1.0 },
             { x: -0.65, y: -0.45, h: 0.38, r: 1.2 },
@@ -270,6 +279,9 @@
           ],
           edgeSoftness: 0.34,
           edgeFloor: 0.95,
+          frontTaperDepth: 5.1,
+          frontFloor: 0.16,
+          frontSkirtLift: 0.92,
           surfaceNoise: 0.045,
           light: "Low-Medium",
           flow: "Medium-High",
@@ -285,13 +297,13 @@
           y: 1.35,
           z: 6.75,
           width: 13.8,
-          depth: 6.8,
+          depth: 10.6,
           height: 6.6,
           touchesBackGlass: true,
-          footprint: [[-6.85, -1.95], [-5.65, -2.28], [-4.45, -1.95], [-3.15, -2.1], [-1.7, -1.72], [-0.2, -1.95], [1.2, -1.55], [2.65, -1.75], [4.25, -1.25], [5.55, -0.75], [6.7, 0.35], [6.45, 1.85], [5.15, 3.05], [3.25, 3.75], [1.2, 4.3], [-0.75, 4.55], [-2.8, 4.28], [-4.65, 3.65], [-6.05, 2.65], [-6.9, 1.08]],
+          footprint: [[-6.85, -2.85], [-5.95, -4.25], [-4.65, -5.25], [-3.2, -5.6], [-2.0, -4.85], [-0.5, -3.85], [0.7, -3.95], [2.0, -4.95], [3.75, -5.45], [5.25, -4.05], [6.75, -1.65], [6.7, 0.35], [6.45, 1.85], [5.15, 3.05], [3.25, 3.75], [1.2, 4.3], [-0.75, 4.55], [-2.8, 4.28], [-4.65, 3.65], [-6.05, 2.65], [-6.9, 1.08]],
           bottomProfile: [[-6.85, 0.0], [-5.55, 0.32], [-4.35, 0.08], [-3.25, 0.72], [-2.15, 0.45], [-1.05, 0.88], [0.0, 0.55], [1.05, 0.7], [2.0, 0.42], [3.05, 0.62], [4.2, 0.18], [5.45, 0.38], [6.7, 0.0]],
           frontProfile: [[-6.85, 1.0], [-5.9, 2.55], [-4.65, 4.0], [-3.45, 5.1], [-2.0, 5.45], [-0.65, 4.75], [0.35, 5.75], [1.65, 5.35], [2.95, 5.05], [4.25, 4.2], [5.45, 2.85], [6.7, 1.2]],
-          sideProfile: [[-2.28, 0.95], [-1.05, 2.85], [0.8, 4.85], [2.35, 5.75], [3.65, 5.2], [4.55, 3.8]],
+          sideProfile: [[-5.6, 0.18], [-4.65, 0.55], [-3.35, 1.35], [-2.15, 2.45], [-1.05, 2.85], [0.8, 4.85], [2.35, 5.75], [3.65, 5.2], [4.55, 3.8]],
           heightPoints: [
             { x: -4.4, y: -0.55, h: 0.35, r: 1.25 },
             { x: -2.45, y: 0.25, h: 0.52, r: 1.35 },
@@ -309,6 +321,9 @@
           ],
           edgeSoftness: 0.3,
           edgeFloor: 0.97,
+          frontTaperDepth: 5.2,
+          frontFloor: 0.18,
+          frontSkirtLift: 0.86,
           surfaceNoise: 0.04,
           light: "Medium-High",
           flow: "High",
@@ -437,11 +452,11 @@
 
     const defaultLayers = defaults.layers;
     const layers = {
-      par: source.layers?.par ?? defaultLayers.par,
-      livestock: source.layers?.livestock ?? defaultLayers.livestock,
-      flow: source.layers?.flow ?? defaultLayers.flow,
-      equipment: source.layers?.equipment ?? defaultLayers.equipment,
-      trace: source.layers?.trace ?? defaultLayers.trace,
+      par: shouldMigrateStructures ? defaultLayers.par : source.layers?.par ?? defaultLayers.par,
+      livestock: shouldMigrateStructures ? defaultLayers.livestock : source.layers?.livestock ?? defaultLayers.livestock,
+      flow: shouldMigrateStructures ? defaultLayers.flow : source.layers?.flow ?? defaultLayers.flow,
+      equipment: shouldMigrateStructures ? defaultLayers.equipment : source.layers?.equipment ?? defaultLayers.equipment,
+      trace: shouldMigrateStructures ? defaultLayers.trace : source.layers?.trace ?? defaultLayers.trace,
     };
 
     const structureSource = !shouldMigrateStructures && Array.isArray(source.structures) && source.structures.length
@@ -451,7 +466,7 @@
     return {
       modelVersion: defaultVersion,
       dimensions,
-      view: source.view || defaults.view,
+      view: shouldMigrateStructures ? defaults.view : source.view || defaults.view,
       layers,
       structures: structureSource.map((structure, index) =>
         normalizeMapStructure(structure, defaults.structures[index] || defaults.structures[0]),
@@ -484,6 +499,9 @@
       sideProfile: normalizePointPairs(structure.sideProfile, fallback.sideProfile),
       edgeSoftness: positiveNumber(structure.edgeSoftness, fallback.edgeSoftness || 0.65),
       edgeFloor: positiveNumber(structure.edgeFloor, fallback.edgeFloor || 0.4),
+      frontTaperDepth: nonNegativeNumber(structure.frontTaperDepth, fallback.frontTaperDepth || 0),
+      frontFloor: positiveNumber(structure.frontFloor, fallback.frontFloor || 1),
+      frontSkirtLift: nonNegativeNumber(structure.frontSkirtLift, fallback.frontSkirtLift || 0),
       surfaceNoise: nonNegativeNumber(structure.surfaceNoise, fallback.surfaceNoise || 0.14),
       notes: structure.notes || fallback.notes || "",
     };
@@ -1374,14 +1392,14 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = state.map.modelVersion >= 6
-      ? "Silhouette locked"
-      : state.map.modelVersion >= 5 ? "Outline traced" : dimensions.scaleReference?.includes("2 inch") ? "Ruler refined" : "Photo draft";
+    $("mapQualityPill").textContent = state.map.modelVersion >= 7
+      ? "Footprint refined"
+      : state.map.modelVersion >= 6 ? "Silhouette locked" : state.map.modelVersion >= 5 ? "Outline traced" : dimensions.scaleReference?.includes("2 inch") ? "Ruler refined" : "Photo draft";
     $$("[data-map-layer]").forEach((button) => {
       button.classList.toggle("active", Boolean(state.map.layers?.[button.dataset.mapLayer]));
     });
     $$("[data-map-view]").forEach((button) => {
-      button.classList.toggle("active", button.dataset.mapView === (state.map.view || "orbit"));
+      button.classList.toggle("active", button.dataset.mapView === (state.map.view || "front"));
     });
   }
 
@@ -1481,6 +1499,7 @@
     mapScene = new THREE.Scene();
     mapScene.fog = new THREE.Fog(0xeaf6f5, 42, 92);
     mapCamera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
+    mapCamera.up.set(0, 0, 1);
     mapRenderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -1928,6 +1947,9 @@
     const dark = new THREE.Color(0x3e2b2d);
     const bottom = new THREE.Color(0x33262a);
     const center = polygonCentroid(footprint);
+    const bounds = getPointBounds(footprint);
+    const frontTaperDepth = nonNegativeNumber(structure.frontTaperDepth, 0);
+    const frontSkirtLift = clamp(0, 0.96, nonNegativeNumber(structure.frontSkirtLift, frontTaperDepth ? 0.72 : 0));
     const base = structure.id === "center-shelf" ? 0 : -0.05;
     const addVertex = (x, y, z, color) => {
       const vertexIndex = vertices.length / 3;
@@ -1936,7 +1958,19 @@
       return vertexIndex;
     };
 
-    const bottomRing = perimeter.map((point) => addVertex(point[0], point[1], base + rockBottomAt(structure, point[0]), dark));
+    const bottomRing = perimeter.map((point) => {
+      const defaultBottom = base + rockBottomAt(structure, point[0]);
+      let bottomZ = defaultBottom;
+      if (frontTaperDepth && frontSkirtLift) {
+        const frontWeight = 1 - smoothstep(bounds.minY, bounds.minY + frontTaperDepth, point[1]);
+        if (frontWeight > 0) {
+          const topZ = scaleRockProfileHeight(structure, rockHeightAt(structure, footprint, point[0], point[1]), 1);
+          const lip = structure.id === "center-shelf" ? 0.16 : 0.08;
+          bottomZ = lerp(defaultBottom, Math.max(defaultBottom, topZ - lip), frontWeight * frontSkirtLift);
+        }
+      }
+      return addVertex(point[0], point[1], bottomZ, dark);
+    });
     for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
       const nextIndex = (pointIndex + 1) % perimeter.length;
       indices.push(outerRing[pointIndex], bottomRing[pointIndex], outerRing[nextIndex]);
@@ -2001,6 +2035,12 @@
       const edgeDistance = distanceToPolygonEdge([x, y], footprint);
       const edgeTaper = smoothstep(0, structure.edgeSoftness || 0.65, edgeDistance);
       const edgeFloor = clamp(0.78, 0.99, structure.edgeFloor || 0.92);
+      const footprintBounds = getPointBounds(footprint);
+      const frontTaperDepth = nonNegativeNumber(structure.frontTaperDepth, 0);
+      const frontTaper = frontTaperDepth
+        ? smoothstep(footprintBounds.minY, footprintBounds.minY + frontTaperDepth, y)
+        : 1;
+      const frontShape = clamp(0.18, 1, structure.frontFloor || 1) + (1 - clamp(0.18, 1, structure.frontFloor || 1)) * frontTaper;
       let relief =
         0.98 +
         (surfaceNoise(`${structure.id}-profile`, x * 0.72, y * 0.72) - 0.5) * 0.08 +
@@ -2023,7 +2063,11 @@
 
       const rockFloor = Math.max(structure.id === "center-shelf" ? 0.2 : 0.06, bottom + 0.04);
       const edgeShape = edgeFloor + (1 - edgeFloor) * edgeTaper;
-      return clamp(rockFloor, structure.height, silhouetteLimit * clamp(0.9, 1.06, relief) * edgeShape);
+      const shapedHeight = silhouetteLimit * clamp(0.9, 1.06, relief) * edgeShape * frontShape;
+      const frontCap = frontTaperDepth
+        ? lerp(rockFloor + structure.height * 0.04, structure.height, frontTaper)
+        : structure.height;
+      return clamp(rockFloor, structure.height, Math.min(shapedHeight, frontCap));
     }
 
     const edgeDistance = distanceToPolygonEdge([x, y], footprint);
@@ -2346,6 +2390,11 @@
     const pitch = Math.max(-1.2, Math.min(1.54, mapViewState.pitch));
     const distance = Math.max(18, Math.min(95, mapViewState.distance));
     const horizontal = Math.cos(pitch) * distance;
+    if (pitch > 1.45) {
+      mapCamera.up.set(0, 1, 0);
+    } else {
+      mapCamera.up.set(0, 0, 1);
+    }
     mapCamera.position.set(
       Math.sin(mapViewState.yaw) * horizontal,
       -Math.cos(mapViewState.yaw) * horizontal,
@@ -2362,6 +2411,10 @@
       mapViewState.yaw = 0;
       mapViewState.pitch = 0;
       mapViewState.distance = maxDimension * 1.5;
+    } else if (view === "left") {
+      mapViewState.yaw = -Math.PI / 2;
+      mapViewState.pitch = 0;
+      mapViewState.distance = maxDimension * 1.42;
     } else if (view === "right") {
       mapViewState.yaw = Math.PI / 2;
       mapViewState.pitch = 0;
@@ -2398,7 +2451,7 @@
       mapViewState.yaw -= dx * 0.008;
       mapViewState.pitch += dy * 0.006;
       mapViewState.pitch = Math.max(-0.75, Math.min(1.54, mapViewState.pitch));
-      state.map.view = "orbit";
+      state.map.view = "custom";
       renderMapSettings();
     });
     stage.addEventListener("pointerup", () => {
