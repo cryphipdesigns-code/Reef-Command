@@ -130,7 +130,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 14,
+      modelVersion: 15,
       dimensions: {
         width: 30,
         depth: 12,
@@ -138,7 +138,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from the traced front, top, and right-view references. Version 12 preserves the refined top footprints, forces the side cameras to use tank-up orientation, and bevels the rock perimeter so side views taper into the sand instead of rendering flat footprint walls.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 15 adds a constraint-shaped right rock from the isolated top/front silhouette, red high-point marks, and yellow depressed ledge lines.",
       },
       view: "front",
       layers: {
@@ -263,39 +263,54 @@
           x: 10.35,
           y: 1.1,
           z: 1.3,
-          width: 7.9,
-          depth: 10.7,
-          height: 4.8,
+          width: 8.3,
+          depth: 10.9,
+          height: 5.05,
           touchesBackGlass: true,
-          footprint: [[-4.0, -3.65], [-3.1, -5.15], [-1.55, -5.85], [0.55, -5.75], [2.55, -4.75], [3.75, -3.1], [3.85, 0.38], [3.35, 1.95], [3.55, 3.25], [2.55, 4.25], [1.05, 4.85], [-0.85, 4.7], [-2.35, 3.85], [-3.45, 2.28], [-3.95, 0.35]],
-          frontProfile: [[-3.85, 0.75], [-3.1, 1.42], [-2.1, 2.35], [-0.85, 3.55], [0.45, 4.45], [1.55, 4.18], [2.65, 3.0], [3.45, 1.95], [3.85, 0.82]],
-          sideProfile: [[-5.85, 0.12], [-5.0, 0.3], [-3.75, 0.92], [-2.3, 1.75], [-0.75, 3.45], [0.7, 4.7], [2.25, 4.35], [3.65, 3.55], [4.85, 2.35]],
+          footprint: [[-4.18, -2.85], [-3.92, -3.78], [-3.1, -4.55], [-2.18, -5.2], [-1.18, -4.78], [-0.45, -5.55], [0.34, -5.08], [1.02, -5.62], [1.95, -4.85], [3.08, -4.72], [3.88, -3.85], [4.32, -2.62], [3.82, -1.45], [4.18, -0.18], [3.82, 1.18], [4.12, 2.6], [3.48, 3.85], [2.35, 4.62], [1.02, 4.85], [0.24, 4.32], [-0.84, 4.72], [-1.56, 3.98], [-2.42, 4.12], [-3.12, 3.25], [-3.82, 2.12], [-4.22, 0.72], [-3.62, -0.45], [-4.3, -1.55]],
+          frontProfile: [[-4.05, 0.6], [-3.45, 1.15], [-2.72, 2.55], [-1.7, 3.18], [-0.55, 3.42], [0.55, 4.15], [1.35, 5.0], [2.35, 4.7], [3.28, 3.25], [3.95, 1.1]],
+          sideProfile: [[-5.55, 0.1], [-4.62, 0.9], [-3.45, 1.95], [-2.18, 3.05], [-0.72, 3.95], [0.7, 4.85], [2.45, 4.62], [3.75, 3.8], [5.05, 3.1]],
           heightPoints: [
-            { x: -2.35, y: -1.15, h: 0.24, r: 1.0 },
-            { x: -0.65, y: -0.45, h: 0.38, r: 1.2 },
-            { x: 0.75, y: 0.65, h: 0.45, r: 1.15 },
-            { x: 1.95, y: 1.65, h: 0.28, r: 0.9 },
+            { x: -3.35, y: -1.05, h: 0.9, r: 0.88 },
+            { x: -2.45, y: -4.15, h: 0.72, r: 0.92 },
+            { x: 1.18, y: -0.35, h: 1.08, r: 0.95 },
+            { x: 0.55, y: 3.58, h: 0.76, r: 1.05 },
           ],
           ridges: [
-            { from: [-2.65, -1.55], to: [2.2, 1.2], h: 0.34, r: 0.62 },
-            { from: [-0.8, 1.2], to: [2.4, 2.45], h: 0.28, r: 0.52 },
+            { from: [-3.62, -0.6], to: [-2.35, -1.18], h: 0.46, r: 0.46 },
+            { from: [-1.1, 0.35], to: [1.72, 0.42], h: 0.56, r: 0.52 },
+            { from: [-0.55, 2.65], to: [2.35, 3.02], h: 0.42, r: 0.56 },
+            { from: [1.25, -3.92], to: [3.05, -4.2], h: 0.34, r: 0.48 },
           ],
           depressions: [
-            { x: -3.05, y: 0.25, h: 0.24, r: 0.7 },
-            { x: 2.15, y: -1.4, h: 0.2, r: 0.58 },
+            { x: -0.28, y: -0.62, h: 1.0, r: 0.7 },
+            { x: -3.02, y: 0.9, h: 0.66, r: 0.56 },
+            { x: -2.52, y: -2.52, h: 0.86, r: 0.7 },
+            { x: 2.22, y: -1.22, h: 0.76, r: 0.68 },
+            { x: 0.35, y: -4.62, h: 0.42, r: 0.58 },
           ],
-          edgeSoftness: 1.45,
-          edgeFloor: 0.28,
-          frontTaperDepth: 5.1,
-          frontFloor: 0.16,
-          frontSkirtLift: 0.92,
-          sideSkirtLift: 0.82,
-          surfaceNoise: 0.045,
+          troughs: [
+            { from: [-3.72, 2.15], to: [-3.2, 0.78], h: 0.56, r: 0.36 },
+            { from: [-3.12, 0.6], to: [-2.55, -2.42], h: 0.76, r: 0.4 },
+            { from: [-2.82, -3.42], to: [-1.12, -4.52], h: 0.68, r: 0.42 },
+            { from: [-0.6, 2.35], to: [-0.45, -1.5], h: 0.72, r: 0.38 },
+            { from: [-0.22, -2.55], to: [2.55, -3.82], h: 0.7, r: 0.42 },
+            { from: [2.32, -3.92], to: [2.22, -1.48], h: 0.64, r: 0.38 },
+          ],
+          reliefMin: 0.5,
+          reliefMax: 1.22,
+          edgeSoftness: 0.9,
+          edgeFloor: 0.2,
+          frontTaperDepth: 4.7,
+          frontFloor: 0.3,
+          frontSkirtLift: 0.82,
+          sideSkirtLift: 0.72,
+          surfaceNoise: 0.095,
           light: "Low-Medium",
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Back-glass-touching right rock. Broad continuous footprint from top/right outlines; tallest mass sits toward the rear.",
+          notes: "Back-glass-touching right rock. Version 15 uses the isolated top/front silhouette, red-marked high points, and yellow depressed ledge constraints; front edge remains lower and more ledged.",
         },
         {
           id: "center-shelf",
@@ -505,9 +520,12 @@
       heightPoints: normalizeHeightPoints(structure.heightPoints, fallback.heightPoints),
       ridges: normalizeRidges(structure.ridges, fallback.ridges),
       depressions: normalizeHeightPoints(structure.depressions, fallback.depressions),
+      troughs: normalizeRidges(structure.troughs, fallback.troughs),
       bottomProfile: normalizePointPairs(structure.bottomProfile, fallback.bottomProfile),
       frontProfile: normalizePointPairs(structure.frontProfile, fallback.frontProfile),
       sideProfile: normalizePointPairs(structure.sideProfile, fallback.sideProfile),
+      reliefMin: positiveNumber(structure.reliefMin, fallback.reliefMin || 0.9),
+      reliefMax: positiveNumber(structure.reliefMax, fallback.reliefMax || 1.06),
       edgeSoftness: positiveNumber(structure.edgeSoftness, fallback.edgeSoftness || 0.65),
       edgeFloor: positiveNumber(structure.edgeFloor, fallback.edgeFloor || 0.4),
       frontTaperDepth: nonNegativeNumber(structure.frontTaperDepth, fallback.frontTaperDepth || 0),
@@ -2233,9 +2251,14 @@
         relief -= (point.h / Math.max(1, structure.height)) * Math.exp(-(distance * distance) / (2 * point.r * point.r));
       });
 
+      structure.troughs.forEach((trough) => {
+        const distance = distanceToSegment([x, y], trough.from, trough.to);
+        relief -= (trough.h / Math.max(1, structure.height)) * Math.exp(-(distance * distance) / (2 * trough.r * trough.r));
+      });
+
       const rockFloor = Math.max(structure.id === "center-shelf" ? 0.2 : 0.06, bottom + 0.04);
       const edgeShape = edgeFloor + (1 - edgeFloor) * edgeTaper;
-      const shapedHeight = silhouetteLimit * clamp(0.9, 1.06, relief) * edgeShape * frontShape;
+      const shapedHeight = silhouetteLimit * clamp(structure.reliefMin || 0.9, structure.reliefMax || 1.06, relief) * edgeShape * frontShape;
       const frontCap = frontTaperDepth
         ? lerp(rockFloor + structure.height * 0.04, structure.height, frontTaper)
         : structure.height;
@@ -2260,6 +2283,11 @@
     structure.depressions.forEach((point) => {
       const distance = Math.hypot(x - point.x, y - point.y);
       height -= point.h * Math.exp(-(distance * distance) / (2 * point.r * point.r));
+    });
+
+    structure.troughs.forEach((trough) => {
+      const distance = distanceToSegment([x, y], trough.from, trough.to);
+      height -= trough.h * Math.exp(-(distance * distance) / (2 * trough.r * trough.r));
     });
 
     const roughness = (surfaceNoise(structure.id, x, y) - 0.5) * 2 * (structure.surfaceNoise || 0.14) * structure.height;
@@ -3204,8 +3232,11 @@
           heightPoints: structure.heightPoints,
           ridges: structure.ridges,
           depressions: structure.depressions,
+          troughs: structure.troughs,
           edgeSoftness: structure.edgeSoftness,
           edgeFloor: structure.edgeFloor,
+          reliefMin: structure.reliefMin,
+          reliefMax: structure.reliefMax,
           surfaceNoise: structure.surfaceNoise,
         },
         light: structure.light,
