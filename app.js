@@ -41,6 +41,7 @@
   let mapAnimationFrame = null;
   let mapResizeObserver = null;
   let mapPointerState = null;
+  let appliedMapViewPreset = null;
   const mapViewState = {
     yaw: 0,
     pitch: 0,
@@ -127,7 +128,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 11,
+      modelVersion: 12,
       dimensions: {
         width: 30,
         depth: 12,
@@ -135,7 +136,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from the traced front, top, and right-view references. Version 11 extends the shelf footprint over the front-left and front-right rocks, pulls the left and right rocks closer to the front glass, and softens the forward skirts so the rocks taper into the sand while keeping the left rock, right rock, and shelf hard-anchored to the back glass.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from the traced front, top, and right-view references. Version 12 preserves the refined top footprints, forces the side cameras to use tank-up orientation, and bevels the rock perimeter so side views taper into the sand instead of rendering flat footprint walls.",
       },
       view: "front",
       layers: {
@@ -171,11 +172,12 @@
           depressions: [
             { x: 2.15, y: -1.85, h: 0.3, r: 0.8 },
           ],
-          edgeSoftness: 0.32,
-          edgeFloor: 0.94,
+          edgeSoftness: 1.45,
+          edgeFloor: 0.28,
           frontTaperDepth: 5.2,
           frontFloor: 0.16,
           frontSkirtLift: 0.92,
+          sideSkirtLift: 0.82,
           surfaceNoise: 0.045,
           light: "Low-Medium",
           flow: "Medium",
@@ -204,11 +206,12 @@
             { from: [-1.55, -0.18], to: [1.45, 0.25], h: 0.18, r: 0.42 },
           ],
           depressions: [],
-          edgeSoftness: 0.28,
-          edgeFloor: 0.88,
+          edgeSoftness: 0.95,
+          edgeFloor: 0.22,
           frontTaperDepth: 2.6,
           frontFloor: 0.16,
           frontSkirtLift: 0.9,
+          sideSkirtLift: 0.82,
           surfaceNoise: 0.04,
           light: "Low",
           flow: "Low-Medium",
@@ -237,11 +240,12 @@
             { from: [-1.4, -0.35], to: [1.5, 0.3], h: 0.22, r: 0.44 },
           ],
           depressions: [],
-          edgeSoftness: 0.28,
-          edgeFloor: 0.9,
+          edgeSoftness: 0.98,
+          edgeFloor: 0.22,
           frontTaperDepth: 2.7,
           frontFloor: 0.16,
           frontSkirtLift: 0.9,
+          sideSkirtLift: 0.82,
           surfaceNoise: 0.04,
           light: "Low",
           flow: "Medium",
@@ -277,11 +281,12 @@
             { x: -3.05, y: 0.25, h: 0.24, r: 0.7 },
             { x: 2.15, y: -1.4, h: 0.2, r: 0.58 },
           ],
-          edgeSoftness: 0.34,
-          edgeFloor: 0.95,
+          edgeSoftness: 1.45,
+          edgeFloor: 0.28,
           frontTaperDepth: 5.1,
           frontFloor: 0.16,
           frontSkirtLift: 0.92,
+          sideSkirtLift: 0.82,
           surfaceNoise: 0.045,
           light: "Low-Medium",
           flow: "Medium-High",
@@ -319,11 +324,12 @@
             { x: 1.75, y: -1.25, h: 0.25, r: 0.85 },
             { x: -3.15, y: -1.35, h: 0.22, r: 0.82 },
           ],
-          edgeSoftness: 0.3,
-          edgeFloor: 0.97,
+          edgeSoftness: 1.55,
+          edgeFloor: 0.3,
           frontTaperDepth: 5.2,
           frontFloor: 0.18,
           frontSkirtLift: 0.86,
+          sideSkirtLift: 0.76,
           surfaceNoise: 0.04,
           light: "Medium-High",
           flow: "High",
@@ -502,6 +508,7 @@
       frontTaperDepth: nonNegativeNumber(structure.frontTaperDepth, fallback.frontTaperDepth || 0),
       frontFloor: positiveNumber(structure.frontFloor, fallback.frontFloor || 1),
       frontSkirtLift: nonNegativeNumber(structure.frontSkirtLift, fallback.frontSkirtLift || 0),
+      sideSkirtLift: nonNegativeNumber(structure.sideSkirtLift, fallback.sideSkirtLift || 0),
       surfaceNoise: nonNegativeNumber(structure.surfaceNoise, fallback.surfaceNoise || 0.14),
       notes: structure.notes || fallback.notes || "",
     };
@@ -1487,6 +1494,9 @@
     if (!ensureMapRenderer()) return;
     resizeMapRenderer();
     if (options.rebuild || !mapRoot) rebuildReefMapScene();
+    if ((state.map.view || "front") !== "custom" && appliedMapViewPreset !== (state.map.view || "front")) {
+      applyMapViewPreset(state.map.view || "front");
+    }
     updateMapCamera();
     mapRenderer.render(mapScene, mapCamera);
   }
@@ -1950,6 +1960,7 @@
     const bounds = getPointBounds(footprint);
     const frontTaperDepth = nonNegativeNumber(structure.frontTaperDepth, 0);
     const frontSkirtLift = clamp(0, 0.96, nonNegativeNumber(structure.frontSkirtLift, frontTaperDepth ? 0.72 : 0));
+    const sideSkirtLift = clamp(0, 0.96, nonNegativeNumber(structure.sideSkirtLift, frontTaperDepth ? 0.72 : 0));
     const base = structure.id === "center-shelf" ? 0 : -0.05;
     const addVertex = (x, y, z, color) => {
       const vertexIndex = vertices.length / 3;
@@ -1961,12 +1972,14 @@
     const bottomRing = perimeter.map((point) => {
       const defaultBottom = base + rockBottomAt(structure, point[0]);
       let bottomZ = defaultBottom;
-      if (frontTaperDepth && frontSkirtLift) {
+      if (frontTaperDepth && (frontSkirtLift || sideSkirtLift)) {
         const frontWeight = 1 - smoothstep(bounds.minY, bounds.minY + frontTaperDepth, point[1]);
-        if (frontWeight > 0) {
+        const backContactWeight = structure.touchesBackGlass ? smoothstep(bounds.maxY - 0.9, bounds.maxY, point[1]) : 0;
+        const lift = Math.max(frontWeight * frontSkirtLift, sideSkirtLift * (1 - backContactWeight));
+        if (lift > 0) {
           const topZ = scaleRockProfileHeight(structure, rockHeightAt(structure, footprint, point[0], point[1]), 1);
-          const lip = structure.id === "center-shelf" ? 0.16 : 0.08;
-          bottomZ = lerp(defaultBottom, Math.max(defaultBottom, topZ - lip), frontWeight * frontSkirtLift);
+          const lip = structure.id === "center-shelf" ? 0.14 : 0.06;
+          bottomZ = lerp(defaultBottom, Math.max(defaultBottom, topZ - lip), lift);
         }
       }
       return addVertex(point[0], point[1], bottomZ, dark);
@@ -2034,7 +2047,7 @@
       const silhouetteLimit = Math.min(structure.height, Math.max(0.16, sideConstraint + bottom));
       const edgeDistance = distanceToPolygonEdge([x, y], footprint);
       const edgeTaper = smoothstep(0, structure.edgeSoftness || 0.65, edgeDistance);
-      const edgeFloor = clamp(0.78, 0.99, structure.edgeFloor || 0.92);
+      const edgeFloor = clamp(0.12, 0.99, structure.edgeFloor || 0.32);
       const footprintBounds = getPointBounds(footprint);
       const frontTaperDepth = nonNegativeNumber(structure.frontTaperDepth, 0);
       const frontTaper = frontTaperDepth
@@ -2403,31 +2416,33 @@
     mapCamera.lookAt(target);
   }
 
-  function setMapViewPreset(view) {
-    state.map.view = view;
+  function applyMapViewPreset(view) {
+    const normalizedView = ["front", "left", "right", "top"].includes(view) ? view : "front";
     const dimensions = state.map.dimensions;
     const maxDimension = Math.max(dimensions.width, dimensions.depth, dimensions.height);
-    if (view === "front") {
+    if (normalizedView === "front") {
       mapViewState.yaw = 0;
       mapViewState.pitch = 0;
       mapViewState.distance = maxDimension * 1.5;
-    } else if (view === "left") {
+    } else if (normalizedView === "left") {
       mapViewState.yaw = -Math.PI / 2;
       mapViewState.pitch = 0;
       mapViewState.distance = maxDimension * 1.42;
-    } else if (view === "right") {
+    } else if (normalizedView === "right") {
       mapViewState.yaw = Math.PI / 2;
       mapViewState.pitch = 0;
       mapViewState.distance = maxDimension * 1.42;
-    } else if (view === "top") {
+    } else if (normalizedView === "top") {
       mapViewState.yaw = 0;
       mapViewState.pitch = 1.53;
       mapViewState.distance = maxDimension * 1.28;
-    } else {
-      mapViewState.yaw = -0.42;
-      mapViewState.pitch = 0.34;
-      mapViewState.distance = maxDimension * 1.55;
     }
+    appliedMapViewPreset = normalizedView;
+    return normalizedView;
+  }
+
+  function setMapViewPreset(view) {
+    state.map.view = applyMapViewPreset(view);
     saveState();
     renderMapSettings();
     renderReefMap();
@@ -2452,6 +2467,7 @@
       mapViewState.pitch += dy * 0.006;
       mapViewState.pitch = Math.max(-0.75, Math.min(1.54, mapViewState.pitch));
       state.map.view = "custom";
+      appliedMapViewPreset = "custom";
       renderMapSettings();
     });
     stage.addEventListener("pointerup", () => {
