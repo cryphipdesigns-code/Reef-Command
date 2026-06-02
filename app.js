@@ -53,6 +53,18 @@
     return document.getElementById(id);
   }
 
+  function getLidarHeightMap(key) {
+    const map = window.REEF_LIDAR_HEIGHTMAPS?.[key];
+    if (!map || !Array.isArray(map.values)) return null;
+    return {
+      rows: map.rows,
+      columns: map.columns,
+      axis: map.axis,
+      source: map.source,
+      values: map.values,
+    };
+  }
+
   function $$(selector, root = document) {
     return Array.from(root.querySelectorAll(selector));
   }
@@ -131,7 +143,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 18,
+      modelVersion: 19,
       dimensions: {
         width: 30,
         depth: 12,
@@ -139,7 +151,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 18 uses relief-corrected right-rock scan data as a soft elevation guide over the traced footprint.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 19 uses LiDAR OBJ top-envelope heightfields for the right rock and shelf.",
       },
       view: "front",
       layers: {
@@ -320,47 +332,19 @@
           sideSkirtLift: 0.72,
           surfaceNoise: 0.15,
           cragStrength: 0.16,
-          scanHeightStrength: 0.72,
-          scanHeightContrast: 1.35,
-          scanHeightFloor: 0.16,
-          scanHeightCeiling: 1.08,
-          scanHeightInvert: true,
-          terraceStrength: 0.28,
-          terraceBands: 8,
-          scanHeightMap: {
-            columns: 21,
-            rows: 21,
-            axis: "red-green-glb-x-y-z",
-            source: "Right Rock Red and Green GLB q78 relief-corrected heightfield",
-            values: [
-              [0.961, 0.919, 0.625, 0.147, 0, 0.017, 0.255, 0.646, 0.285, 0, 0.133, 0.13, 0.062, 0.003, 0, 0, 0, 0, 0, 0.283, 0.577],
-              [0.931, 0.955, 0.875, 0.518, 0.179, 0.099, 0.107, 0.312, 0.203, 0.125, 0.189, 0.095, 0.031, 0.027, 0, 0, 0, 0.028, 0.072, 0.421, 0.726],
-              [0.901, 0.919, 0.948, 0.918, 0.816, 0.685, 0.531, 0.408, 0.238, 0.209, 0.233, 0.201, 0.2, 0.239, 0.112, 0.17, 0.445, 0.667, 0.6, 0.712, 0.875],
-              [0.925, 0.892, 0.898, 0.927, 0.939, 0.937, 0.898, 0.638, 0.283, 0.223, 0.317, 0.37, 0.373, 0.356, 0.309, 0.505, 0.691, 0.817, 0.777, 0.833, 0.946],
-              [0.973, 0.914, 0.852, 0.788, 0.736, 0.799, 0.801, 0.523, 0.235, 0.203, 0.32, 0.384, 0.361, 0.237, 0.259, 0.543, 0.623, 0.689, 0.809, 0.887, 0.956],
-              [0.994, 0.957, 0.802, 0.7, 0.559, 0.583, 0.553, 0.298, 0.154, 0.109, 0.171, 0.226, 0.242, 0.054, 0.086, 0.364, 0.321, 0.36, 0.806, 0.957, 0.97],
-              [0.975, 0.938, 0.748, 0.587, 0.457, 0.544, 0.555, 0.283, 0.174, 0.128, 0.137, 0.155, 0.131, 0, 0.061, 0.263, 0.257, 0.357, 0.883, 0.995, 0.991],
-              [0.965, 0.841, 0.707, 0.537, 0.415, 0.501, 0.553, 0.37, 0.348, 0.314, 0.161, 0.021, 0, 0, 0.047, 0.28, 0.448, 0.566, 0.933, 0.991, 0.997],
-              [0.941, 0.758, 0.676, 0.593, 0.418, 0.39, 0.41, 0.363, 0.419, 0.415, 0.284, 0.048, 0, 0, 0.003, 0.16, 0.409, 0.579, 0.891, 0.988, 1],
-              [0.928, 0.775, 0.695, 0.666, 0.463, 0.378, 0.369, 0.356, 0.374, 0.356, 0.289, 0.093, 0, 0, 0.026, 0.082, 0.184, 0.435, 0.868, 0.989, 1],
-              [0.945, 0.865, 0.844, 0.868, 0.665, 0.455, 0.329, 0.303, 0.284, 0.276, 0.238, 0.135, 0.063, 0, 0.04, 0.073, 0.086, 0.293, 0.857, 0.994, 1],
-              [0.828, 0.927, 0.967, 0.988, 0.913, 0.681, 0.387, 0.312, 0.259, 0.228, 0.26, 0.282, 0.251, 0.183, 0.107, 0.086, 0.163, 0.345, 0.901, 1, 1],
-              [0.137, 0.684, 0.933, 0.943, 0.907, 0.775, 0.561, 0.505, 0.43, 0.318, 0.365, 0.439, 0.425, 0.312, 0.141, 0.125, 0.283, 0.514, 0.924, 1, 1],
-              [0.17, 0.811, 0.943, 0.853, 0.813, 0.776, 0.688, 0.663, 0.685, 0.579, 0.505, 0.487, 0.462, 0.33, 0.159, 0.172, 0.424, 0.845, 1, 1, 1],
-              [0.833, 0.965, 0.825, 0.755, 0.732, 0.727, 0.728, 0.703, 0.717, 0.597, 0.533, 0.504, 0.454, 0.375, 0.309, 0.338, 0.494, 0.916, 0.995, 1, 1],
-              [0.991, 0.926, 0.763, 0.722, 0.673, 0.686, 0.701, 0.695, 0.676, 0.554, 0.533, 0.537, 0.504, 0.483, 0.447, 0.503, 0.671, 0.951, 0.996, 0.998, 1],
-              [0.996, 0.956, 0.847, 0.747, 0.582, 0.61, 0.657, 0.652, 0.592, 0.53, 0.539, 0.557, 0.603, 0.656, 0.637, 0.679, 0.879, 0.992, 0.999, 0.998, 0.999],
-              [0.96, 0.868, 0.745, 0.72, 0.687, 0.616, 0.611, 0.622, 0.609, 0.612, 0.619, 0.668, 0.804, 0.832, 0.786, 0.806, 0.96, 0.999, 1, 1, 1],
-              [0.833, 0.742, 0.716, 0.799, 0.907, 0.882, 0.851, 0.865, 0.877, 0.869, 0.805, 0.811, 0.906, 0.947, 0.916, 0.939, 0.992, 0.999, 1, 1, 1],
-              [0.721, 0.714, 0.778, 0.843, 0.855, 0.802, 0.697, 0.697, 0.723, 0.834, 0.909, 0.947, 0.956, 0.959, 0.864, 0.899, 0.972, 0.997, 1, 1, 1],
-              [0.707, 0.752, 0.824, 0.834, 0.807, 0.728, 0.564, 0.534, 0.569, 0.751, 0.916, 0.983, 0.984, 0.988, 0.893, 0.838, 0.918, 0.984, 0.999, 1, 1],
-            ],
-          },
+          scanHeightStrength: 0.88,
+          scanHeightContrast: 1.18,
+          scanHeightFloor: 0.18,
+          scanHeightCeiling: 1.1,
+          scanHeightInvert: false,
+          terraceStrength: 0.18,
+          terraceBands: 10,
+          scanHeightMap: getLidarHeightMap("rightRock"),
           light: "Low-Medium",
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Back-glass-touching right rock. Version 18 flips the red/green GLB relief data so it behaves as mound elevation instead of a bowl, then uses it as a softer ledge guide over the traced footprint.",
+          notes: "Back-glass-touching right rock. Version 19 uses the LiDAR OBJ top envelope as the primary geometry reference, blended with the traced footprint and side/front profiles.",
         },
         {
           id: "center-shelf",
@@ -399,11 +383,19 @@
           frontSkirtLift: 0.86,
           sideSkirtLift: 0.76,
           surfaceNoise: 0.04,
+          cragStrength: 0.06,
+          scanHeightStrength: 0.78,
+          scanHeightContrast: 1.08,
+          scanHeightFloor: 0.2,
+          scanHeightCeiling: 1.08,
+          scanHeightMap: getLidarHeightMap("shelf"),
+          terraceStrength: 0.16,
+          terraceBands: 9,
           light: "Medium-High",
           flow: "High",
           parMin: 130,
           parMax: 260,
-          notes: "Raised shelf rock, anchored to the back glass with a broad irregular top outline and open sand below.",
+          notes: "Raised shelf rock, anchored to the back glass with a broad irregular top outline and open sand below. Version 19 uses the shelf LiDAR OBJ top envelope for elevation reference.",
         },
       ],
     };
@@ -1614,7 +1606,9 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = state.map.modelVersion >= 17
+    $("mapQualityPill").textContent = state.map.modelVersion >= 19
+      ? "LiDAR heightfield"
+      : state.map.modelVersion >= 17
       ? "Scan heightfield"
       : state.map.modelVersion >= 16
       ? "Scan refined"
