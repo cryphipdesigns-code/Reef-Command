@@ -5967,8 +5967,8 @@
     bindEvents();
     seedLogDates();
     initInsightMode();
-    renderAll();
     await initBackend();
+    renderAll();
   }
 
   if ("serviceWorker" in navigator) {

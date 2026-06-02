@@ -1124,33 +1124,7 @@ textarea:focus {
 
 @media (min-width: 980px) {
   #appShell {
-    padding-bottom: 28px;
-  }
-
-  .app-header {
-    padding-left: 104px;
-  }
-
-  #mainContent {
-    padding-left: 104px;
-  }
-
-  .bottom-nav {
-    left: max(18px, calc((100vw - 1180px) / 2 + 18px));
-    bottom: 18px;
-    width: 76px;
-    min-height: auto;
-    grid-template-columns: 1fr;
-    padding: 8px;
-    transform: none;
-  }
-
-  .bottom-nav button {
-    min-height: 62px;
-  }
-
-  .bottom-nav span {
-    font-size: 0.68rem;
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
   }
 
   .primary-button {
