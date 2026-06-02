@@ -5,6 +5,10 @@
   const SHARED_STATE_ID = "default";
   const PHOTO_BUCKET = "reef-photos";
   const PHOTO_ROOT = "shared";
+  const MAP2_REFINEMENT_SHAPES = ["navigate", "point", "line", "area"];
+  const MAP2_REFINEMENT_ACTIONS = ["raise", "depress", "flatten", "cut-back", "smooth", "ridge"];
+  const MAP2_REFINEMENT_DIRECTIONS = ["surface", "top-bottom", "left-right", "front-back"];
+  const MAP2_REFINEMENT_STRENGTHS = ["light", "medium", "strong"];
 
   const viewMap = {
     home: "homeView",
@@ -65,10 +69,6 @@
     targetOffsetZ: 0,
   };
   let map2RefinementDraft = null;
-  const MAP2_REFINEMENT_SHAPES = ["navigate", "point", "line", "area"];
-  const MAP2_REFINEMENT_ACTIONS = ["raise", "depress", "flatten", "cut-back", "smooth", "ridge"];
-  const MAP2_REFINEMENT_DIRECTIONS = ["surface", "top-bottom", "left-right", "front-back"];
-  const MAP2_REFINEMENT_STRENGTHS = ["light", "medium", "strong"];
 
   function $(id) {
     return document.getElementById(id);
