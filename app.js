@@ -156,7 +156,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 20,
+      modelVersion: 21,
       dimensions: {
         width: 30,
         depth: 12,
@@ -164,7 +164,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 20 corrects LiDAR front/back orientation and adds a Map 2.0 LiDAR-height remesh comparison.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 21 tunes Map 2.0 with mirrored LiDAR shelf/right rocks, a shorter shelf height, and legacy front sandbed rocks.",
       },
       view: "front",
       layers: {
@@ -1621,7 +1621,9 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = state.map.modelVersion >= 20
+    $("mapQualityPill").textContent = state.map.modelVersion >= 21
+      ? "Hybrid tuned"
+      : state.map.modelVersion >= 20
       ? "LiDAR corrected"
       : state.map.modelVersion >= 19
       ? "LiDAR heightfield"
@@ -1643,8 +1645,8 @@
   function renderMap2Settings() {
     if (!$("map2Summary")) return;
     const dimensions = state.map.dimensions;
-    $("map2Summary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · 5 LiDAR-height structures`;
-    $("map2QualityPill").textContent = "LiDAR remesh";
+    $("map2Summary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · LiDAR shelf/right + legacy front rocks`;
+    $("map2QualityPill").textContent = "Hybrid remesh";
     $$("[data-map2-view]").forEach((button) => {
       button.classList.toggle("active", button.dataset.map2View === (appliedMap2ViewPreset || "front"));
     });
@@ -1946,7 +1948,7 @@
     addMap2SandBed(dimensions);
 
     getMap2Structures().forEach((structure, index) => {
-      const mesh = createMap2LidarRock(structure, index);
+      const mesh = createMap2Rock(structure, index);
       if (mesh) map2Root.add(mesh);
     });
   }
@@ -2039,11 +2041,11 @@
 
   function getMap2Structures() {
     const meshForStructure = {
-      "center-shelf": { key: "shelf", mirrorX: false, mirrorY: false },
+      "center-shelf": { key: "shelf", mirrorX: true, mirrorY: false, verticalScale: 0.8 },
       "left-rock": { key: "rightRock", mirrorX: true, mirrorY: false },
-      "front-left-rock": { key: "rightRock", mirrorX: true, mirrorY: true },
-      "front-right-rock": { key: "rightRock", mirrorX: false, mirrorY: true },
-      "right-rock": { key: "rightRock", mirrorX: false, mirrorY: false },
+      "front-left-rock": { mode: "legacy" },
+      "front-right-rock": { mode: "legacy" },
+      "right-rock": { key: "rightRock", mirrorX: true, mirrorY: false },
     };
     return state.map.structures
       .filter((structure) => meshForStructure[structure.id])
@@ -2051,6 +2053,22 @@
         ...structure,
         map2Mesh: meshForStructure[structure.id],
       }));
+  }
+
+  function createMap2Rock(structure, index) {
+    if (structure.map2Mesh?.mode === "legacy") {
+      return createMap2LegacyRock(structure, index);
+    }
+    return createMap2LidarRock(structure, index);
+  }
+
+  function createMap2LegacyRock(structure, index) {
+    const mesh = new THREE.Mesh(createProfileRockGeometry(structure, index), createRockMeshMaterial());
+    mesh.name = `${structure.id}-map2-legacy`;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 4 + index;
+    return mesh;
   }
 
   function createMap2LidarRock(structure, index) {
@@ -2069,6 +2087,8 @@
     const vertices = [];
     const colors = [];
     const indices = [];
+    const verticalScale = positiveNumber(structure.map2Mesh?.verticalScale, 1);
+    const scaledHeight = structure.height * verticalScale;
 
     const pushVertex = (x, y, z, shade) => {
       const vertexIndex = vertices.length / 3;
@@ -2089,7 +2109,7 @@
       const edgeDrop = smoothstep(0.72, 1, radialT);
       const edgeShape = lerp(1, structure.id === "center-shelf" ? 0.32 : 0.18, edgeDrop);
       const shelfLift = structure.id === "center-shelf" ? 0.1 : 0;
-      return structure.height * (floor + contrasted * (1 - floor + shelfLift)) * edgeShape;
+      return scaledHeight * (floor + contrasted * (1 - floor + shelfLift)) * edgeShape;
     };
 
     const centerZ = mapHeightAt(center[0], center[1], 0);

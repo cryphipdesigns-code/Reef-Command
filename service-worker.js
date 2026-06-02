@@ -1,10 +1,10 @@
-const CACHE_NAME = "reef-command-v30";
+const CACHE_NAME = "reef-command-v31";
 const APP_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=30",
-  "./map-lidar-data.js?v=30",
-  "./app.js?v=30",
+  "./styles.css?v=31",
+  "./map-lidar-data.js?v=31",
+  "./app.js?v=31",
   "./vendor/three.min.js",
   "./manifest.webmanifest",
   "./icons/reef-command.svg",
