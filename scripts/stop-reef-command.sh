@@ -4,6 +4,7 @@ set -u
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/reef-command"
 PID_DIR="$CACHE_DIR/pids"
 SERVER_PID="$PID_DIR/server.pid"
+BROWSER_PID="$PID_DIR/browser.pid"
 
 stop_pid() {
   local label="$1"
@@ -35,7 +36,8 @@ stop_pid() {
   rm -f "$pid_file"
 }
 
-stop_pid "Reef Command" "$SERVER_PID"
+stop_pid "Reef Command app window" "$BROWSER_PID"
+stop_pid "Reef Command server" "$SERVER_PID"
 
 if command -v notify-send >/dev/null 2>&1; then
   notify-send "Reef Command" "Reef Command stopped." >/dev/null 2>&1 || true

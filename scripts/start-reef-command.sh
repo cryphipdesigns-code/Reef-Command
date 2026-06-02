@@ -10,10 +10,13 @@ APP_URL="http://$APP_HOST:$APP_PORT"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/reef-command"
 PID_DIR="$CACHE_DIR/pids"
 LOG_DIR="$CACHE_DIR/logs"
+BROWSER_PROFILE_DIR="$CACHE_DIR/browser-profile"
 SERVER_PID="$PID_DIR/server.pid"
+BROWSER_PID="$PID_DIR/browser.pid"
 SERVER_LOG="$LOG_DIR/server.log"
+BROWSER_LOG="$LOG_DIR/browser.log"
 
-mkdir -p "$PID_DIR" "$LOG_DIR"
+mkdir -p "$PID_DIR" "$LOG_DIR" "$BROWSER_PROFILE_DIR"
 
 notify_user() {
   local message="$1"
@@ -78,10 +81,62 @@ start_server() {
   wait_for_app
 }
 
+find_browser() {
+  local candidates=(
+    "/snap/brave/current/opt/brave.com/brave/brave"
+    "/opt/brave.com/brave/brave"
+    "/usr/bin/brave-browser"
+    "/usr/bin/brave"
+    "/usr/bin/chromium"
+    "/usr/bin/chromium-browser"
+    "/usr/bin/google-chrome"
+    "brave-browser"
+    "brave"
+    "chromium"
+    "chromium-browser"
+    "google-chrome"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    if [[ "$candidate" != */* ]] && command -v "$candidate" >/dev/null 2>&1; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+launch_browser_app() {
+  local browser
+  if ! browser="$(find_browser)"; then
+    xdg-open "$APP_URL" >/dev/null 2>&1 || show_error "Reef Command is running at $APP_URL, but the browser could not be opened automatically."
+    return
+  fi
+
+  local args=(
+    "--app=$APP_URL"
+    "--user-data-dir=$BROWSER_PROFILE_DIR"
+    "--no-first-run"
+    "--disable-default-apps"
+    "--class=reef-command"
+  )
+
+  if [[ -n "${REEF_COMMAND_DEBUG_PORT:-}" ]]; then
+    args+=("--remote-debugging-address=127.0.0.1" "--remote-debugging-port=$REEF_COMMAND_DEBUG_PORT")
+  fi
+
+  setsid "$browser" "${args[@]}" >> "$BROWSER_LOG" 2>&1 < /dev/null &
+  echo $! > "$BROWSER_PID"
+}
+
 main() {
   start_server || exit 1
   notify_user "Reef Command is running."
-  xdg-open "$APP_URL" >/dev/null 2>&1 || show_error "Reef Command is running at $APP_URL, but the browser could not be opened automatically."
+  launch_browser_app
 }
 
 main "$@"
