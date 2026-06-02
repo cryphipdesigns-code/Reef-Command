@@ -42,6 +42,7 @@
   let mapResizeObserver = null;
   let mapPointerState = null;
   let appliedMapViewPreset = null;
+  const scanMeshAssetCache = new Map();
   const mapViewState = {
     yaw: 0,
     pitch: 0,
@@ -130,7 +131,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 16,
+      modelVersion: 17,
       dimensions: {
         width: 30,
         depth: 12,
@@ -138,7 +139,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 16 blends the red/green right-rock GLB scan for footprint and ledge constraints with the earlier scan as a vertical-range check.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 17 drives the right rock surface from a trimmed red/green GLB heightfield instead of mild procedural relief.",
       },
       view: "front",
       layers: {
@@ -310,7 +311,7 @@
           ],
           reliefMin: 0.46,
           reliefMax: 1.28,
-          meshResolution: 1.42,
+          meshResolution: 1.8,
           edgeSoftness: 0.82,
           edgeFloor: 0.2,
           frontTaperDepth: 4.7,
@@ -319,11 +320,46 @@
           sideSkirtLift: 0.72,
           surfaceNoise: 0.15,
           cragStrength: 0.16,
+          scanHeightStrength: 1,
+          scanHeightContrast: 1.95,
+          scanHeightFloor: 0.04,
+          scanHeightCeiling: 1.18,
+          terraceStrength: 0.48,
+          terraceBands: 7,
+          scanHeightMap: {
+            columns: 21,
+            rows: 21,
+            axis: "red-green-glb-x-y-z",
+            source: "Right Rock Red and Green GLB q78 trimmed top-surface heightfield",
+            values: [
+              [0.961, 0.919, 0.625, 0.147, 0, 0.017, 0.255, 0.646, 0.285, 0, 0.133, 0.13, 0.062, 0.003, 0, 0, 0, 0, 0, 0.283, 0.577],
+              [0.931, 0.955, 0.875, 0.518, 0.179, 0.099, 0.107, 0.312, 0.203, 0.125, 0.189, 0.095, 0.031, 0.027, 0, 0, 0, 0.028, 0.072, 0.421, 0.726],
+              [0.901, 0.919, 0.948, 0.918, 0.816, 0.685, 0.531, 0.408, 0.238, 0.209, 0.233, 0.201, 0.2, 0.239, 0.112, 0.17, 0.445, 0.667, 0.6, 0.712, 0.875],
+              [0.925, 0.892, 0.898, 0.927, 0.939, 0.937, 0.898, 0.638, 0.283, 0.223, 0.317, 0.37, 0.373, 0.356, 0.309, 0.505, 0.691, 0.817, 0.777, 0.833, 0.946],
+              [0.973, 0.914, 0.852, 0.788, 0.736, 0.799, 0.801, 0.523, 0.235, 0.203, 0.32, 0.384, 0.361, 0.237, 0.259, 0.543, 0.623, 0.689, 0.809, 0.887, 0.956],
+              [0.994, 0.957, 0.802, 0.7, 0.559, 0.583, 0.553, 0.298, 0.154, 0.109, 0.171, 0.226, 0.242, 0.054, 0.086, 0.364, 0.321, 0.36, 0.806, 0.957, 0.97],
+              [0.975, 0.938, 0.748, 0.587, 0.457, 0.544, 0.555, 0.283, 0.174, 0.128, 0.137, 0.155, 0.131, 0, 0.061, 0.263, 0.257, 0.357, 0.883, 0.995, 0.991],
+              [0.965, 0.841, 0.707, 0.537, 0.415, 0.501, 0.553, 0.37, 0.348, 0.314, 0.161, 0.021, 0, 0, 0.047, 0.28, 0.448, 0.566, 0.933, 0.991, 0.997],
+              [0.941, 0.758, 0.676, 0.593, 0.418, 0.39, 0.41, 0.363, 0.419, 0.415, 0.284, 0.048, 0, 0, 0.003, 0.16, 0.409, 0.579, 0.891, 0.988, 1],
+              [0.928, 0.775, 0.695, 0.666, 0.463, 0.378, 0.369, 0.356, 0.374, 0.356, 0.289, 0.093, 0, 0, 0.026, 0.082, 0.184, 0.435, 0.868, 0.989, 1],
+              [0.945, 0.865, 0.844, 0.868, 0.665, 0.455, 0.329, 0.303, 0.284, 0.276, 0.238, 0.135, 0.063, 0, 0.04, 0.073, 0.086, 0.293, 0.857, 0.994, 1],
+              [0.828, 0.927, 0.967, 0.988, 0.913, 0.681, 0.387, 0.312, 0.259, 0.228, 0.26, 0.282, 0.251, 0.183, 0.107, 0.086, 0.163, 0.345, 0.901, 1, 1],
+              [0.137, 0.684, 0.933, 0.943, 0.907, 0.775, 0.561, 0.505, 0.43, 0.318, 0.365, 0.439, 0.425, 0.312, 0.141, 0.125, 0.283, 0.514, 0.924, 1, 1],
+              [0.17, 0.811, 0.943, 0.853, 0.813, 0.776, 0.688, 0.663, 0.685, 0.579, 0.505, 0.487, 0.462, 0.33, 0.159, 0.172, 0.424, 0.845, 1, 1, 1],
+              [0.833, 0.965, 0.825, 0.755, 0.732, 0.727, 0.728, 0.703, 0.717, 0.597, 0.533, 0.504, 0.454, 0.375, 0.309, 0.338, 0.494, 0.916, 0.995, 1, 1],
+              [0.991, 0.926, 0.763, 0.722, 0.673, 0.686, 0.701, 0.695, 0.676, 0.554, 0.533, 0.537, 0.504, 0.483, 0.447, 0.503, 0.671, 0.951, 0.996, 0.998, 1],
+              [0.996, 0.956, 0.847, 0.747, 0.582, 0.61, 0.657, 0.652, 0.592, 0.53, 0.539, 0.557, 0.603, 0.656, 0.637, 0.679, 0.879, 0.992, 0.999, 0.998, 0.999],
+              [0.96, 0.868, 0.745, 0.72, 0.687, 0.616, 0.611, 0.622, 0.609, 0.612, 0.619, 0.668, 0.804, 0.832, 0.786, 0.806, 0.96, 0.999, 1, 1, 1],
+              [0.833, 0.742, 0.716, 0.799, 0.907, 0.882, 0.851, 0.865, 0.877, 0.869, 0.805, 0.811, 0.906, 0.947, 0.916, 0.939, 0.992, 0.999, 1, 1, 1],
+              [0.721, 0.714, 0.778, 0.843, 0.855, 0.802, 0.697, 0.697, 0.723, 0.834, 0.909, 0.947, 0.956, 0.959, 0.864, 0.899, 0.972, 0.997, 1, 1, 1],
+              [0.707, 0.752, 0.824, 0.834, 0.807, 0.728, 0.564, 0.534, 0.569, 0.751, 0.916, 0.983, 0.984, 0.988, 0.893, 0.838, 0.918, 0.984, 0.999, 1, 1],
+            ],
+          },
           light: "Low-Medium",
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Back-glass-touching right rock. Version 16 uses the red/green scan as the primary local ledge map and the earlier scan to preserve rear vertical range; front edge remains lower and more ledged.",
+          notes: "Back-glass-touching right rock. Version 17 uses a trimmed red/green GLB heightfield as the primary elevation target, preserving the traced footprint while adding stronger scan-derived ledges.",
         },
         {
           id: "center-shelf",
@@ -540,6 +576,20 @@
       reliefMin: positiveNumber(structure.reliefMin, fallback.reliefMin || 0.9),
       reliefMax: positiveNumber(structure.reliefMax, fallback.reliefMax || 1.06),
       meshResolution: positiveNumber(structure.meshResolution, fallback.meshResolution || 1),
+      scanHeightMap: normalizeScanHeightMap(structure.scanHeightMap, fallback.scanHeightMap),
+      scanHeightStrength: clamp(0, 1, finiteNumber(structure.scanHeightStrength, fallback.scanHeightStrength || 0)),
+      scanHeightContrast: positiveNumber(structure.scanHeightContrast, fallback.scanHeightContrast || 1),
+      scanHeightFloor: clamp(0, 1, finiteNumber(structure.scanHeightFloor, fallback.scanHeightFloor || 0.12)),
+      scanHeightCeiling: positiveNumber(structure.scanHeightCeiling, fallback.scanHeightCeiling || 1),
+      terraceStrength: clamp(0, 1, finiteNumber(structure.terraceStrength, fallback.terraceStrength || 0)),
+      terraceBands: positiveNumber(structure.terraceBands, fallback.terraceBands || 6),
+      scanMeshAsset: normalizeScanMeshAsset(structure.scanMeshAsset, fallback.scanMeshAsset),
+      scanMeshVerticalScale: positiveNumber(structure.scanMeshVerticalScale, fallback.scanMeshVerticalScale || 1),
+      scanMeshFlipX: Boolean(structure.scanMeshFlipX ?? fallback.scanMeshFlipX ?? false),
+      scanMeshFlipY: Boolean(structure.scanMeshFlipY ?? fallback.scanMeshFlipY ?? false),
+      scanMeshFlipZ: Boolean(structure.scanMeshFlipZ ?? fallback.scanMeshFlipZ ?? false),
+      scanMeshSwapXY: Boolean(structure.scanMeshSwapXY ?? fallback.scanMeshSwapXY ?? false),
+      scanMeshAxisOrder: normalizeScanMeshAxisOrder(structure.scanMeshAxisOrder, fallback.scanMeshAxisOrder),
       edgeSoftness: positiveNumber(structure.edgeSoftness, fallback.edgeSoftness || 0.65),
       edgeFloor: positiveNumber(structure.edgeFloor, fallback.edgeFloor || 0.4),
       frontTaperDepth: nonNegativeNumber(structure.frontTaperDepth, fallback.frontTaperDepth || 0),
@@ -550,6 +600,44 @@
       cragStrength: nonNegativeNumber(structure.cragStrength, fallback.cragStrength || 0),
       notes: structure.notes || fallback.notes || "",
     };
+  }
+
+  function normalizeScanHeightMap(value, fallback) {
+    const source = value && typeof value === "object" ? value : fallback;
+    if (!source || typeof source !== "object" || !Array.isArray(source.values)) return null;
+    const rows = Math.max(2, Math.round(Number(source.rows) || source.values.length || 0));
+    const columns = Math.max(2, Math.round(Number(source.columns) || source.values[0]?.length || 0));
+    if (!rows || !columns || source.values.length < rows) return null;
+    const values = source.values.slice(0, rows).map((row) =>
+      Array.isArray(row)
+        ? row.slice(0, columns).map((entry) => clamp(0, 1, finiteNumber(entry, 0)))
+        : [],
+    );
+    if (values.some((row) => row.length < columns)) return null;
+    return {
+      rows,
+      columns,
+      axis: source.axis || "",
+      source: source.source || "",
+      values,
+    };
+  }
+
+  function normalizeScanMeshAsset(value, fallback) {
+    const source = value && typeof value === "object" ? value : fallback;
+    if (!source || typeof source !== "object" || !source.url) return null;
+    return {
+      url: source.url,
+      source: source.source || "",
+    };
+  }
+
+  function normalizeScanMeshAxisOrder(value, fallback) {
+    const source = Array.isArray(value) ? value : fallback;
+    if (!Array.isArray(source) || source.length !== 3) return [0, 1, 2];
+    const order = source.map((entry) => Math.round(Number(entry)));
+    const unique = new Set(order);
+    return order.every((entry) => entry >= 0 && entry <= 2) && unique.size === 3 ? order : [0, 1, 2];
   }
 
   function normalizePointPairs(value, fallback = []) {
@@ -1524,7 +1612,9 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = state.map.modelVersion >= 16
+    $("mapQualityPill").textContent = state.map.modelVersion >= 17
+      ? "Scan heightfield"
+      : state.map.modelVersion >= 16
       ? "Scan refined"
       : state.map.modelVersion >= 7
       ? "Footprint refined"
@@ -2033,11 +2123,131 @@
     const group = new THREE.Group();
     group.name = structure.id;
     const baseMesh = new THREE.Mesh(createProfileRockGeometry(structure, index), createRockMeshMaterial());
+    baseMesh.name = `${structure.id}-procedural`;
     baseMesh.castShadow = true;
     baseMesh.receiveShadow = true;
     group.add(baseMesh);
+    if (structure.scanMeshAsset?.url) {
+      addScanMeshToGroup(group, structure, baseMesh, index);
+    }
 
     return group;
+  }
+
+  function addScanMeshToGroup(group, structure, fallbackMesh, index) {
+    loadScanMeshAsset(structure.scanMeshAsset)
+      .then((asset) => {
+        if (!group.parent) return;
+        const scanMesh = createScanMeshFromAsset(structure, asset, index);
+        fallbackMesh.visible = false;
+        group.add(scanMesh);
+        renderReefMap();
+      })
+      .catch(() => {
+        fallbackMesh.visible = true;
+      });
+  }
+
+  async function loadScanMeshAsset(asset) {
+    if (!asset?.url) throw new Error("Missing scan mesh asset URL");
+    if (scanMeshAssetCache.has(asset.url)) return scanMeshAssetCache.get(asset.url);
+    const promise = fetch(asset.url)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Unable to load ${asset.url}`);
+        return response.arrayBuffer();
+      })
+      .then(parseScanMeshAsset);
+    scanMeshAssetCache.set(asset.url, promise);
+    return promise;
+  }
+
+  function parseScanMeshAsset(buffer) {
+    const view = new DataView(buffer);
+    const magic = String.fromCharCode(...new Uint8Array(buffer, 0, 4));
+    if (magic !== "RCMS") throw new Error("Unsupported scan mesh asset");
+    const version = view.getUint16(4, true);
+    if (version !== 1) throw new Error("Unsupported scan mesh version");
+    const vertexCount = view.getUint32(8, true);
+    const indexCount = view.getUint32(12, true);
+    const sourceBounds = [];
+    let offset = 16;
+    for (let axis = 0; axis < 3; axis += 1) {
+      sourceBounds.push([view.getFloat32(offset, true), view.getFloat32(offset + 4, true)]);
+      offset += 8;
+    }
+    const positions = new Uint16Array(buffer, offset, vertexCount * 3);
+    offset += vertexCount * 3 * 2;
+    const normals = new Int16Array(buffer, offset, vertexCount * 3);
+    offset += vertexCount * 3 * 2;
+    const indices = new Uint32Array(buffer, offset, indexCount);
+    return { vertexCount, indexCount, sourceBounds, positions, normals, indices };
+  }
+
+  function createScanMeshFromAsset(structure, asset, index) {
+    const footprint = getRockFootprint(structure);
+    const bounds = getPointBounds(footprint);
+    const width = bounds.maxX - bounds.minX;
+    const depth = bounds.maxY - bounds.minY;
+    const verticalScale = structure.scanMeshVerticalScale || 1;
+    const positions = new Float32Array(asset.vertexCount * 3);
+    const normals = new Float32Array(asset.vertexCount * 3);
+    const colors = new Float32Array(asset.vertexCount * 3);
+    const axisOrder = structure.scanMeshAxisOrder || [0, 1, 2];
+
+    for (let vertexIndex = 0; vertexIndex < asset.vertexCount; vertexIndex += 1) {
+      const sourceIndex = vertexIndex * 3;
+      const rawPosition = [
+        asset.positions[sourceIndex] / 65535,
+        asset.positions[sourceIndex + 1] / 65535,
+        asset.positions[sourceIndex + 2] / 65535,
+      ];
+      const rawNormal = [
+        asset.normals[sourceIndex] / 32767,
+        asset.normals[sourceIndex + 1] / 32767,
+        asset.normals[sourceIndex + 2] / 32767,
+      ];
+      let scanX = rawPosition[axisOrder[0]];
+      let scanY = rawPosition[axisOrder[1]];
+      let scanZ = rawPosition[axisOrder[2]];
+      let normalX = rawNormal[axisOrder[0]];
+      let normalY = rawNormal[axisOrder[1]];
+      let normalZ = rawNormal[axisOrder[2]];
+      if (structure.scanMeshSwapXY) [scanX, scanY] = [scanY, scanX];
+      if (structure.scanMeshSwapXY) [normalX, normalY] = [normalY, normalX];
+      if (structure.scanMeshFlipX) scanX = 1 - scanX;
+      if (structure.scanMeshFlipY) scanY = 1 - scanY;
+      if (structure.scanMeshFlipZ) scanZ = 1 - scanZ;
+
+      const localX = bounds.minX + scanX * width;
+      const localY = bounds.minY + scanY * depth;
+      const localZ = scanZ * structure.height * verticalScale;
+      positions[sourceIndex] = structure.x + localX;
+      positions[sourceIndex + 1] = structure.y + localY;
+      positions[sourceIndex + 2] = structure.z + localZ;
+
+      normals[sourceIndex] = normalX * (structure.scanMeshFlipX ? -1 : 1);
+      normals[sourceIndex + 1] = normalY * (structure.scanMeshFlipY ? -1 : 1);
+      normals[sourceIndex + 2] = normalZ * (structure.scanMeshFlipZ ? -1 : 1);
+
+      const color = rockVertexColor(structure, localX, localY, localZ, index + vertexIndex);
+      colors[sourceIndex] = color.r;
+      colors[sourceIndex + 1] = color.g;
+      colors[sourceIndex + 2] = color.b;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geometry.setIndex(new THREE.BufferAttribute(asset.indices, 1));
+    geometry.computeBoundingSphere();
+    const material = createRockMeshMaterial();
+    material.side = THREE.DoubleSide;
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `${structure.id}-scan`;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
   }
 
   function createProfileRockGeometry(structure, index, heightScale = 1) {
@@ -2277,7 +2487,27 @@
 
       const rockFloor = Math.max(structure.id === "center-shelf" ? 0.2 : 0.06, bottom + 0.04);
       const edgeShape = edgeFloor + (1 - edgeFloor) * edgeTaper;
-      const shapedHeight = silhouetteLimit * clamp(structure.reliefMin || 0.9, structure.reliefMax || 1.06, relief) * edgeShape * frontShape;
+      const proceduralHeight = silhouetteLimit * clamp(structure.reliefMin || 0.9, structure.reliefMax || 1.06, relief) * edgeShape * frontShape;
+      let shapedHeight = proceduralHeight;
+      const scanHeight = scanHeightAt(structure, footprintBounds, x, y);
+      if (Number.isFinite(scanHeight)) {
+        const scanContrast = Math.max(0.1, structure.scanHeightContrast || 1);
+        const contrastedScanHeight = clamp(0, 1, (scanHeight - 0.5) * scanContrast + 0.5);
+        const scanFloor = clamp(0.02, 0.92, structure.scanHeightFloor || 0.12);
+        const scanCeiling = Math.max(scanFloor + 0.02, structure.scanHeightCeiling || 1);
+        const scanTarget =
+          structure.height *
+          (scanFloor + contrastedScanHeight * (scanCeiling - scanFloor)) *
+          edgeShape *
+          frontShape;
+        shapedHeight = lerp(proceduralHeight, Math.min(silhouetteLimit, Math.max(rockFloor, scanTarget)), clamp(0, 1, structure.scanHeightStrength || 0));
+      }
+      if (structure.terraceStrength) {
+        const bands = Math.max(2, Math.round(structure.terraceBands || 6));
+        const normalizedHeight = clamp(0, 1, shapedHeight / Math.max(0.01, structure.height));
+        const steppedHeight = (Math.round(normalizedHeight * bands) / bands) * structure.height;
+        shapedHeight = lerp(shapedHeight, steppedHeight, clamp(0, 0.92, structure.terraceStrength) * edgeTaper);
+      }
       const frontCap = frontTaperDepth
         ? lerp(rockFloor + structure.height * 0.04, structure.height, frontTaper)
         : structure.height;
@@ -2312,6 +2542,25 @@
     const roughness = (surfaceNoise(structure.id, x, y) - 0.5) * 2 * (structure.surfaceNoise || 0.14) * structure.height;
     const shapedHeight = Math.max(0, height + roughness);
     return clamp(baseLip, structure.height, baseLip + shapedHeight * (0.18 + edgeTaper * 0.82));
+  }
+
+  function scanHeightAt(structure, bounds, x, y) {
+    const map = structure.scanHeightMap;
+    if (!map || !Array.isArray(map.values) || map.rows < 2 || map.columns < 2) return null;
+    const u = (x - bounds.minX) / ((bounds.maxX - bounds.minX) || 1e-6);
+    const v = (y - bounds.minY) / ((bounds.maxY - bounds.minY) || 1e-6);
+    if (u < 0 || u > 1 || v < 0 || v > 1) return null;
+    const gridX = u * (map.columns - 1);
+    const gridY = v * (map.rows - 1);
+    const col = Math.floor(gridX);
+    const row = Math.floor(gridY);
+    const nextCol = Math.min(map.columns - 1, col + 1);
+    const nextRow = Math.min(map.rows - 1, row + 1);
+    const tx = gridX - col;
+    const ty = gridY - row;
+    const top = lerp(map.values[row][col], map.values[row][nextCol], tx);
+    const bottom = lerp(map.values[nextRow][col], map.values[nextRow][nextCol], tx);
+    return lerp(top, bottom, ty);
   }
 
   function profileValueAt(points, coordinate, fallback) {
@@ -3259,6 +3508,17 @@
           meshResolution: structure.meshResolution,
           surfaceNoise: structure.surfaceNoise,
           cragStrength: structure.cragStrength,
+          scanHeightStrength: structure.scanHeightStrength,
+          scanHeightContrast: structure.scanHeightContrast,
+          terraceStrength: structure.terraceStrength,
+          terraceBands: structure.terraceBands,
+          scanHeightMap: structure.scanHeightMap
+            ? {
+                rows: structure.scanHeightMap.rows,
+                columns: structure.scanHeightMap.columns,
+                source: structure.scanHeightMap.source,
+              }
+            : null,
         },
         light: structure.light,
         flow: structure.flow,
