@@ -819,6 +819,45 @@
     localStorage.setItem(key, JSON.stringify(value));
   }
 
+  function hasValidBackendConfig(config) {
+    return Boolean(config?.supabaseUrl && config?.supabaseAnonKey);
+  }
+
+  function isLocalDevelopmentHost() {
+    return ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
+  }
+
+  async function disableLocalInstallShell() {
+    if (!isLocalDevelopmentHost() || !("serviceWorker" in navigator)) return;
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((key) => key.startsWith("reef-command")).map((key) => caches.delete(key)));
+      }
+    } catch (error) {
+      console.warn("Could not clear local app shell", error);
+    }
+  }
+
+  function enableInstallShell() {
+    if (isLocalDevelopmentHost()) return;
+    if (!document.querySelector('link[rel="manifest"]')) {
+      const manifest = document.createElement("link");
+      manifest.rel = "manifest";
+      manifest.href = "./manifest.webmanifest";
+      document.head.appendChild(manifest);
+    }
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+          console.warn("Service worker registration failed", error);
+        });
+      });
+    }
+  }
+
   function normalizePhotoRecord(photo) {
     if (!photo) return null;
     if (typeof photo === "string") {
@@ -922,10 +961,9 @@
   }
 
   async function loadLocalBackendConfig() {
-    if (Object.keys(backendConfig).length) return;
+    if (hasValidBackendConfig(backendConfig)) return;
 
-    const isLocalHost = ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
-    const configPaths = isLocalHost
+    const configPaths = isLocalDevelopmentHost()
       ? ["./config.local.json", "./config.json"]
       : ["./config.json"];
     for (const path of configPaths) {
@@ -5963,20 +6001,14 @@
   }
 
   async function init() {
+    enableInstallShell();
+    await disableLocalInstallShell();
     await loadLocalBackendConfig();
     bindEvents();
     seedLogDates();
     initInsightMode();
     await initBackend();
     renderAll();
-  }
-
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js").catch((error) => {
-        console.warn("Service worker registration failed", error);
-      });
-    });
   }
 
   init();
