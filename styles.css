@@ -641,6 +641,10 @@ textarea:focus {
   grid-template-columns: minmax(180px, 320px);
 }
 
+.map2-nav-toolbar {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .map2-refine-panel {
   margin-top: 2px;
 }

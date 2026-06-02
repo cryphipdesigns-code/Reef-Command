@@ -21,7 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="./vendor/three.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=33" />
+    <link rel="stylesheet" href="./styles.css?v=34" />
   </head>
   <body>
     <div id="appShell">
@@ -403,6 +403,20 @@
               <button class="mini-button" type="button" data-map2-view="top">
                 <i data-lucide="arrow-up"></i>
                 Top
+              </button>
+            </div>
+            <div class="map-toolbar map2-nav-toolbar" role="toolbar" aria-label="Map 2.0 navigation tools">
+              <button class="mini-button active" type="button" data-map2-nav="rotate">
+                <i data-lucide="rotate-3d"></i>
+                Rotate
+              </button>
+              <button class="mini-button" type="button" data-map2-nav="pan">
+                <i data-lucide="move"></i>
+                Pan
+              </button>
+              <button class="mini-button" type="button" data-map2-reset-camera>
+                <i data-lucide="locate-fixed"></i>
+                Reset
               </button>
             </div>
             <div class="map2-focus-row">
@@ -969,7 +983,7 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </div>
 
-    <script src="./map-lidar-data.js?v=33"></script>
-    <script src="./app.js?v=33"></script>
+    <script src="./map-lidar-data.js?v=34"></script>
+    <script src="./app.js?v=34"></script>
   </body>
 </html>

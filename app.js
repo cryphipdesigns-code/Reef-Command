@@ -60,6 +60,9 @@
     yaw: 0,
     pitch: 0,
     distance: 42,
+    targetOffsetX: 0,
+    targetOffsetY: 0,
+    targetOffsetZ: 0,
   };
   let map2RefinementDraft = null;
   const MAP2_REFINEMENT_SHAPES = ["navigate", "point", "line", "area"];
@@ -156,6 +159,7 @@
         mapTool: "navigate",
         selectedMapStockId: "",
         map2FocusStructureId: "tank",
+        map2NavTool: "rotate",
         map2RefinementShape: "navigate",
         map2RefinementAction: "raise",
         map2RefinementDirection: "surface",
@@ -1706,6 +1710,14 @@
     $$("[data-map2-view]").forEach((button) => {
       button.classList.toggle("active", button.dataset.map2View === (appliedMap2ViewPreset || "front"));
     });
+    renderMap2NavigationControls();
+  }
+
+  function renderMap2NavigationControls() {
+    const navTool = getMap2NavTool();
+    $$("[data-map2-nav]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.map2Nav === navTool);
+    });
   }
 
   function renderMap2FocusSelect() {
@@ -1799,6 +1811,10 @@
 
   function getMap2RefinementRadius() {
     return positiveNumber(state.ui.map2RefinementRadius, 0.8);
+  }
+
+  function getMap2NavTool() {
+    return ["rotate", "pan"].includes(state.ui.map2NavTool) ? state.ui.map2NavTool : "rotate";
   }
 
   function getMap2RefinementShapeLabel(shape) {
@@ -2242,13 +2258,94 @@
   }
 
   function createMap2LegacyRock(structure, index) {
-    const mesh = new THREE.Mesh(createProfileRockGeometry(structure, index), createRockMeshMaterial());
+    const mesh = new THREE.Mesh(createProfileRockGeometry(structure, index, 1, { applyMap2Refinements: true }), createRockMeshMaterial());
     mesh.name = `${structure.id}-map2-legacy`;
     mesh.userData.map2StructureId = structure.id;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.renderOrder = 4 + index;
     return mesh;
+  }
+
+  function getMap2StructureRefinementAnnotations(structureId) {
+    return normalizeMap2RefinementAnnotations(state.map.refinementAnnotations || [])
+      .filter((annotation) => annotation.structureId === structureId);
+  }
+
+  function applyMap2RefinementHeight(structure, annotations, x, y, z, maxHeight = structure.height) {
+    if (!annotations.length) return z;
+    const minimum = structure.id === "center-shelf" ? 0.04 : 0.02;
+    const adjusted = z + getMap2RefinementHeightDelta(structure, annotations, x, y, z);
+    return clamp(minimum, Math.max(minimum + 0.01, maxHeight), adjusted);
+  }
+
+  function getMap2RefinementHeightDelta(structure, annotations, x, y, z) {
+    return annotations.reduce((total, annotation) => {
+      const influence = getMap2RefinementInfluence(annotation, x, y);
+      if (influence <= 0) return total;
+      const amount = getMap2RefinementAmount(structure, annotation);
+      if (annotation.action === "raise" || annotation.action === "ridge") return total + amount * influence;
+      if (annotation.action === "depress") return total - amount * influence;
+      if (annotation.action === "cut-back") return total - amount * 0.75 * influence;
+      if (annotation.action === "flatten" || annotation.action === "smooth") {
+        const target = getMap2RefinementAverageZ(annotation);
+        const blend = annotation.action === "flatten" ? 0.42 : 0.18;
+        return total + (target - z) * blend * influence;
+      }
+      return total;
+    }, 0);
+  }
+
+  function getMap2RefinementAmount(structure, annotation) {
+    const strengthAmount = {
+      light: 0.32,
+      medium: 0.66,
+      strong: 1.08,
+    }[annotation.strength] || 0.66;
+    const actionScale = {
+      raise: 1,
+      depress: 1,
+      flatten: 0.8,
+      "cut-back": 0.9,
+      smooth: 0.4,
+      ridge: 0.72,
+    }[annotation.action] || 1;
+    const structureScale = structure.id === "center-shelf" ? 0.88 : 1;
+    return strengthAmount * actionScale * structureScale;
+  }
+
+  function getMap2RefinementInfluence(annotation, x, y) {
+    const points = Array.isArray(annotation.points)
+      ? annotation.points.map(normalizeMap2RefinementPoint).filter(Boolean)
+      : [];
+    if (!points.length) return 0;
+    const radius = Math.max(0.25, positiveNumber(annotation.radius, 0.8));
+    if (annotation.shape === "area" && points.length >= 3) {
+      const polygon = points.map((point) => [point.x, point.y]);
+      if (pointInPolygon([x, y], polygon)) return 1;
+      const distance = distanceToPolygonEdge([x, y], polygon);
+      return 1 - smoothstep(0, radius * 1.15, distance);
+    }
+    if (annotation.shape === "line" && points.length >= 2) {
+      let distance = Infinity;
+      for (let index = 1; index < points.length; index += 1) {
+        distance = Math.min(
+          distance,
+          distanceToSegment([x, y], [points[index - 1].x, points[index - 1].y], [points[index].x, points[index].y]),
+        );
+      }
+      return Math.exp(-(distance * distance) / (2 * radius * radius));
+    }
+    const distance = Math.hypot(x - points[0].x, y - points[0].y);
+    return Math.exp(-(distance * distance) / (2 * radius * radius));
+  }
+
+  function getMap2RefinementAverageZ(annotation) {
+    const points = Array.isArray(annotation.points)
+      ? annotation.points.map(normalizeMap2RefinementPoint).filter(Boolean)
+      : [];
+    if (!points.length) return 0;
+    return points.reduce((total, point) => total + point.z, 0) / points.length;
   }
 
   function createMap2LidarRock(structure, index) {
@@ -2269,6 +2366,7 @@
     const indices = [];
     const verticalScale = positiveNumber(structure.map2Mesh?.verticalScale, 1);
     const scaledHeight = structure.height * verticalScale;
+    const refinementAnnotations = getMap2StructureRefinementAnnotations(structure.id);
 
     const pushVertex = (x, y, z, shade) => {
       const vertexIndex = vertices.length / 3;
@@ -2289,7 +2387,8 @@
       const edgeDrop = smoothstep(0.72, 1, radialT);
       const edgeShape = lerp(1, structure.id === "center-shelf" ? 0.32 : 0.18, edgeDrop);
       const shelfLift = structure.id === "center-shelf" ? 0.1 : 0;
-      return scaledHeight * (floor + contrasted * (1 - floor + shelfLift)) * edgeShape;
+      const baseHeight = scaledHeight * (floor + contrasted * (1 - floor + shelfLift)) * edgeShape;
+      return applyMap2RefinementHeight(structure, refinementAnnotations, x, y, baseHeight, scaledHeight);
     };
 
     const centerZ = mapHeightAt(center[0], center[1], 0);
@@ -2921,8 +3020,11 @@
     return mesh;
   }
 
-  function createProfileRockGeometry(structure, index, heightScale = 1) {
+  function createProfileRockGeometry(structure, index, heightScale = 1, options = {}) {
     const footprint = getRockFootprint(structure);
+    const refinementAnnotations = options.applyMap2Refinements
+      ? getMap2StructureRefinementAnnotations(structure.id)
+      : [];
     const bounds = getPointBounds(footprint);
     const maxDimension = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
     const perimeterLength = getPerimeterLength(footprint);
@@ -2940,8 +3042,19 @@
       colors.push(color.r, color.g, color.b);
       return vertexIndex;
     };
+    const heightAt = (x, y) => {
+      const baseHeight = scaleRockProfileHeight(structure, rockHeightAt(structure, footprint, x, y), heightScale);
+      return applyMap2RefinementHeight(
+        structure,
+        refinementAnnotations,
+        x,
+        y,
+        baseHeight,
+        Math.max(baseHeight, structure.height * heightScale),
+      );
+    };
 
-    const centerZ = scaleRockProfileHeight(structure, rockHeightAt(structure, footprint, center[0], center[1]), heightScale);
+    const centerZ = heightAt(center[0], center[1]);
     const centerIndex = addVertex(center[0], center[1], centerZ, rockVertexColor(structure, center[0], center[1], centerZ, index));
     const rings = [];
 
@@ -2951,7 +3064,7 @@
       perimeter.forEach((point, pointIndex) => {
         const x = lerp(center[0], point[0], t);
         const y = lerp(center[1], point[1], t);
-        const z = scaleRockProfileHeight(structure, rockHeightAt(structure, footprint, x, y), heightScale);
+        const z = heightAt(x, y);
         ring.push(addVertex(x, y, z, rockVertexColor(structure, x, y, z, index + pointIndex)));
       });
       rings.push(ring);
@@ -3635,6 +3748,12 @@
   }
 
   function getMap2CameraTarget() {
+    const target = getMap2CameraBaseTarget();
+    const offset = getMap2TargetOffsetVector();
+    return target.add(offset);
+  }
+
+  function getMap2CameraBaseTarget() {
     const dimensions = state.map.dimensions;
     const structure = getMap2FocusedStructure();
     if (!structure) return new THREE.Vector3(0, 0, dimensions.height * 0.46);
@@ -3672,6 +3791,7 @@
 
   function applyMap2ViewPreset(view) {
     const normalizedView = ["front", "left", "right", "top"].includes(view) ? view : "front";
+    resetMap2TargetOffset();
     if (normalizedView === "front") {
       map2ViewState.yaw = 0;
       map2ViewState.pitch = 0;
@@ -3694,6 +3814,54 @@
     applyMap2ViewPreset(view);
     renderMap2Settings();
     renderReefMap2();
+  }
+
+  function resetMap2Camera() {
+    const resetView = ["front", "left", "right", "top"].includes(appliedMap2ViewPreset)
+      ? appliedMap2ViewPreset
+      : "front";
+    applyMap2ViewPreset(resetView);
+    renderMap2Settings();
+    renderReefMap2();
+  }
+
+  function resetMap2TargetOffset() {
+    map2ViewState.targetOffsetX = 0;
+    map2ViewState.targetOffsetY = 0;
+    map2ViewState.targetOffsetZ = 0;
+  }
+
+  function getMap2TargetOffsetVector() {
+    return new THREE.Vector3(
+      finiteNumber(map2ViewState.targetOffsetX, 0),
+      finiteNumber(map2ViewState.targetOffsetY, 0),
+      finiteNumber(map2ViewState.targetOffsetZ, 0),
+    );
+  }
+
+  function setMap2TargetOffsetVector(offset) {
+    const frame = getMap2FocusFrameSize();
+    const maximumOffset = getMap2FocusedStructure() ? frame * 1.15 : frame * 0.55;
+    if (offset.length() > maximumOffset) offset.setLength(maximumOffset);
+    map2ViewState.targetOffsetX = offset.x;
+    map2ViewState.targetOffsetY = offset.y;
+    map2ViewState.targetOffsetZ = offset.z;
+  }
+
+  function panMap2Camera(dx, dy) {
+    if (!map2Camera || !map2Renderer || !window.THREE) return;
+    const rect = map2Renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    map2Camera.updateMatrixWorld();
+    const distance = constrainMap2Distance(map2ViewState.distance);
+    const visibleHeight = 2 * Math.tan((map2Camera.fov * Math.PI / 180) / 2) * distance;
+    const visibleWidth = visibleHeight * map2Camera.aspect;
+    const right = new THREE.Vector3().setFromMatrixColumn(map2Camera.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(map2Camera.matrixWorld, 1);
+    const offset = getMap2TargetOffsetVector()
+      .add(right.multiplyScalar(-(dx / rect.width) * visibleWidth))
+      .add(up.multiplyScalar((dy / rect.height) * visibleHeight));
+    setMap2TargetOffsetVector(offset);
   }
 
   function bindMapPointerEvents(stage) {
@@ -3810,6 +3978,7 @@
       if (!map2PointerState) {
         map2PointerState = {
           id: event.pointerId,
+          mode: getMap2NavTool(),
           startX: event.clientX,
           startY: event.clientY,
           x: event.clientX,
@@ -3855,10 +4024,14 @@
       const dy = event.clientY - map2PointerState.y;
       map2PointerState.x = event.clientX;
       map2PointerState.y = event.clientY;
-      map2ViewState.yaw -= dx * 0.008;
-      map2ViewState.pitch += dy * 0.006;
-      map2ViewState.pitch = Math.max(-0.75, Math.min(1.54, map2ViewState.pitch));
-      appliedMap2ViewPreset = "custom";
+      if (map2PointerState.mode === "pan") {
+        panMap2Camera(dx, dy);
+      } else {
+        map2ViewState.yaw -= dx * 0.008;
+        map2ViewState.pitch += dy * 0.006;
+        map2ViewState.pitch = Math.max(-0.75, Math.min(1.54, map2ViewState.pitch));
+        appliedMap2ViewPreset = "custom";
+      }
       renderMap2Settings();
     });
     stage.addEventListener("pointerup", (event) => {
@@ -3887,6 +4060,7 @@
     }
     const [nextPointerId, nextPointer] = map2PointerState.pointers.entries().next().value;
     map2PointerState.id = nextPointerId;
+    map2PointerState.mode = getMap2NavTool();
     map2PointerState.startX = nextPointer.x;
     map2PointerState.startY = nextPointer.y;
     map2PointerState.x = nextPointer.x;
@@ -5502,6 +5676,24 @@
     const map2View = event.target.closest("[data-map2-view]");
     if (map2View) {
       setMap2ViewPreset(map2View.dataset.map2View);
+      return;
+    }
+
+    const map2Nav = event.target.closest("[data-map2-nav]");
+    if (map2Nav) {
+      state.ui.map2NavTool = ["rotate", "pan"].includes(map2Nav.dataset.map2Nav)
+        ? map2Nav.dataset.map2Nav
+        : "rotate";
+      state.ui.map2RefinementShape = "navigate";
+      map2RefinementDraft = null;
+      saveLocalState();
+      renderMap2Settings();
+      renderReefMap2({ rebuild: true });
+      return;
+    }
+
+    if (event.target.closest("[data-map2-reset-camera]")) {
+      resetMap2Camera();
       return;
     }
 
