@@ -65,6 +65,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 svg {
   width: 18px;
   height: 18px;
@@ -169,6 +174,15 @@ h3 {
 .text-button:hover,
 .mini-button:hover {
   transform: translateY(-1px);
+}
+
+.icon-button:disabled:hover,
+.primary-button:disabled:hover,
+.secondary-button:disabled:hover,
+.action-button:disabled:hover,
+.text-button:disabled:hover,
+.mini-button:disabled:hover {
+  transform: none;
 }
 
 #mainContent {
@@ -625,6 +639,27 @@ textarea:focus {
 .map2-focus-row {
   display: grid;
   grid-template-columns: minmax(180px, 320px);
+}
+
+.map2-refine-panel {
+  margin-top: 2px;
+}
+
+.map2-refine-toolbar {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.map2-refinement-list {
+  display: grid;
+  gap: 8px;
+}
+
+.map2-refinement-list .data-card {
+  padding: 10px;
+}
+
+.map2-refinement-list .card-meta {
+  margin-top: 4px;
 }
 
 .map-grid {

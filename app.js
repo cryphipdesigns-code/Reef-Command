@@ -61,6 +61,11 @@
     pitch: 0,
     distance: 42,
   };
+  let map2RefinementDraft = null;
+  const MAP2_REFINEMENT_SHAPES = ["navigate", "point", "line", "area"];
+  const MAP2_REFINEMENT_ACTIONS = ["raise", "depress", "flatten", "cut-back", "smooth", "ridge"];
+  const MAP2_REFINEMENT_DIRECTIONS = ["surface", "top-bottom", "left-right", "front-back"];
+  const MAP2_REFINEMENT_STRENGTHS = ["light", "medium", "strong"];
 
   function $(id) {
     return document.getElementById(id);
@@ -151,6 +156,12 @@
         mapTool: "navigate",
         selectedMapStockId: "",
         map2FocusStructureId: "tank",
+        map2RefinementShape: "navigate",
+        map2RefinementAction: "raise",
+        map2RefinementDirection: "surface",
+        map2RefinementStrength: "medium",
+        map2RefinementRadius: 0.8,
+        map2RefinementNote: "",
       },
     };
   }
@@ -176,6 +187,7 @@
         trace: true,
       },
       parMarkers: [],
+      refinementAnnotations: [],
       structures: [
         {
           id: "left-rock",
@@ -550,6 +562,7 @@
       view: shouldMigrateStructures ? defaults.view : source.view || defaults.view,
       layers,
       parMarkers: normalizeParMarkers(source.parMarkers || defaults.parMarkers),
+      refinementAnnotations: normalizeMap2RefinementAnnotations(source.refinementAnnotations || defaults.refinementAnnotations),
       structures: structureSource.map((structure, index) =>
         normalizeMapStructure(structure, defaults.structures[index] || defaults.structures[0]),
       ),
@@ -714,6 +727,46 @@
           })
           .filter(Boolean)
       : [];
+  }
+
+  function normalizeMap2RefinementAnnotations(value = []) {
+    return Array.isArray(value)
+      ? value
+          .map((annotation) => {
+            if (!annotation || typeof annotation !== "object") return null;
+            const shape = MAP2_REFINEMENT_SHAPES.includes(annotation.shape) && annotation.shape !== "navigate"
+              ? annotation.shape
+              : "point";
+            const points = Array.isArray(annotation.points)
+              ? annotation.points.map(normalizeMap2RefinementPoint).filter(Boolean)
+              : [];
+            const minimumPoints = shape === "area" ? 3 : shape === "line" ? 2 : 1;
+            if (points.length < minimumPoints) return null;
+            return {
+              id: annotation.id || uid(),
+              createdAt: annotation.createdAt || new Date().toISOString(),
+              structureId: annotation.structureId || "",
+              structureName: annotation.structureName || annotation.structureId || "",
+              shape,
+              action: MAP2_REFINEMENT_ACTIONS.includes(annotation.action) ? annotation.action : "raise",
+              direction: MAP2_REFINEMENT_DIRECTIONS.includes(annotation.direction) ? annotation.direction : "surface",
+              strength: MAP2_REFINEMENT_STRENGTHS.includes(annotation.strength) ? annotation.strength : "medium",
+              radius: positiveNumber(annotation.radius, 0.8),
+              note: annotation.note || "",
+              points,
+            };
+          })
+          .filter(Boolean)
+      : [];
+  }
+
+  function normalizeMap2RefinementPoint(point) {
+    if (!point || typeof point !== "object") return null;
+    const x = finiteNumber(point.x, NaN);
+    const y = finiteNumber(point.y, NaN);
+    const z = finiteNumber(point.z, NaN);
+    if (![x, y, z].every(Number.isFinite)) return null;
+    return { x, y, z };
   }
 
   function normalizeRockLobes(value, fallback = []) {
@@ -1649,6 +1702,7 @@
     $("map2Summary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · LiDAR shelf/right + legacy front rocks`;
     $("map2QualityPill").textContent = "Hybrid remesh";
     renderMap2FocusSelect();
+    renderMap2RefinementControls();
     $$("[data-map2-view]").forEach((button) => {
       button.classList.toggle("active", button.dataset.map2View === (appliedMap2ViewPreset || "front"));
     });
@@ -1667,6 +1721,113 @@
     if (current !== state.ui.map2FocusStructureId) state.ui.map2FocusStructureId = current;
     select.replaceChildren(...options.map((option) => new Option(option.name, option.id)));
     select.value = current;
+  }
+
+  function renderMap2RefinementControls() {
+    if (!$("map2RefineStatus")) return;
+    const annotations = state.map.refinementAnnotations || [];
+    const shape = getMap2RefinementShape();
+    $$("[data-map2-refine-shape]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.map2RefineShape === shape);
+    });
+    $("map2RefineAction").value = getMap2RefinementAction();
+    $("map2RefineDirection").value = getMap2RefinementDirection();
+    $("map2RefineStrength").value = getMap2RefinementStrength();
+    $("map2RefineRadius").value = String(getMap2RefinementRadius());
+    $("map2RefineNote").value = state.ui.map2RefinementNote || "";
+    $("map2RefineCountPill").textContent = `${annotations.length} ${annotations.length === 1 ? "note" : "notes"}`;
+    $("map2RefineStatus").textContent = getMap2RefinementStatus();
+    const canFinishArea = map2RefinementDraft?.shape === "area" && map2RefinementDraft.points.length >= 3;
+    document.querySelector("[data-map2-refinement-finish]").disabled = !canFinishArea;
+    document.querySelector("[data-map2-refinement-cancel]").disabled = !map2RefinementDraft;
+    $("map2RefinementList").innerHTML = annotations.length
+      ? annotations.slice().reverse().map(renderMap2RefinementCard).join("")
+      : `<div class="empty-state">No geometry notes yet.</div>`;
+  }
+
+  function renderMap2RefinementCard(annotation) {
+    const pointCount = annotation.points?.length || 0;
+    const meta = [
+      getMapStructureName(annotation.structureId),
+      getMap2RefinementShapeLabel(annotation.shape),
+      getMap2RefinementActionLabel(annotation.action),
+      getMap2RefinementDirectionLabel(annotation.direction),
+      annotation.strength,
+      `${formatValue(annotation.radius, "in")} radius`,
+    ].filter(Boolean).join(" · ");
+    return `
+      <article class="data-card">
+        <div class="data-card-header">
+          <div class="data-card-title">
+            <strong>${escapeHtml(getMap2RefinementActionLabel(annotation.action))}</strong>
+            <p class="card-meta">${escapeHtml(meta)}</p>
+          </div>
+          <span class="category-pill">${escapeHtml(pointCount)} pt${pointCount === 1 ? "" : "s"}</span>
+        </div>
+        ${annotation.note ? `<p class="card-meta">${escapeHtml(annotation.note)}</p>` : ""}
+        <div class="card-actions">
+          <button class="mini-button danger" type="button" data-map2-refinement-delete="${annotation.id}">Delete</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function getMap2RefinementStatus() {
+    const shape = getMap2RefinementShape();
+    if (shape === "navigate") return "Ready";
+    if (!map2RefinementDraft) return `${getMap2RefinementShapeLabel(shape)} armed`;
+    if (map2RefinementDraft.shape === "line") return `${map2RefinementDraft.points.length}/2 line points`;
+    if (map2RefinementDraft.shape === "area") return `${map2RefinementDraft.points.length} area points`;
+    return "Ready";
+  }
+
+  function getMap2RefinementShape() {
+    return MAP2_REFINEMENT_SHAPES.includes(state.ui.map2RefinementShape) ? state.ui.map2RefinementShape : "navigate";
+  }
+
+  function getMap2RefinementAction() {
+    return MAP2_REFINEMENT_ACTIONS.includes(state.ui.map2RefinementAction) ? state.ui.map2RefinementAction : "raise";
+  }
+
+  function getMap2RefinementDirection() {
+    return MAP2_REFINEMENT_DIRECTIONS.includes(state.ui.map2RefinementDirection) ? state.ui.map2RefinementDirection : "surface";
+  }
+
+  function getMap2RefinementStrength() {
+    return MAP2_REFINEMENT_STRENGTHS.includes(state.ui.map2RefinementStrength) ? state.ui.map2RefinementStrength : "medium";
+  }
+
+  function getMap2RefinementRadius() {
+    return positiveNumber(state.ui.map2RefinementRadius, 0.8);
+  }
+
+  function getMap2RefinementShapeLabel(shape) {
+    return {
+      point: "Point",
+      line: "Line",
+      area: "Area",
+      navigate: "Navigate",
+    }[shape] || "Point";
+  }
+
+  function getMap2RefinementActionLabel(action) {
+    return {
+      raise: "Raise",
+      depress: "Depress",
+      flatten: "Flatten",
+      "cut-back": "Cut back",
+      smooth: "Smooth",
+      ridge: "Ridge / ledge",
+    }[action] || "Raise";
+  }
+
+  function getMap2RefinementDirectionLabel(direction) {
+    return {
+      surface: "Surface",
+      "top-bottom": "Top to bottom",
+      "left-right": "Left to right",
+      "front-back": "Front to back",
+    }[direction] || "Surface";
   }
 
   function renderMapMarkerControls() {
@@ -1968,6 +2129,7 @@
       const mesh = createMap2Rock(structure, index);
       if (mesh) map2Root.add(mesh);
     });
+    addMap2RefinementAnnotations();
   }
 
   function clearMap2Scene() {
@@ -2082,6 +2244,7 @@
   function createMap2LegacyRock(structure, index) {
     const mesh = new THREE.Mesh(createProfileRockGeometry(structure, index), createRockMeshMaterial());
     mesh.name = `${structure.id}-map2-legacy`;
+    mesh.userData.map2StructureId = structure.id;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.renderOrder = 4 + index;
@@ -2182,10 +2345,126 @@
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `${structure.id}-map2-lidar`;
+    mesh.userData.map2StructureId = structure.id;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.renderOrder = 4 + index;
     return mesh;
+  }
+
+  function addMap2RefinementAnnotations() {
+    if (!map2Root) return;
+    const group = new THREE.Group();
+    group.name = "map2-refinement-annotations";
+    group.renderOrder = 40;
+    (state.map.refinementAnnotations || []).forEach((annotation) => {
+      addMap2RefinementAnnotation(group, annotation, false);
+    });
+    if (map2RefinementDraft?.points?.length) {
+      addMap2RefinementAnnotation(group, {
+        ...map2RefinementDraft,
+        action: getMap2RefinementAction(),
+        direction: getMap2RefinementDirection(),
+        strength: getMap2RefinementStrength(),
+        radius: getMap2RefinementRadius(),
+        note: state.ui.map2RefinementNote || "",
+      }, true);
+    }
+    map2Root.add(group);
+  }
+
+  function addMap2RefinementAnnotation(group, annotation, draft) {
+    const points = getMap2RefinementWorldPoints(annotation);
+    if (!points.length) return;
+    const color = draft ? 0xf5b84b : getMap2RefinementColor(annotation.action);
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: draft ? 0.95 : 0.88,
+      depthTest: false,
+    });
+    const pointMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: draft ? 0.95 : 0.9,
+      depthTest: false,
+    });
+    const haloMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: draft ? 0.12 : 0.09,
+      depthTest: false,
+      wireframe: true,
+    });
+
+    if (annotation.shape === "area" && points.length >= 3) {
+      const fillGeometry = new THREE.BufferGeometry();
+      const vertices = [];
+      const indices = [];
+      points.forEach((point) => vertices.push(point.x, point.y, point.z));
+      for (let index = 1; index < points.length - 1; index += 1) {
+        indices.push(0, index, index + 1);
+      }
+      fillGeometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+      fillGeometry.setIndex(indices);
+      fillGeometry.computeVertexNormals();
+      const fill = new THREE.Mesh(fillGeometry, new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: draft ? 0.18 : 0.12,
+        side: THREE.DoubleSide,
+        depthTest: false,
+      }));
+      fill.renderOrder = 41;
+      group.add(fill);
+    }
+
+    if (points.length >= 2) {
+      const linePoints = annotation.shape === "area" && points.length >= 3
+        ? [...points, points[0]]
+        : points;
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(linePoints), lineMaterial);
+      line.renderOrder = 42;
+      group.add(line);
+    }
+
+    points.forEach((point) => {
+      const marker = new THREE.Mesh(new THREE.SphereGeometry(draft ? 0.14 : 0.12, 14, 8), pointMaterial);
+      marker.position.copy(point);
+      marker.renderOrder = 43;
+      group.add(marker);
+    });
+
+    if (annotation.shape === "point" && points[0]) {
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.2, annotation.radius || 0.8), 18, 10), haloMaterial);
+      halo.position.copy(points[0]);
+      halo.renderOrder = 40;
+      group.add(halo);
+    }
+  }
+
+  function getMap2RefinementWorldPoints(annotation) {
+    const structure = state.map.structures.find((entry) => entry.id === annotation.structureId);
+    if (!structure || !Array.isArray(annotation.points)) return [];
+    return annotation.points
+      .map(normalizeMap2RefinementPoint)
+      .filter(Boolean)
+      .map((point) => new THREE.Vector3(
+        structure.x + point.x,
+        structure.y + point.y,
+        structure.z + point.z + 0.08,
+      ));
+  }
+
+  function getMap2RefinementColor(action) {
+    return {
+      raise: 0x39a86b,
+      depress: 0x3f7edb,
+      flatten: 0xe0a93f,
+      "cut-back": 0xc95b5b,
+      smooth: 0x26a9a0,
+      ridge: 0x9a6dde,
+    }[action] || 0x39a86b;
   }
 
   function sampleLidarHeightMap(map, u, v) {
@@ -3515,6 +3794,19 @@
   function bindMap2PointerEvents(stage) {
     stage.addEventListener("pointerdown", (event) => {
       stage.setPointerCapture(event.pointerId);
+      if (getMap2RefinementShape() !== "navigate") {
+        event.preventDefault();
+        map2PointerState = {
+          id: event.pointerId,
+          annotation: true,
+          startX: event.clientX,
+          startY: event.clientY,
+          x: event.clientX,
+          y: event.clientY,
+          pointers: new Map([[event.pointerId, { x: event.clientX, y: event.clientY }]]),
+        };
+        return;
+      }
       if (!map2PointerState) {
         map2PointerState = {
           id: event.pointerId,
@@ -3538,6 +3830,15 @@
     });
     stage.addEventListener("pointermove", (event) => {
       if (!map2PointerState || !map2PointerState.pointers.has(event.pointerId)) return;
+      if (map2PointerState.annotation) {
+        map2PointerState.x = event.clientX;
+        map2PointerState.y = event.clientY;
+        map2PointerState.pointers.set(event.pointerId, {
+          x: event.clientX,
+          y: event.clientY,
+        });
+        return;
+      }
       map2PointerState.pointers.set(event.pointerId, {
         x: event.clientX,
         y: event.clientY,
@@ -3561,6 +3862,10 @@
       renderMap2Settings();
     });
     stage.addEventListener("pointerup", (event) => {
+      if (map2PointerState?.annotation && map2PointerState.pointers.has(event.pointerId)) {
+        const moved = Math.hypot(event.clientX - map2PointerState.startX, event.clientY - map2PointerState.startY);
+        if (moved <= 14) handleMap2RefinementPointer(event);
+      }
       releaseMap2Pointer(event.pointerId);
     });
     stage.addEventListener("pointercancel", (event) => {
@@ -3590,6 +3895,114 @@
       map2PointerState.pinchStartGap = getMapPointerGap(map2PointerState.pointers);
       map2PointerState.pinchStartDistance = map2ViewState.distance;
     }
+  }
+
+  function handleMap2RefinementPointer(event) {
+    const shape = getMap2RefinementShape();
+    if (shape === "navigate") return;
+    const hit = getMap2RefinementHit(event);
+    if (!hit) {
+      showToast("Missed rock surface.");
+      return;
+    }
+    if (shape === "point") {
+      createMap2RefinementAnnotation("point", hit.structure, [hit.point]);
+      return;
+    }
+
+    if (!map2RefinementDraft || map2RefinementDraft.shape !== shape || map2RefinementDraft.structureId !== hit.structure.id) {
+      map2RefinementDraft = {
+        shape,
+        structureId: hit.structure.id,
+        structureName: hit.structure.name,
+        points: [],
+      };
+    }
+    map2RefinementDraft.points.push(hit.point);
+
+    if (shape === "line" && map2RefinementDraft.points.length >= 2) {
+      const points = map2RefinementDraft.points.slice(0, 2);
+      map2RefinementDraft = null;
+      createMap2RefinementAnnotation("line", hit.structure, points);
+      return;
+    }
+
+    renderMap2RefinementControls();
+    renderReefMap2({ rebuild: true });
+  }
+
+  function getMap2RefinementHit(event) {
+    if (!map2Renderer || !map2Camera || !map2Root || !window.THREE) return null;
+    const rect = map2Renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const pointer = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(pointer, map2Camera);
+    const meshes = [];
+    map2Root.traverse((child) => {
+      if (child.isMesh && child.userData?.map2StructureId) meshes.push(child);
+    });
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (!hits.length) return null;
+    const hit = hits[0];
+    const structureId = hit.object.userData.map2StructureId;
+    const structure = state.map.structures.find((entry) => entry.id === structureId);
+    if (!structure) return null;
+    return {
+      structure,
+      point: {
+        x: hit.point.x - structure.x,
+        y: hit.point.y - structure.y,
+        z: hit.point.z - structure.z,
+      },
+    };
+  }
+
+  function createMap2RefinementAnnotation(shape, structure, points) {
+    const annotation = {
+      id: uid(),
+      createdAt: new Date().toISOString(),
+      structureId: structure.id,
+      structureName: structure.name,
+      shape,
+      action: getMap2RefinementAction(),
+      direction: getMap2RefinementDirection(),
+      strength: getMap2RefinementStrength(),
+      radius: getMap2RefinementRadius(),
+      note: state.ui.map2RefinementNote || "",
+      points: points.map((point) => ({
+        x: Number(point.x.toFixed(3)),
+        y: Number(point.y.toFixed(3)),
+        z: Number(point.z.toFixed(3)),
+      })),
+    };
+    state.map.refinementAnnotations = [
+      ...(state.map.refinementAnnotations || []),
+      annotation,
+    ];
+    saveState();
+    renderMap2RefinementControls();
+    renderReefMap2({ rebuild: true });
+    renderInsightsContext();
+    showToast("Geometry note added.");
+  }
+
+  function finishMap2RefinementArea() {
+    if (!map2RefinementDraft || map2RefinementDraft.shape !== "area" || map2RefinementDraft.points.length < 3) return;
+    const structure = state.map.structures.find((entry) => entry.id === map2RefinementDraft.structureId);
+    if (!structure) return;
+    const points = map2RefinementDraft.points.slice();
+    map2RefinementDraft = null;
+    createMap2RefinementAnnotation("area", structure, points);
+  }
+
+  function cancelMap2RefinementDraft() {
+    map2RefinementDraft = null;
+    renderMap2RefinementControls();
+    renderReefMap2({ rebuild: true });
   }
 
   function handleMapPlacementPointer(event) {
@@ -4024,6 +4437,23 @@
         z: Number(Number(marker.z).toFixed(2)),
       },
     }));
+    const refinementAnnotations = (state.map.refinementAnnotations || []).map((annotation) => ({
+      id: annotation.id,
+      structureId: annotation.structureId || "",
+      structureName: annotation.structureId ? getMapStructureName(annotation.structureId) : annotation.structureName || "",
+      shape: annotation.shape,
+      action: annotation.action,
+      direction: annotation.direction,
+      strength: annotation.strength,
+      radiusInches: annotation.radius,
+      note: annotation.note || "",
+      pointCount: annotation.points?.length || 0,
+      localPoints: (annotation.points || []).map((point) => ({
+        x: Number(Number(point.x).toFixed(2)),
+        y: Number(Number(point.y).toFixed(2)),
+        z: Number(Number(point.z).toFixed(2)),
+      })),
+    }));
     const mapModel = {
       dimensions: state.map.dimensions,
       coordinateSystem: {
@@ -4077,6 +4507,7 @@
         notes: structure.notes,
       })),
       parMarkers,
+      refinementAnnotations,
       livestockPlacements: mapPlacements,
       layers: state.map.layers,
     };
@@ -4120,6 +4551,7 @@
           structureCount: state.map.structures.length,
           placedLivestockCount: mapPlacements.filter((placement) => placement.coordinateInches).length,
           parMarkerCount: parMarkers.length,
+          refinementAnnotationCount: refinementAnnotations.length,
           referenceImageCount: 18,
           canRequestRawReferenceImages: false,
           parMapAvailable: parMarkers.length > 0 || state.zones.some((zone) => zone.parMin || zone.parMax),
@@ -5073,6 +5505,39 @@
       return;
     }
 
+    const map2RefineShape = event.target.closest("[data-map2-refine-shape]");
+    if (map2RefineShape) {
+      state.ui.map2RefinementShape = MAP2_REFINEMENT_SHAPES.includes(map2RefineShape.dataset.map2RefineShape)
+        ? map2RefineShape.dataset.map2RefineShape
+        : "navigate";
+      map2RefinementDraft = null;
+      saveLocalState();
+      renderMap2RefinementControls();
+      renderReefMap2({ rebuild: true });
+      return;
+    }
+
+    if (event.target.closest("[data-map2-refinement-finish]")) {
+      finishMap2RefinementArea();
+      return;
+    }
+
+    if (event.target.closest("[data-map2-refinement-cancel]")) {
+      cancelMap2RefinementDraft();
+      return;
+    }
+
+    const map2RefinementDelete = event.target.closest("[data-map2-refinement-delete]");
+    if (map2RefinementDelete) {
+      state.map.refinementAnnotations = (state.map.refinementAnnotations || [])
+        .filter((annotation) => annotation.id !== map2RefinementDelete.dataset.map2RefinementDelete);
+      saveState();
+      renderMap2RefinementControls();
+      renderReefMap2({ rebuild: true });
+      renderInsightsContext();
+      return;
+    }
+
     const mapLayer = event.target.closest("[data-map-layer]");
     if (mapLayer) {
       const layer = mapLayer.dataset.mapLayer;
@@ -5233,12 +5698,39 @@
     });
     $("mapSettingsForm").addEventListener("submit", (event) => event.preventDefault());
     $("mapMarkerForm").addEventListener("submit", (event) => event.preventDefault());
+    $("map2RefineForm")?.addEventListener("submit", (event) => event.preventDefault());
     $("map2FocusSelect")?.addEventListener("change", (event) => {
       state.ui.map2FocusStructureId = event.target.value;
       saveLocalState();
       applyMap2ViewPreset(["front", "left", "right", "top"].includes(appliedMap2ViewPreset) ? appliedMap2ViewPreset : "front");
       renderMap2Settings();
       renderReefMap2();
+    });
+    $("map2RefineAction")?.addEventListener("change", (event) => {
+      state.ui.map2RefinementAction = event.target.value;
+      saveLocalState();
+      renderMap2RefinementControls();
+      renderReefMap2({ rebuild: true });
+    });
+    $("map2RefineDirection")?.addEventListener("change", (event) => {
+      state.ui.map2RefinementDirection = event.target.value;
+      saveLocalState();
+      renderMap2RefinementControls();
+    });
+    $("map2RefineStrength")?.addEventListener("change", (event) => {
+      state.ui.map2RefinementStrength = event.target.value;
+      saveLocalState();
+      renderMap2RefinementControls();
+    });
+    $("map2RefineRadius")?.addEventListener("change", (event) => {
+      state.ui.map2RefinementRadius = positiveNumber(event.target.value, 0.8);
+      saveLocalState();
+      renderMap2RefinementControls();
+      renderReefMap2({ rebuild: true });
+    });
+    $("map2RefineNote")?.addEventListener("input", (event) => {
+      state.ui.map2RefinementNote = event.target.value;
+      saveLocalState();
     });
     $("mapStockSelect").addEventListener("change", (event) => {
       state.ui.selectedMapStockId = event.target.value;
