@@ -130,7 +130,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 15,
+      modelVersion: 16,
       dimensions: {
         width: 30,
         depth: 12,
@@ -138,7 +138,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 15 adds a constraint-shaped right rock from the isolated top/front silhouette, red high-point marks, and yellow depressed ledge lines.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 16 blends the red/green right-rock GLB scan for footprint and ledge constraints with the earlier scan as a vertical-range check.",
       },
       view: "front",
       layers: {
@@ -271,23 +271,31 @@
           frontProfile: [[-4.05, 0.6], [-3.45, 1.15], [-2.72, 2.55], [-1.7, 3.18], [-0.55, 3.42], [0.55, 4.15], [1.35, 5.0], [2.35, 4.7], [3.28, 3.25], [3.95, 1.1]],
           sideProfile: [[-5.55, 0.1], [-4.62, 0.9], [-3.45, 1.95], [-2.18, 3.05], [-0.72, 3.95], [0.7, 4.85], [2.45, 4.62], [3.75, 3.8], [5.05, 3.1]],
           heightPoints: [
-            { x: -3.35, y: -1.05, h: 0.9, r: 0.88 },
-            { x: -2.45, y: -4.15, h: 0.72, r: 0.92 },
-            { x: 1.18, y: -0.35, h: 1.08, r: 0.95 },
-            { x: 0.55, y: 3.58, h: 0.76, r: 1.05 },
+            { x: -3.35, y: -1.05, h: 0.88, r: 0.82 },
+            { x: -2.48, y: 2.62, h: 0.62, r: 0.92 },
+            { x: -1.06, y: -4.48, h: 0.72, r: 0.76 },
+            { x: 0.55, y: 3.58, h: 0.72, r: 1.0 },
+            { x: 1.18, y: -0.35, h: 1.02, r: 0.9 },
+            { x: 2.72, y: -4.32, h: 0.48, r: 0.7 },
+            { x: 2.82, y: 2.95, h: 0.42, r: 0.82 },
           ],
           ridges: [
-            { from: [-3.62, -0.6], to: [-2.35, -1.18], h: 0.46, r: 0.46 },
-            { from: [-1.1, 0.35], to: [1.72, 0.42], h: 0.56, r: 0.52 },
-            { from: [-0.55, 2.65], to: [2.35, 3.02], h: 0.42, r: 0.56 },
-            { from: [1.25, -3.92], to: [3.05, -4.2], h: 0.34, r: 0.48 },
+            { from: [-3.62, -0.72], to: [-1.2, -0.12], h: 0.46, r: 0.42 },
+            { from: [-1.08, 0.3], to: [1.72, 0.42], h: 0.52, r: 0.48 },
+            { from: [-2.82, 2.55], to: [0.65, 3.28], h: 0.42, r: 0.5 },
+            { from: [-1.62, -4.62], to: [0.92, -3.18], h: 0.34, r: 0.42 },
+            { from: [1.22, -3.92], to: [3.22, -4.28], h: 0.34, r: 0.46 },
+            { from: [0.18, 0.48], to: [2.62, 1.12], h: 0.3, r: 0.44 },
           ],
           depressions: [
-            { x: -0.28, y: -0.62, h: 1.0, r: 0.7 },
+            { x: -0.28, y: -0.62, h: 0.92, r: 0.7 },
             { x: -3.02, y: 0.9, h: 0.66, r: 0.56 },
             { x: -2.52, y: -2.52, h: 0.86, r: 0.7 },
             { x: 2.22, y: -1.22, h: 0.76, r: 0.68 },
             { x: 0.35, y: -4.62, h: 0.42, r: 0.58 },
+            { x: 1.22, y: -2.32, h: 0.64, r: 0.76 },
+            { x: 2.92, y: -0.18, h: 0.52, r: 0.58 },
+            { x: -2.86, y: 3.35, h: 0.44, r: 0.58 },
           ],
           troughs: [
             { from: [-3.72, 2.15], to: [-3.2, 0.78], h: 0.56, r: 0.36 },
@@ -296,21 +304,26 @@
             { from: [-0.6, 2.35], to: [-0.45, -1.5], h: 0.72, r: 0.38 },
             { from: [-0.22, -2.55], to: [2.55, -3.82], h: 0.7, r: 0.42 },
             { from: [2.32, -3.92], to: [2.22, -1.48], h: 0.64, r: 0.38 },
+            { from: [-2.25, 1.18], to: [0.15, -0.28], h: 0.46, r: 0.36 },
+            { from: [0.12, -0.9], to: [1.82, -2.72], h: 0.52, r: 0.4 },
+            { from: [1.52, 1.42], to: [3.02, -0.32], h: 0.46, r: 0.38 },
           ],
-          reliefMin: 0.5,
-          reliefMax: 1.22,
-          edgeSoftness: 0.9,
+          reliefMin: 0.46,
+          reliefMax: 1.28,
+          meshResolution: 1.42,
+          edgeSoftness: 0.82,
           edgeFloor: 0.2,
           frontTaperDepth: 4.7,
           frontFloor: 0.3,
           frontSkirtLift: 0.82,
           sideSkirtLift: 0.72,
-          surfaceNoise: 0.095,
+          surfaceNoise: 0.15,
+          cragStrength: 0.16,
           light: "Low-Medium",
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Back-glass-touching right rock. Version 15 uses the isolated top/front silhouette, red-marked high points, and yellow depressed ledge constraints; front edge remains lower and more ledged.",
+          notes: "Back-glass-touching right rock. Version 16 uses the red/green scan as the primary local ledge map and the earlier scan to preserve rear vertical range; front edge remains lower and more ledged.",
         },
         {
           id: "center-shelf",
@@ -526,6 +539,7 @@
       sideProfile: normalizePointPairs(structure.sideProfile, fallback.sideProfile),
       reliefMin: positiveNumber(structure.reliefMin, fallback.reliefMin || 0.9),
       reliefMax: positiveNumber(structure.reliefMax, fallback.reliefMax || 1.06),
+      meshResolution: positiveNumber(structure.meshResolution, fallback.meshResolution || 1),
       edgeSoftness: positiveNumber(structure.edgeSoftness, fallback.edgeSoftness || 0.65),
       edgeFloor: positiveNumber(structure.edgeFloor, fallback.edgeFloor || 0.4),
       frontTaperDepth: nonNegativeNumber(structure.frontTaperDepth, fallback.frontTaperDepth || 0),
@@ -533,6 +547,7 @@
       frontSkirtLift: nonNegativeNumber(structure.frontSkirtLift, fallback.frontSkirtLift || 0),
       sideSkirtLift: nonNegativeNumber(structure.sideSkirtLift, fallback.sideSkirtLift || 0),
       surfaceNoise: nonNegativeNumber(structure.surfaceNoise, fallback.surfaceNoise || 0.14),
+      cragStrength: nonNegativeNumber(structure.cragStrength, fallback.cragStrength || 0),
       notes: structure.notes || fallback.notes || "",
     };
   }
@@ -1509,7 +1524,9 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = state.map.modelVersion >= 7
+    $("mapQualityPill").textContent = state.map.modelVersion >= 16
+      ? "Scan refined"
+      : state.map.modelVersion >= 7
       ? "Footprint refined"
       : state.map.modelVersion >= 6 ? "Silhouette locked" : state.map.modelVersion >= 5 ? "Outline traced" : dimensions.scaleReference?.includes("2 inch") ? "Ruler refined" : "Photo draft";
     $$("[data-map-layer]").forEach((button) => {
@@ -2028,8 +2045,9 @@
     const bounds = getPointBounds(footprint);
     const maxDimension = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
     const perimeterLength = getPerimeterLength(footprint);
-    const sampleCount = Math.round(clamp(56, 132, perimeterLength / 0.16));
-    const ringCount = Math.round(clamp(16, 34, maxDimension / 0.24));
+    const meshResolution = clamp(1, 1.8, structure.meshResolution || 1);
+    const sampleCount = Math.round(clamp(56, 180, (perimeterLength / 0.16) * meshResolution));
+    const ringCount = Math.round(clamp(16, 48, (maxDimension / 0.24) * meshResolution));
     const perimeter = sampleFootprintPerimeter(footprint, sampleCount);
     const center = polygonCentroid(footprint);
     const vertices = [];
@@ -2234,7 +2252,8 @@
       let relief =
         0.98 +
         (surfaceNoise(`${structure.id}-profile`, x * 0.72, y * 0.72) - 0.5) * 0.08 +
-        (surfaceNoise(`${structure.id}-fine-profile`, x * 2.3, y * 2.3) - 0.5) * (structure.surfaceNoise || 0.04) * 0.45;
+        (surfaceNoise(`${structure.id}-fine-profile`, x * 2.3, y * 2.3) - 0.5) * (structure.surfaceNoise || 0.04) * 0.45 +
+        (surfaceNoise(`${structure.id}-scan-crag`, x * 5.2 + y * 0.35, y * 5.2 - x * 0.3) - 0.5) * (structure.cragStrength || 0);
 
       structure.heightPoints.forEach((point) => {
         const distance = Math.hypot(x - point.x, y - point.y);
@@ -3237,7 +3256,9 @@
           edgeFloor: structure.edgeFloor,
           reliefMin: structure.reliefMin,
           reliefMax: structure.reliefMax,
+          meshResolution: structure.meshResolution,
           surfaceNoise: structure.surfaceNoise,
+          cragStrength: structure.cragStrength,
         },
         light: structure.light,
         flow: structure.flow,
