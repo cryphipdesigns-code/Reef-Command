@@ -131,7 +131,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 17,
+      modelVersion: 18,
       dimensions: {
         width: 30,
         depth: 12,
@@ -139,7 +139,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 17 drives the right rock surface from a trimmed red/green GLB heightfield instead of mild procedural relief.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 18 uses relief-corrected right-rock scan data as a soft elevation guide over the traced footprint.",
       },
       view: "front",
       layers: {
@@ -320,17 +320,18 @@
           sideSkirtLift: 0.72,
           surfaceNoise: 0.15,
           cragStrength: 0.16,
-          scanHeightStrength: 1,
-          scanHeightContrast: 1.95,
-          scanHeightFloor: 0.04,
-          scanHeightCeiling: 1.18,
-          terraceStrength: 0.48,
-          terraceBands: 7,
+          scanHeightStrength: 0.72,
+          scanHeightContrast: 1.35,
+          scanHeightFloor: 0.16,
+          scanHeightCeiling: 1.08,
+          scanHeightInvert: true,
+          terraceStrength: 0.28,
+          terraceBands: 8,
           scanHeightMap: {
             columns: 21,
             rows: 21,
             axis: "red-green-glb-x-y-z",
-            source: "Right Rock Red and Green GLB q78 trimmed top-surface heightfield",
+            source: "Right Rock Red and Green GLB q78 relief-corrected heightfield",
             values: [
               [0.961, 0.919, 0.625, 0.147, 0, 0.017, 0.255, 0.646, 0.285, 0, 0.133, 0.13, 0.062, 0.003, 0, 0, 0, 0, 0, 0.283, 0.577],
               [0.931, 0.955, 0.875, 0.518, 0.179, 0.099, 0.107, 0.312, 0.203, 0.125, 0.189, 0.095, 0.031, 0.027, 0, 0, 0, 0.028, 0.072, 0.421, 0.726],
@@ -359,7 +360,7 @@
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Back-glass-touching right rock. Version 17 uses a trimmed red/green GLB heightfield as the primary elevation target, preserving the traced footprint while adding stronger scan-derived ledges.",
+          notes: "Back-glass-touching right rock. Version 18 flips the red/green GLB relief data so it behaves as mound elevation instead of a bowl, then uses it as a softer ledge guide over the traced footprint.",
         },
         {
           id: "center-shelf",
@@ -581,6 +582,7 @@
       scanHeightContrast: positiveNumber(structure.scanHeightContrast, fallback.scanHeightContrast || 1),
       scanHeightFloor: clamp(0, 1, finiteNumber(structure.scanHeightFloor, fallback.scanHeightFloor || 0.12)),
       scanHeightCeiling: positiveNumber(structure.scanHeightCeiling, fallback.scanHeightCeiling || 1),
+      scanHeightInvert: Boolean(structure.scanHeightInvert ?? fallback.scanHeightInvert ?? false),
       terraceStrength: clamp(0, 1, finiteNumber(structure.terraceStrength, fallback.terraceStrength || 0)),
       terraceBands: positiveNumber(structure.terraceBands, fallback.terraceBands || 6),
       scanMeshAsset: normalizeScanMeshAsset(structure.scanMeshAsset, fallback.scanMeshAsset),
@@ -2491,8 +2493,9 @@
       let shapedHeight = proceduralHeight;
       const scanHeight = scanHeightAt(structure, footprintBounds, x, y);
       if (Number.isFinite(scanHeight)) {
+        const directedScanHeight = structure.scanHeightInvert ? 1 - scanHeight : scanHeight;
         const scanContrast = Math.max(0.1, structure.scanHeightContrast || 1);
-        const contrastedScanHeight = clamp(0, 1, (scanHeight - 0.5) * scanContrast + 0.5);
+        const contrastedScanHeight = clamp(0, 1, (directedScanHeight - 0.5) * scanContrast + 0.5);
         const scanFloor = clamp(0.02, 0.92, structure.scanHeightFloor || 0.12);
         const scanCeiling = Math.max(scanFloor + 0.02, structure.scanHeightCeiling || 1);
         const scanTarget =
@@ -3510,6 +3513,7 @@
           cragStrength: structure.cragStrength,
           scanHeightStrength: structure.scanHeightStrength,
           scanHeightContrast: structure.scanHeightContrast,
+          scanHeightInvert: structure.scanHeightInvert,
           terraceStrength: structure.terraceStrength,
           terraceBands: structure.terraceBands,
           scanHeightMap: structure.scanHeightMap
