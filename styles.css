@@ -622,6 +622,11 @@ textarea:focus {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.map2-focus-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 320px);
+}
+
 .map-grid {
   display: grid;
   gap: 14px;

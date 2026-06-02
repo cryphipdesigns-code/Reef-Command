@@ -150,6 +150,7 @@
         insightMode: "health",
         mapTool: "navigate",
         selectedMapStockId: "",
+        map2FocusStructureId: "tank",
       },
     };
   }
@@ -1647,9 +1648,25 @@
     const dimensions = state.map.dimensions;
     $("map2Summary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · LiDAR shelf/right + legacy front rocks`;
     $("map2QualityPill").textContent = "Hybrid remesh";
+    renderMap2FocusSelect();
     $$("[data-map2-view]").forEach((button) => {
       button.classList.toggle("active", button.dataset.map2View === (appliedMap2ViewPreset || "front"));
     });
+  }
+
+  function renderMap2FocusSelect() {
+    const select = $("map2FocusSelect");
+    if (!select) return;
+    const options = [
+      { id: "tank", name: "Whole tank" },
+      ...getMap2Structures().map((structure) => ({ id: structure.id, name: structure.name })),
+    ];
+    const current = options.some((option) => option.id === state.ui.map2FocusStructureId)
+      ? state.ui.map2FocusStructureId
+      : "tank";
+    if (current !== state.ui.map2FocusStructureId) state.ui.map2FocusStructureId = current;
+    select.replaceChildren(...options.map((option) => new Option(option.name, option.id)));
+    select.value = current;
   }
 
   function renderMapMarkerControls() {
@@ -3325,41 +3342,71 @@
 
   function updateMap2Camera() {
     if (!map2Camera) return;
-    const dimensions = state.map.dimensions;
-    const target = new THREE.Vector3(0, 0, dimensions.height * 0.46);
+    const target = getMap2CameraTarget();
     const pitch = Math.max(-1.2, Math.min(1.54, map2ViewState.pitch));
-    const distance = Math.max(18, Math.min(95, map2ViewState.distance));
+    const distance = constrainMap2Distance(map2ViewState.distance);
     const horizontal = Math.cos(pitch) * distance;
     map2Camera.up.set(0, pitch > 1.45 ? 1 : 0, pitch > 1.45 ? 0 : 1);
     map2Camera.position.set(
-      Math.sin(map2ViewState.yaw) * horizontal,
-      -Math.cos(map2ViewState.yaw) * horizontal,
+      target.x + Math.sin(map2ViewState.yaw) * horizontal,
+      target.y - Math.cos(map2ViewState.yaw) * horizontal,
       target.z + Math.sin(pitch) * distance,
     );
     map2Camera.lookAt(target);
   }
 
+  function getMap2CameraTarget() {
+    const dimensions = state.map.dimensions;
+    const structure = getMap2FocusedStructure();
+    if (!structure) return new THREE.Vector3(0, 0, dimensions.height * 0.46);
+    return new THREE.Vector3(structure.x, structure.y, structure.z + structure.height * 0.5);
+  }
+
+  function getMap2FocusedStructure() {
+    const focusId = state.ui.map2FocusStructureId || "tank";
+    if (focusId === "tank") return null;
+    return state.map.structures.find((structure) => structure.id === focusId) || null;
+  }
+
+  function getMap2FocusFrameSize() {
+    const dimensions = state.map.dimensions;
+    const structure = getMap2FocusedStructure();
+    if (!structure) return Math.max(dimensions.width, dimensions.depth, dimensions.height);
+    return Math.max(structure.width, structure.depth, structure.height * 1.6);
+  }
+
+  function getMap2PresetDistance(view) {
+    const structure = getMap2FocusedStructure();
+    const frame = getMap2FocusFrameSize();
+    if (!structure) {
+      if (view === "top") return frame * 1.28;
+      return view === "front" ? frame * 1.5 : frame * 1.42;
+    }
+    const multiplier = view === "top" ? 2.15 : 2.35;
+    return Math.max(9, frame * multiplier);
+  }
+
+  function constrainMap2Distance(distance) {
+    const minimum = getMap2FocusedStructure() ? 7 : 18;
+    return Math.max(minimum, Math.min(95, distance));
+  }
+
   function applyMap2ViewPreset(view) {
     const normalizedView = ["front", "left", "right", "top"].includes(view) ? view : "front";
-    const dimensions = state.map.dimensions;
-    const maxDimension = Math.max(dimensions.width, dimensions.depth, dimensions.height);
     if (normalizedView === "front") {
       map2ViewState.yaw = 0;
       map2ViewState.pitch = 0;
-      map2ViewState.distance = maxDimension * 1.5;
     } else if (normalizedView === "left") {
       map2ViewState.yaw = -Math.PI / 2;
       map2ViewState.pitch = 0;
-      map2ViewState.distance = maxDimension * 1.42;
     } else if (normalizedView === "right") {
       map2ViewState.yaw = Math.PI / 2;
       map2ViewState.pitch = 0;
-      map2ViewState.distance = maxDimension * 1.42;
     } else if (normalizedView === "top") {
       map2ViewState.yaw = 0;
       map2ViewState.pitch = 1.53;
-      map2ViewState.distance = maxDimension * 1.28;
     }
+    map2ViewState.distance = constrainMap2Distance(getMap2PresetDistance(normalizedView));
     appliedMap2ViewPreset = normalizedView;
     return normalizedView;
   }
@@ -3499,7 +3546,7 @@
         const gap = getMapPointerGap(map2PointerState.pointers);
         if (gap > 0 && map2PointerState.pinchStartGap > 0) {
           map2ViewState.distance = map2PointerState.pinchStartDistance * (map2PointerState.pinchStartGap / gap);
-          map2ViewState.distance = Math.max(18, Math.min(95, map2ViewState.distance));
+          map2ViewState.distance = constrainMap2Distance(map2ViewState.distance);
         }
         return;
       }
@@ -3522,7 +3569,7 @@
     stage.addEventListener("wheel", (event) => {
       event.preventDefault();
       map2ViewState.distance += event.deltaY * 0.025;
-      map2ViewState.distance = Math.max(18, Math.min(95, map2ViewState.distance));
+      map2ViewState.distance = constrainMap2Distance(map2ViewState.distance);
     }, { passive: false });
   }
 
@@ -5186,6 +5233,13 @@
     });
     $("mapSettingsForm").addEventListener("submit", (event) => event.preventDefault());
     $("mapMarkerForm").addEventListener("submit", (event) => event.preventDefault());
+    $("map2FocusSelect")?.addEventListener("change", (event) => {
+      state.ui.map2FocusStructureId = event.target.value;
+      saveLocalState();
+      applyMap2ViewPreset(["front", "left", "right", "top"].includes(appliedMap2ViewPreset) ? appliedMap2ViewPreset : "front");
+      renderMap2Settings();
+      renderReefMap2();
+    });
     $("mapStockSelect").addEventListener("change", (event) => {
       state.ui.selectedMapStockId = event.target.value;
       saveLocalState();
