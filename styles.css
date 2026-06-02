@@ -551,6 +551,12 @@ textarea:focus {
   height: 100%;
 }
 
+.map2-surface .reef-map-stage {
+  background:
+    linear-gradient(180deg, rgba(232, 244, 243, 0.92), rgba(252, 255, 254, 0.96)),
+    #eef7f6;
+}
+
 .map-fallback {
   position: absolute;
   inset: 0;

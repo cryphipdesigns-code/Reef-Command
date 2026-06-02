@@ -42,8 +42,21 @@
   let mapResizeObserver = null;
   let mapPointerState = null;
   let appliedMapViewPreset = null;
+  let map2Renderer = null;
+  let map2Scene = null;
+  let map2Camera = null;
+  let map2Root = null;
+  let map2AnimationFrame = null;
+  let map2ResizeObserver = null;
+  let map2PointerState = null;
+  let appliedMap2ViewPreset = null;
   const scanMeshAssetCache = new Map();
   const mapViewState = {
+    yaw: 0,
+    pitch: 0,
+    distance: 42,
+  };
+  const map2ViewState = {
     yaw: 0,
     pitch: 0,
     distance: 42,
@@ -143,7 +156,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 19,
+      modelVersion: 20,
       dimensions: {
         width: 30,
         depth: 12,
@@ -151,7 +164,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 19 uses LiDAR OBJ top-envelope heightfields for the right rock and shelf.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 20 corrects LiDAR front/back orientation and adds a Map 2.0 LiDAR-height remesh comparison.",
       },
       view: "front",
       layers: {
@@ -344,7 +357,7 @@
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Back-glass-touching right rock. Version 19 uses the LiDAR OBJ top envelope as the primary geometry reference, blended with the traced footprint and side/front profiles.",
+          notes: "Back-glass-touching right rock. Version 20 uses the front/back-corrected LiDAR OBJ top envelope as the primary geometry reference, blended with the traced footprint and side/front profiles.",
         },
         {
           id: "center-shelf",
@@ -395,7 +408,7 @@
           flow: "High",
           parMin: 130,
           parMax: 260,
-          notes: "Raised shelf rock, anchored to the back glass with a broad irregular top outline and open sand below. Version 19 uses the shelf LiDAR OBJ top envelope for elevation reference.",
+          notes: "Raised shelf rock, anchored to the back glass with a broad irregular top outline and open sand below. Version 20 uses the front/back-corrected shelf LiDAR OBJ top envelope for elevation reference.",
         },
       ],
     };
@@ -1438,6 +1451,7 @@
     $("viewTitle").textContent = $(viewMap[next]).dataset.title || "Reef Command";
     if (next === "map") {
       requestAnimationFrame(() => renderReefMap({ rebuild: true }));
+      requestAnimationFrame(() => renderReefMap2({ rebuild: true }));
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
     refreshIcons();
@@ -1448,6 +1462,7 @@
     renderDashboard();
     renderZones();
     renderMapSettings();
+    renderMap2Settings();
     renderMapSummaries();
     renderMapMarkerControls();
     syncLivestockDateControls();
@@ -1606,7 +1621,9 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = state.map.modelVersion >= 19
+    $("mapQualityPill").textContent = state.map.modelVersion >= 20
+      ? "LiDAR corrected"
+      : state.map.modelVersion >= 19
       ? "LiDAR heightfield"
       : state.map.modelVersion >= 17
       ? "Scan heightfield"
@@ -1620,6 +1637,16 @@
     });
     $$("[data-map-view]").forEach((button) => {
       button.classList.toggle("active", button.dataset.mapView === (state.map.view || "front"));
+    });
+  }
+
+  function renderMap2Settings() {
+    if (!$("map2Summary")) return;
+    const dimensions = state.map.dimensions;
+    $("map2Summary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · 5 LiDAR-height structures`;
+    $("map2QualityPill").textContent = "LiDAR remesh";
+    $$("[data-map2-view]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.map2View === (appliedMap2ViewPreset || "front"));
     });
   }
 
@@ -1668,8 +1695,10 @@
     state.map = normalizeMap({ ...state.map, dimensions }, getDefaultMap());
     saveState();
     renderMapSettings();
+    renderMap2Settings();
     renderMapSummaries();
     renderReefMap({ rebuild: true });
+    renderReefMap2({ rebuild: true });
     renderInsightsContext();
   }
 
@@ -1833,6 +1862,336 @@
       mapAnimationFrame = requestAnimationFrame(tick);
     };
     tick();
+  }
+
+  function renderReefMap2(options = {}) {
+    if (!$("reefMap2Stage")) return;
+    if (!window.THREE) {
+      $("reefMap2Fallback").hidden = false;
+      return;
+    }
+    $("reefMap2Fallback").hidden = true;
+    if (!ensureMap2Renderer()) return;
+    resizeMap2Renderer();
+    if (options.rebuild || !map2Root) rebuildReefMap2Scene();
+    if (!appliedMap2ViewPreset) applyMap2ViewPreset("front");
+    updateMap2Camera();
+    map2Renderer.render(map2Scene, map2Camera);
+    renderMap2Settings();
+  }
+
+  function ensureMap2Renderer() {
+    if (map2Renderer) return true;
+    const canvas = $("reefMap2Canvas");
+    if (!canvas || !window.THREE) return false;
+
+    map2Scene = new THREE.Scene();
+    map2Scene.fog = new THREE.Fog(0xeaf6f5, 42, 92);
+    map2Camera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
+    map2Camera.up.set(0, 0, 1);
+    map2Renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
+    map2Renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    if ("outputColorSpace" in map2Renderer && THREE.SRGBColorSpace) {
+      map2Renderer.outputColorSpace = THREE.SRGBColorSpace;
+    }
+    map2Renderer.shadowMap.enabled = true;
+    map2Renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    bindMap2PointerEvents($("reefMap2Stage"));
+    map2ResizeObserver = new ResizeObserver(() => renderReefMap2());
+    map2ResizeObserver.observe($("reefMap2Stage"));
+    startMap2Animation();
+    return true;
+  }
+
+  function resizeMap2Renderer() {
+    const stage = $("reefMap2Stage");
+    if (!stage || !map2Renderer || !map2Camera) return;
+    const rect = stage.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    const canvas = map2Renderer.domElement;
+    if (canvas.width !== Math.floor(width * map2Renderer.getPixelRatio()) || canvas.height !== Math.floor(height * map2Renderer.getPixelRatio())) {
+      map2Renderer.setSize(width, height, false);
+      map2Camera.aspect = width / height;
+      map2Camera.updateProjectionMatrix();
+    }
+  }
+
+  function startMap2Animation() {
+    if (map2AnimationFrame) cancelAnimationFrame(map2AnimationFrame);
+    const tick = () => {
+      if (map2Renderer && $("mapView")?.classList.contains("active")) {
+        updateMap2Camera();
+        map2Renderer.render(map2Scene, map2Camera);
+      }
+      map2AnimationFrame = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  function rebuildReefMap2Scene() {
+    clearMap2Scene();
+    map2Root = new THREE.Group();
+    map2Scene.add(map2Root);
+
+    const dimensions = state.map.dimensions;
+    addMap2Lighting(dimensions);
+    addMap2TankEnvelope(dimensions);
+    addMap2SandBed(dimensions);
+
+    getMap2Structures().forEach((structure, index) => {
+      const mesh = createMap2LidarRock(structure, index);
+      if (mesh) map2Root.add(mesh);
+    });
+  }
+
+  function clearMap2Scene() {
+    if (!map2Scene) return;
+    while (map2Scene.children.length) {
+      const child = map2Scene.children.pop();
+      disposeThreeObject(child);
+    }
+    map2Root = null;
+  }
+
+  function addMap2Lighting(dimensions) {
+    const ambient = new THREE.HemisphereLight(0xe8fbff, 0x405a55, 1.7);
+    map2Scene.add(ambient);
+
+    const key = new THREE.DirectionalLight(0xffffff, 3.1);
+    key.position.set(-dimensions.width * 0.15, -dimensions.depth * 0.42, dimensions.height * 1.85);
+    key.castShadow = true;
+    key.shadow.mapSize.width = 2048;
+    key.shadow.mapSize.height = 2048;
+    key.shadow.camera.near = 1;
+    key.shadow.camera.far = 85;
+    key.shadow.camera.left = -dimensions.width;
+    key.shadow.camera.right = dimensions.width;
+    key.shadow.camera.top = dimensions.height;
+    key.shadow.camera.bottom = -dimensions.height;
+    map2Scene.add(key);
+
+    const fill = new THREE.PointLight(0x87dad0, 0.9, 80);
+    fill.position.set(dimensions.width * 0.4, -dimensions.depth * 0.72, dimensions.height * 0.7);
+    map2Scene.add(fill);
+  }
+
+  function addMap2TankEnvelope(dimensions) {
+    const glassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xd1eeee,
+      transparent: true,
+      opacity: 0.11,
+      roughness: 0.05,
+      metalness: 0,
+      transmission: 0.2,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const tank = new THREE.Mesh(new THREE.BoxGeometry(dimensions.width, dimensions.depth, dimensions.height), glassMaterial);
+    tank.position.z = dimensions.height / 2;
+    map2Root.add(tank);
+
+    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x2e4947, transparent: true, opacity: 0.72 });
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(tank.geometry), edgeMaterial);
+    edges.position.copy(tank.position);
+    map2Root.add(edges);
+
+    const water = new THREE.Mesh(
+      new THREE.PlaneGeometry(dimensions.width, dimensions.depth),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x8bd6d7,
+        transparent: true,
+        opacity: 0.18,
+        roughness: 0.08,
+        metalness: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    water.position.z = dimensions.waterline;
+    map2Root.add(water);
+  }
+
+  function addMap2SandBed(dimensions) {
+    const random = seededRandom("map2-sand-bed");
+    const geometry = new THREE.PlaneGeometry(dimensions.width, dimensions.depth, 50, 22);
+    const positions = geometry.attributes.position;
+    for (let index = 0; index < positions.count; index += 1) {
+      const x = positions.getX(index);
+      const y = positions.getY(index);
+      const ripple = Math.sin(x * 0.62 + y * 1.05) * 0.05 + Math.cos(y * 1.7) * 0.035;
+      positions.setZ(index, dimensions.sandDepth + ripple + random() * 0.05);
+    }
+    geometry.computeVertexNormals();
+    const sand = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({ color: 0xdccfac, roughness: 0.96, metalness: 0 }),
+    );
+    sand.receiveShadow = true;
+    map2Root.add(sand);
+  }
+
+  function getMap2Structures() {
+    const meshForStructure = {
+      "center-shelf": { key: "shelf", mirrorX: false, mirrorY: false },
+      "left-rock": { key: "rightRock", mirrorX: true, mirrorY: false },
+      "front-left-rock": { key: "rightRock", mirrorX: true, mirrorY: true },
+      "front-right-rock": { key: "rightRock", mirrorX: false, mirrorY: true },
+      "right-rock": { key: "rightRock", mirrorX: false, mirrorY: false },
+    };
+    return state.map.structures
+      .filter((structure) => meshForStructure[structure.id])
+      .map((structure) => ({
+        ...structure,
+        map2Mesh: meshForStructure[structure.id],
+      }));
+  }
+
+  function createMap2LidarRock(structure, index) {
+    const heightMap = getLidarHeightMap(structure.map2Mesh?.key);
+    if (!heightMap) return null;
+    const footprint = getRockFootprint(structure);
+    const bounds = getPointBounds(footprint);
+    const width = Math.max(0.01, bounds.maxX - bounds.minX);
+    const depth = Math.max(0.01, bounds.maxY - bounds.minY);
+    const maxDimension = Math.max(width, depth);
+    const perimeterLength = getPerimeterLength(footprint);
+    const sampleCount = Math.round(clamp(72, 180, perimeterLength / 0.15));
+    const ringCount = Math.round(clamp(24, 58, maxDimension / 0.2));
+    const perimeter = sampleFootprintPerimeter(footprint, sampleCount);
+    const center = polygonCentroid(footprint);
+    const vertices = [];
+    const colors = [];
+    const indices = [];
+
+    const pushVertex = (x, y, z, shade) => {
+      const vertexIndex = vertices.length / 3;
+      vertices.push(structure.x + x, structure.y + y, structure.z + z);
+      colors.push(shade.r, shade.g, shade.b);
+      return vertexIndex;
+    };
+
+    const mapHeightAt = (x, y, radialT) => {
+      const rawU = (x - bounds.minX) / width;
+      const rawV = (y - bounds.minY) / depth;
+      const u = structure.map2Mesh.mirrorX ? 1 - rawU : rawU;
+      const v = structure.map2Mesh.mirrorY ? 1 - rawV : rawV;
+      const scanHeight = sampleLidarHeightMap(heightMap, u, v);
+      const contrast = structure.id === "center-shelf" ? 1.22 : 1.34;
+      const contrasted = clamp(0, 1, (scanHeight - 0.5) * contrast + 0.5);
+      const floor = structure.id === "center-shelf" ? 0.2 : 0.12;
+      const edgeDrop = smoothstep(0.72, 1, radialT);
+      const edgeShape = lerp(1, structure.id === "center-shelf" ? 0.32 : 0.18, edgeDrop);
+      const shelfLift = structure.id === "center-shelf" ? 0.1 : 0;
+      return structure.height * (floor + contrasted * (1 - floor + shelfLift)) * edgeShape;
+    };
+
+    const centerZ = mapHeightAt(center[0], center[1], 0);
+    const centerIndex = pushVertex(center[0], center[1], centerZ, rockVertexColor(structure, center[0], center[1], centerZ, index));
+    const rings = [];
+
+    for (let ringIndex = 1; ringIndex <= ringCount; ringIndex += 1) {
+      const radialT = ringIndex / ringCount;
+      const ring = [];
+      perimeter.forEach((point, pointIndex) => {
+        const x = lerp(center[0], point[0], radialT);
+        const y = lerp(center[1], point[1], radialT);
+        const z = mapHeightAt(x, y, radialT);
+        ring.push(pushVertex(x, y, z, rockVertexColor(structure, x, y, z, index + pointIndex)));
+      });
+      rings.push(ring);
+    }
+
+    for (let pointIndex = 0; pointIndex < sampleCount; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % sampleCount;
+      indices.push(centerIndex, rings[0][pointIndex], rings[0][nextIndex]);
+    }
+
+    for (let ringIndex = 1; ringIndex < rings.length; ringIndex += 1) {
+      const innerRing = rings[ringIndex - 1];
+      const outerRing = rings[ringIndex];
+      for (let pointIndex = 0; pointIndex < sampleCount; pointIndex += 1) {
+        const nextIndex = (pointIndex + 1) % sampleCount;
+        const innerA = innerRing[pointIndex];
+        const innerB = innerRing[nextIndex];
+        const outerA = outerRing[pointIndex];
+        const outerB = outerRing[nextIndex];
+        indices.push(innerA, outerA, innerB, innerB, outerA, outerB);
+      }
+    }
+
+    addMap2FootprintSkirt(structure, footprint, perimeter, rings[rings.length - 1], vertices, colors, indices);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+
+    const material = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.94,
+      metalness: 0.01,
+      emissive: 0x151215,
+      emissiveIntensity: 0.16,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `${structure.id}-map2-lidar`;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 4 + index;
+    return mesh;
+  }
+
+  function sampleLidarHeightMap(map, u, v) {
+    if (!map || !Array.isArray(map.values) || map.rows < 2 || map.columns < 2) return 0.5;
+    const clampedU = clamp(0, 1, u);
+    const clampedV = clamp(0, 1, v);
+    const gridX = clampedU * (map.columns - 1);
+    const gridY = clampedV * (map.rows - 1);
+    const col = Math.floor(gridX);
+    const row = Math.floor(gridY);
+    const nextCol = Math.min(map.columns - 1, col + 1);
+    const nextRow = Math.min(map.rows - 1, row + 1);
+    const tx = gridX - col;
+    const ty = gridY - row;
+    const top = lerp(map.values[row][col], map.values[row][nextCol], tx);
+    const bottom = lerp(map.values[nextRow][col], map.values[nextRow][nextCol], tx);
+    return lerp(top, bottom, ty);
+  }
+
+  function addMap2FootprintSkirt(structure, footprint, perimeter, outerRing, vertices, colors, indices) {
+    const dark = new THREE.Color(0x312a31);
+    const bottom = new THREE.Color(0x29252a);
+    const center = polygonCentroid(footprint);
+    const baseZ = structure.id === "center-shelf" ? 0.04 : -0.08;
+    const addVertex = (x, y, z, color) => {
+      const vertexIndex = vertices.length / 3;
+      vertices.push(structure.x + x, structure.y + y, structure.z + z);
+      colors.push(color.r, color.g, color.b);
+      return vertexIndex;
+    };
+
+    const bottomRing = perimeter.map((point) => addVertex(point[0], point[1], baseZ, dark));
+    for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % perimeter.length;
+      indices.push(outerRing[pointIndex], bottomRing[pointIndex], outerRing[nextIndex]);
+      indices.push(outerRing[nextIndex], bottomRing[pointIndex], bottomRing[nextIndex]);
+    }
+
+    const bottomCenter = addVertex(center[0], center[1], baseZ, bottom);
+    for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % perimeter.length;
+      indices.push(bottomCenter, bottomRing[nextIndex], bottomRing[pointIndex]);
+    }
   }
 
   function rebuildReefMapScene() {
@@ -2944,6 +3303,53 @@
     renderReefMap();
   }
 
+  function updateMap2Camera() {
+    if (!map2Camera) return;
+    const dimensions = state.map.dimensions;
+    const target = new THREE.Vector3(0, 0, dimensions.height * 0.46);
+    const pitch = Math.max(-1.2, Math.min(1.54, map2ViewState.pitch));
+    const distance = Math.max(18, Math.min(95, map2ViewState.distance));
+    const horizontal = Math.cos(pitch) * distance;
+    map2Camera.up.set(0, pitch > 1.45 ? 1 : 0, pitch > 1.45 ? 0 : 1);
+    map2Camera.position.set(
+      Math.sin(map2ViewState.yaw) * horizontal,
+      -Math.cos(map2ViewState.yaw) * horizontal,
+      target.z + Math.sin(pitch) * distance,
+    );
+    map2Camera.lookAt(target);
+  }
+
+  function applyMap2ViewPreset(view) {
+    const normalizedView = ["front", "left", "right", "top"].includes(view) ? view : "front";
+    const dimensions = state.map.dimensions;
+    const maxDimension = Math.max(dimensions.width, dimensions.depth, dimensions.height);
+    if (normalizedView === "front") {
+      map2ViewState.yaw = 0;
+      map2ViewState.pitch = 0;
+      map2ViewState.distance = maxDimension * 1.5;
+    } else if (normalizedView === "left") {
+      map2ViewState.yaw = -Math.PI / 2;
+      map2ViewState.pitch = 0;
+      map2ViewState.distance = maxDimension * 1.42;
+    } else if (normalizedView === "right") {
+      map2ViewState.yaw = Math.PI / 2;
+      map2ViewState.pitch = 0;
+      map2ViewState.distance = maxDimension * 1.42;
+    } else if (normalizedView === "top") {
+      map2ViewState.yaw = 0;
+      map2ViewState.pitch = 1.53;
+      map2ViewState.distance = maxDimension * 1.28;
+    }
+    appliedMap2ViewPreset = normalizedView;
+    return normalizedView;
+  }
+
+  function setMap2ViewPreset(view) {
+    applyMap2ViewPreset(view);
+    renderMap2Settings();
+    renderReefMap2();
+  }
+
   function bindMapPointerEvents(stage) {
     stage.addEventListener("pointerdown", (event) => {
       stage.setPointerCapture(event.pointerId);
@@ -3037,6 +3443,86 @@
     const points = Array.from(pointers.values());
     if (points.length < 2) return 0;
     return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+  }
+
+  function bindMap2PointerEvents(stage) {
+    stage.addEventListener("pointerdown", (event) => {
+      stage.setPointerCapture(event.pointerId);
+      if (!map2PointerState) {
+        map2PointerState = {
+          id: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          x: event.clientX,
+          y: event.clientY,
+          pointers: new Map(),
+          pinchStartGap: 0,
+          pinchStartDistance: map2ViewState.distance,
+        };
+      }
+      map2PointerState.pointers.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (map2PointerState.pointers.size === 2) {
+        map2PointerState.pinchStartGap = getMapPointerGap(map2PointerState.pointers);
+        map2PointerState.pinchStartDistance = map2ViewState.distance;
+      }
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (!map2PointerState || !map2PointerState.pointers.has(event.pointerId)) return;
+      map2PointerState.pointers.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (map2PointerState.pointers.size >= 2) {
+        const gap = getMapPointerGap(map2PointerState.pointers);
+        if (gap > 0 && map2PointerState.pinchStartGap > 0) {
+          map2ViewState.distance = map2PointerState.pinchStartDistance * (map2PointerState.pinchStartGap / gap);
+          map2ViewState.distance = Math.max(18, Math.min(95, map2ViewState.distance));
+        }
+        return;
+      }
+      const dx = event.clientX - map2PointerState.x;
+      const dy = event.clientY - map2PointerState.y;
+      map2PointerState.x = event.clientX;
+      map2PointerState.y = event.clientY;
+      map2ViewState.yaw -= dx * 0.008;
+      map2ViewState.pitch += dy * 0.006;
+      map2ViewState.pitch = Math.max(-0.75, Math.min(1.54, map2ViewState.pitch));
+      appliedMap2ViewPreset = "custom";
+      renderMap2Settings();
+    });
+    stage.addEventListener("pointerup", (event) => {
+      releaseMap2Pointer(event.pointerId);
+    });
+    stage.addEventListener("pointercancel", (event) => {
+      releaseMap2Pointer(event.pointerId);
+    });
+    stage.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      map2ViewState.distance += event.deltaY * 0.025;
+      map2ViewState.distance = Math.max(18, Math.min(95, map2ViewState.distance));
+    }, { passive: false });
+  }
+
+  function releaseMap2Pointer(pointerId) {
+    if (!map2PointerState) return;
+    map2PointerState.pointers.delete(pointerId);
+    if (!map2PointerState.pointers.size) {
+      map2PointerState = null;
+      return;
+    }
+    const [nextPointerId, nextPointer] = map2PointerState.pointers.entries().next().value;
+    map2PointerState.id = nextPointerId;
+    map2PointerState.startX = nextPointer.x;
+    map2PointerState.startY = nextPointer.y;
+    map2PointerState.x = nextPointer.x;
+    map2PointerState.y = nextPointer.y;
+    if (map2PointerState.pointers.size === 2) {
+      map2PointerState.pinchStartGap = getMapPointerGap(map2PointerState.pointers);
+      map2PointerState.pinchStartDistance = map2ViewState.distance;
+    }
   }
 
   function handleMapPlacementPointer(event) {
@@ -4511,6 +4997,12 @@
     const mapView = event.target.closest("[data-map-view]");
     if (mapView) {
       setMapViewPreset(mapView.dataset.mapView);
+      return;
+    }
+
+    const map2View = event.target.closest("[data-map2-view]");
+    if (map2View) {
+      setMap2ViewPreset(map2View.dataset.map2View);
       return;
     }
 

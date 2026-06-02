@@ -21,7 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="./vendor/three.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=29" />
+    <link rel="stylesheet" href="./styles.css?v=30" />
   </head>
   <body>
     <div id="appShell">
@@ -366,6 +366,44 @@
                   <input id="mapMarkerNote" type="text" />
                 </label>
               </form>
+            </div>
+          </section>
+
+          <section class="map-surface map2-surface">
+            <div class="section-heading map-heading">
+              <div>
+                <h2>Map 2.0</h2>
+                <p id="map2Summary" class="muted-line">LiDAR remesh draft</p>
+              </div>
+              <span id="map2QualityPill" class="status-pill">LiDAR remesh</span>
+            </div>
+
+            <div class="reef-map-stage" id="reefMap2Stage">
+              <canvas id="reefMap2Canvas"></canvas>
+              <div id="reefMap2Fallback" class="map-fallback" hidden>
+                3D renderer unavailable.
+              </div>
+              <div class="map-corner-label map-corner-label-front">Front glass</div>
+              <div class="map-corner-label map-corner-label-right">Right side</div>
+            </div>
+
+            <div class="map-toolbar" role="toolbar" aria-label="Map 2.0 controls">
+              <button class="mini-button active" type="button" data-map2-view="front">
+                <i data-lucide="square"></i>
+                Front
+              </button>
+              <button class="mini-button" type="button" data-map2-view="left">
+                <i data-lucide="arrow-left"></i>
+                Left
+              </button>
+              <button class="mini-button" type="button" data-map2-view="right">
+                <i data-lucide="arrow-right"></i>
+                Right
+              </button>
+              <button class="mini-button" type="button" data-map2-view="top">
+                <i data-lucide="arrow-up"></i>
+                Top
+              </button>
             </div>
           </section>
 
@@ -855,7 +893,7 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </div>
 
-    <script src="./map-lidar-data.js?v=29"></script>
-    <script src="./app.js?v=29"></script>
+    <script src="./map-lidar-data.js?v=30"></script>
+    <script src="./app.js?v=30"></script>
   </body>
 </html>
