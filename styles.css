@@ -623,6 +623,10 @@ textarea:focus {
   border-color: var(--line-strong);
 }
 
+.map-layer-toolbar {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .marker-panel {
   display: grid;
   gap: 12px;

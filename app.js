@@ -38,14 +38,6 @@
   let toastTimer = null;
   let pendingLivestockPhotos = [];
   let editingLog = null;
-  let mapRenderer = null;
-  let mapScene = null;
-  let mapCamera = null;
-  let mapRoot = null;
-  let mapAnimationFrame = null;
-  let mapResizeObserver = null;
-  let mapPointerState = null;
-  let appliedMapViewPreset = null;
   let map2Renderer = null;
   let map2Scene = null;
   let map2Camera = null;
@@ -55,11 +47,6 @@
   let map2PointerState = null;
   let appliedMap2ViewPreset = null;
   const scanMeshAssetCache = new Map();
-  const mapViewState = {
-    yaw: 0,
-    pitch: 0,
-    distance: 42,
-  };
   const map2ViewState = {
     yaw: 0,
     pitch: 0,
@@ -1548,7 +1535,6 @@
     });
     $("viewTitle").textContent = $(viewMap[next]).dataset.title || "Reef Command";
     if (next === "map") {
-      requestAnimationFrame(() => renderReefMap({ rebuild: true }));
       requestAnimationFrame(() => renderReefMap2({ rebuild: true }));
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1718,25 +1704,8 @@
       const key = input.dataset.mapDimension;
       input.value = dimensions[key] ?? "";
     });
-    $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = state.map.modelVersion >= 21
-      ? "Hybrid tuned"
-      : state.map.modelVersion >= 20
-      ? "LiDAR corrected"
-      : state.map.modelVersion >= 19
-      ? "LiDAR heightfield"
-      : state.map.modelVersion >= 17
-      ? "Scan heightfield"
-      : state.map.modelVersion >= 16
-      ? "Scan refined"
-      : state.map.modelVersion >= 7
-      ? "Footprint refined"
-      : state.map.modelVersion >= 6 ? "Silhouette locked" : state.map.modelVersion >= 5 ? "Outline traced" : dimensions.scaleReference?.includes("2 inch") ? "Ruler refined" : "Photo draft";
     $$("[data-map-layer]").forEach((button) => {
       button.classList.toggle("active", Boolean(state.map.layers?.[button.dataset.mapLayer]));
-    });
-    $$("[data-map-view]").forEach((button) => {
-      button.classList.toggle("active", button.dataset.mapView === (state.map.view || "front"));
     });
   }
 
@@ -1959,7 +1928,6 @@
     renderMapSettings();
     renderMap2Settings();
     renderMapSummaries();
-    renderReefMap({ rebuild: true });
     renderReefMap2({ rebuild: true });
     renderInsightsContext();
   }
@@ -2055,77 +2023,6 @@
     return state.map.structures.find((structure) => structure.id === id)?.name || "Mapped";
   }
 
-  function renderReefMap(options = {}) {
-    if (!$("reefMapStage")) return;
-    if (!window.THREE) {
-      $("reefMapFallback").hidden = false;
-      return;
-    }
-    $("reefMapFallback").hidden = true;
-    if (!ensureMapRenderer()) return;
-    resizeMapRenderer();
-    if (options.rebuild || !mapRoot) rebuildReefMapScene();
-    if ((state.map.view || "front") !== "custom" && appliedMapViewPreset !== (state.map.view || "front")) {
-      applyMapViewPreset(state.map.view || "front");
-    }
-    updateMapCamera();
-    mapRenderer.render(mapScene, mapCamera);
-  }
-
-  function ensureMapRenderer() {
-    if (mapRenderer) return true;
-    const canvas = $("reefMapCanvas");
-    if (!canvas || !window.THREE) return false;
-
-    mapScene = new THREE.Scene();
-    mapScene.fog = new THREE.Fog(0xeaf6f5, 42, 92);
-    mapCamera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
-    mapCamera.up.set(0, 0, 1);
-    mapRenderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: true,
-      powerPreference: "high-performance",
-    });
-    mapRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    if ("outputColorSpace" in mapRenderer && THREE.SRGBColorSpace) {
-      mapRenderer.outputColorSpace = THREE.SRGBColorSpace;
-    }
-    mapRenderer.shadowMap.enabled = true;
-    mapRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-    bindMapPointerEvents($("reefMapStage"));
-    mapResizeObserver = new ResizeObserver(() => renderReefMap());
-    mapResizeObserver.observe($("reefMapStage"));
-    startMapAnimation();
-    return true;
-  }
-
-  function resizeMapRenderer() {
-    const stage = $("reefMapStage");
-    const rect = stage.getBoundingClientRect();
-    const width = Math.max(1, Math.floor(rect.width));
-    const height = Math.max(1, Math.floor(rect.height));
-    const canvas = mapRenderer.domElement;
-    if (canvas.width !== Math.floor(width * mapRenderer.getPixelRatio()) || canvas.height !== Math.floor(height * mapRenderer.getPixelRatio())) {
-      mapRenderer.setSize(width, height, false);
-      mapCamera.aspect = width / height;
-      mapCamera.updateProjectionMatrix();
-    }
-  }
-
-  function startMapAnimation() {
-    if (mapAnimationFrame) cancelAnimationFrame(mapAnimationFrame);
-    const tick = () => {
-      if (mapRenderer && $("mapView")?.classList.contains("active")) {
-        updateMapCamera();
-        mapRenderer.render(mapScene, mapCamera);
-      }
-      mapAnimationFrame = requestAnimationFrame(tick);
-    };
-    tick();
-  }
-
   function renderReefMap2(options = {}) {
     if (!$("reefMap2Stage")) return;
     if (!window.THREE) {
@@ -2211,6 +2108,8 @@
       const mesh = createMap2Rock(structure, index);
       if (mesh) map2Root.add(mesh);
     });
+    if (state.map.layers.par) addMap2ParMarkers();
+    if (state.map.layers.livestock) addMap2LivestockMarkers();
     addMap2RefinementAnnotations();
   }
 
@@ -2297,6 +2196,8 @@
       new THREE.MeshStandardMaterial({ color: 0xdccfac, roughness: 0.96, metalness: 0 }),
     );
     sand.receiveShadow = true;
+    sand.name = "map2-sand-bed";
+    sand.userData.map2Surface = "sand";
     map2Root.add(sand);
   }
 
@@ -2712,37 +2613,6 @@
     }
   }
 
-  function rebuildReefMapScene() {
-    clearMapScene();
-    mapRoot = new THREE.Group();
-    mapScene.add(mapRoot);
-
-    const dimensions = state.map.dimensions;
-    addMapLighting(dimensions);
-    addTankEnvelope(dimensions);
-    addSandBed(dimensions);
-    addBackGlassTexture(dimensions);
-    if (state.map.layers.equipment) addEquipmentGhosts(dimensions);
-
-    state.map.structures.forEach((structure, index) => {
-      mapRoot.add(createRockStructure(structure, index));
-    });
-
-    if (state.map.layers.par) addParMarkers();
-    if (state.map.layers.trace) addTraceOutlines(dimensions);
-    if (state.map.layers.flow) addFlowArrows(dimensions);
-    if (state.map.layers.livestock) addLivestockMarkers();
-  }
-
-  function clearMapScene() {
-    if (!mapScene) return;
-    while (mapScene.children.length) {
-      const child = mapScene.children.pop();
-      disposeThreeObject(child);
-    }
-    mapRoot = null;
-  }
-
   function disposeThreeObject(object) {
     object.traverse?.((child) => {
       if (child.geometry) child.geometry.dispose();
@@ -2752,273 +2622,6 @@
         material.dispose?.();
       });
     });
-  }
-
-  function addMapLighting(dimensions) {
-    const ambient = new THREE.HemisphereLight(0xdff6ff, 0x35534f, 1.8);
-    mapScene.add(ambient);
-
-    const key = new THREE.DirectionalLight(0xffffff, 3.2);
-    key.position.set(0, -dimensions.depth * 0.35, dimensions.height * 1.85);
-    key.castShadow = true;
-    key.shadow.mapSize.width = 2048;
-    key.shadow.mapSize.height = 2048;
-    key.shadow.camera.near = 1;
-    key.shadow.camera.far = 80;
-    key.shadow.camera.left = -dimensions.width;
-    key.shadow.camera.right = dimensions.width;
-    key.shadow.camera.top = dimensions.height;
-    key.shadow.camera.bottom = -dimensions.height;
-    mapScene.add(key);
-
-    const fill = new THREE.PointLight(0x77d3d4, 1.1, 80);
-    fill.position.set(-dimensions.width * 0.45, -dimensions.depth * 0.7, dimensions.height * 0.55);
-    mapScene.add(fill);
-  }
-
-  function addTankEnvelope(dimensions) {
-    const glassMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xcdecea,
-      transparent: true,
-      opacity: 0.13,
-      roughness: 0.05,
-      metalness: 0,
-      transmission: 0.25,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    const tank = new THREE.Mesh(new THREE.BoxGeometry(dimensions.width, dimensions.depth, dimensions.height), glassMaterial);
-    tank.position.z = dimensions.height / 2;
-    mapRoot.add(tank);
-
-    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x294442, transparent: true, opacity: 0.75 });
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(tank.geometry), edgeMaterial);
-    edges.position.copy(tank.position);
-    mapRoot.add(edges);
-
-    const waterMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x7fcfd2,
-      transparent: true,
-      opacity: 0.22,
-      roughness: 0.08,
-      metalness: 0,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(dimensions.width, dimensions.depth), waterMaterial);
-    water.position.z = dimensions.waterline;
-    mapRoot.add(water);
-  }
-
-  function addSandBed(dimensions) {
-    const random = seededRandom("sand-bed");
-    const geometry = new THREE.PlaneGeometry(dimensions.width, dimensions.depth, 58, 24);
-    const positions = geometry.attributes.position;
-    for (let index = 0; index < positions.count; index += 1) {
-      const x = positions.getX(index);
-      const y = positions.getY(index);
-      const ripple = Math.sin(x * 0.72 + y * 1.18) * 0.06 + Math.cos(y * 1.9) * 0.04;
-      positions.setZ(index, dimensions.sandDepth + ripple + random() * 0.08);
-    }
-    geometry.computeVertexNormals();
-    const sand = new THREE.Mesh(
-      geometry,
-      new THREE.MeshStandardMaterial({ color: 0xdccfae, roughness: 0.96, metalness: 0 }),
-    );
-    sand.receiveShadow = true;
-    mapRoot.add(sand);
-
-    const pebbleMaterial = new THREE.MeshStandardMaterial({ color: 0xbfae89, roughness: 1 });
-    for (let index = 0; index < 110; index += 1) {
-      const pebble = new THREE.Mesh(new THREE.SphereGeometry(0.035 + random() * 0.055, 7, 5), pebbleMaterial);
-      pebble.position.set(
-        (random() - 0.5) * dimensions.width * 0.92,
-        (random() - 0.5) * dimensions.depth * 0.88,
-        dimensions.sandDepth + 0.04 + random() * 0.08,
-      );
-      mapRoot.add(pebble);
-    }
-  }
-
-  function addBackGlassTexture(dimensions) {
-    const material = new THREE.MeshBasicMaterial({
-      color: 0x6b8c63,
-      transparent: true,
-      opacity: 0.16,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-    [-0.34, 0, 0.34].forEach((offset, index) => {
-      const panel = new THREE.Mesh(new THREE.PlaneGeometry(dimensions.width * 0.18, dimensions.height * 0.62), material.clone());
-      panel.material.opacity = index === 1 ? 0.12 : 0.2;
-      panel.position.set(dimensions.width * offset, dimensions.depth / 2 + 0.035, dimensions.height * 0.55);
-      panel.rotation.x = Math.PI / 2;
-      mapRoot.add(panel);
-    });
-  }
-
-  function addEquipmentGhosts(dimensions) {
-    const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x1f2f31, roughness: 0.55, transparent: true, opacity: 0.55 });
-    const yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xe0b21f, roughness: 0.5, transparent: true, opacity: 0.76 });
-    const acrylicMaterial = new THREE.MeshPhysicalMaterial({ color: 0xd7eeee, transparent: true, opacity: 0.24, roughness: 0.05, side: THREE.DoubleSide, depthWrite: false });
-
-    const overflow = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.1, 6.6), darkMaterial);
-    overflow.position.set(-dimensions.width / 2 + 2.6, dimensions.depth / 2 - 0.65, dimensions.height * 0.63);
-    mapRoot.add(overflow);
-
-    const filterBox = new THREE.Mesh(new THREE.BoxGeometry(6.2, 1.2, 2.2), acrylicMaterial);
-    filterBox.position.set(0, dimensions.depth / 2 + 0.42, dimensions.waterline + 0.5);
-    mapRoot.add(filterBox);
-
-    const shelfStand = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.42, 8.2), darkMaterial);
-    shelfStand.position.set(0.7, 2.6, dimensions.sandDepth + 4.1);
-    shelfStand.castShadow = true;
-    mapRoot.add(shelfStand);
-
-    [0, 0.65].forEach((offset) => {
-      const heater = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 7.2, 16), yellowMaterial);
-      heater.rotation.x = Math.PI / 2;
-      heater.position.set(dimensions.width / 2 - 1.4 - offset, dimensions.depth / 2 - 0.4, dimensions.height * 0.44);
-      mapRoot.add(heater);
-    });
-
-    [
-      { z: dimensions.height * 0.67, y: dimensions.depth / 2 - 1.8 },
-      { z: dimensions.height * 0.54, y: dimensions.depth / 2 - 1.2 },
-    ].forEach((pump) => {
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.9, 28), darkMaterial);
-      body.rotation.z = Math.PI / 2;
-      body.position.set(dimensions.width / 2 - 0.7, pump.y, pump.z);
-      mapRoot.add(body);
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.54, 0.04, 8, 24), darkMaterial);
-      ring.rotation.y = Math.PI / 2;
-      ring.position.copy(body.position);
-      mapRoot.add(ring);
-    });
-  }
-
-  function addFlowArrows(dimensions) {
-    const arrowMaterialColor = 0x2f9bb3;
-    const flows = [
-      { start: [dimensions.width / 2 - 1.1, dimensions.depth / 2 - 1.7, dimensions.height * 0.66], dir: [-1, -0.25, -0.08], length: dimensions.width * 0.38 },
-      { start: [dimensions.width / 2 - 1.1, dimensions.depth / 2 - 1.0, dimensions.height * 0.53], dir: [-1, -0.45, -0.18], length: dimensions.width * 0.34 },
-      { start: [-dimensions.width / 2 + 1.8, dimensions.depth / 2 - 1.3, dimensions.height * 0.43], dir: [0.75, -0.45, 0.04], length: dimensions.width * 0.22 },
-    ];
-    flows.forEach((flow) => {
-      const direction = new THREE.Vector3(...flow.dir).normalize();
-      const origin = new THREE.Vector3(...flow.start);
-      const arrow = new THREE.ArrowHelper(direction, origin, flow.length, arrowMaterialColor, 0.75, 0.34);
-      arrow.cone.material.transparent = true;
-      arrow.cone.material.opacity = 0.55;
-      arrow.line.material.transparent = true;
-      arrow.line.material.opacity = 0.5;
-      mapRoot.add(arrow);
-    });
-  }
-
-  function addTraceOutlines(dimensions) {
-    const group = new THREE.Group();
-    group.name = "silhouette-trace";
-    const frontY = -dimensions.depth / 2 - 0.08;
-    const rightX = dimensions.width / 2 + 0.08;
-
-    state.map.structures.forEach((structure) => {
-      const footprint = getRockFootprint(structure);
-      const perimeter = sampleFootprintPerimeter(footprint, Math.round(clamp(64, 150, getPerimeterLength(footprint) / 0.14)));
-      const topTrace = perimeter.map((point) => {
-        const z = scaleRockProfileHeight(structure, rockHeightAt(structure, footprint, point[0], point[1]), 1);
-        return new THREE.Vector3(structure.x + point[0], structure.y + point[1], structure.z + z + 0.08);
-      });
-      group.add(createTraceLine(topTrace, 0xf7f2df, 0.9, true));
-
-      if (Array.isArray(structure.frontProfile) && structure.frontProfile.length >= 2) {
-        const frontProfile = [...structure.frontProfile]
-          .sort((a, b) => a[0] - b[0])
-          .map((point) => new THREE.Vector3(structure.x + point[0], frontY, structure.z + point[1] + 0.04));
-        group.add(createTraceLine(frontProfile, 0xffffff, 0.82, false));
-      }
-
-      if (Array.isArray(structure.bottomProfile) && structure.bottomProfile.length >= 2) {
-        const bottomProfile = [...structure.bottomProfile]
-          .sort((a, b) => a[0] - b[0])
-          .map((point) => new THREE.Vector3(structure.x + point[0], frontY, structure.z + point[1] + 0.04));
-        group.add(createTraceLine(bottomProfile, 0xc4fff9, 0.68, false));
-      }
-
-      if (Array.isArray(structure.sideProfile) && structure.sideProfile.length >= 2) {
-        const sideProfile = [...structure.sideProfile]
-          .sort((a, b) => a[0] - b[0])
-          .map((point) => new THREE.Vector3(rightX, structure.y + point[0], structure.z + point[1] + 0.04));
-        group.add(createTraceLine(sideProfile, 0xdff5ff, 0.72, false));
-      }
-
-      if (structure.touchesBackGlass) {
-        const backContact = getBackContactPoints(structure, footprint, dimensions)
-          .map((point) => new THREE.Vector3(structure.x + point[0], dimensions.depth / 2 + 0.05, structure.z + point[1]));
-        if (backContact.length >= 2) group.add(createTraceLine(backContact, 0x77f0e0, 0.82, false));
-      }
-    });
-
-    mapRoot.add(group);
-  }
-
-  function createTraceLine(points, color, opacity = 0.85, loop = false) {
-    const linePoints = loop && points.length ? [...points, points[0].clone()] : points;
-    const material = new THREE.LineBasicMaterial({
-      color,
-      transparent: true,
-      opacity,
-      depthTest: false,
-      depthWrite: false,
-    });
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(linePoints), material);
-    line.renderOrder = 30;
-    return line;
-  }
-
-  function getBackContactPoints(structure, footprint, dimensions) {
-    const targetLocalY = dimensions.depth / 2 - structure.y;
-    const nearBack = footprint
-      .filter((point) => Math.abs(point[1] - targetLocalY) < 0.24)
-      .sort((a, b) => a[0] - b[0]);
-    if (nearBack.length >= 2) {
-      return nearBack.map((point) => [point[0], rockHeightAt(structure, footprint, point[0], point[1]) + 0.12]);
-    }
-
-    const bounds = getPointBounds(footprint);
-    return [
-      [bounds.minX, rockHeightAt(structure, footprint, bounds.minX, targetLocalY) + 0.12],
-      [bounds.maxX, rockHeightAt(structure, footprint, bounds.maxX, targetLocalY) + 0.12],
-    ];
-  }
-
-  function createRockStructure(structure, index) {
-    const group = new THREE.Group();
-    group.name = structure.id;
-    const baseMesh = new THREE.Mesh(createProfileRockGeometry(structure, index), createRockMeshMaterial());
-    baseMesh.name = `${structure.id}-procedural`;
-    baseMesh.castShadow = true;
-    baseMesh.receiveShadow = true;
-    group.add(baseMesh);
-    if (structure.scanMeshAsset?.url) {
-      addScanMeshToGroup(group, structure, baseMesh, index);
-    }
-
-    return group;
-  }
-
-  function addScanMeshToGroup(group, structure, fallbackMesh, index) {
-    loadScanMeshAsset(structure.scanMeshAsset)
-      .then((asset) => {
-        if (!group.parent) return;
-        const scanMesh = createScanMeshFromAsset(structure, asset, index);
-        fallbackMesh.visible = false;
-        group.add(scanMesh);
-        renderReefMap();
-      })
-      .catch(() => {
-        fallbackMesh.visible = true;
-      });
   }
 
   async function loadScanMeshAsset(asset) {
@@ -3602,24 +3205,9 @@
     return Math.max(min, Math.min(max, value));
   }
 
-  function createParHalo(structure) {
-    const color = structure.parMax >= 180 ? 0xf2c94c : structure.parMax >= 100 ? 0x46b87e : 0x4d9de0;
-    const material = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.2,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const halo = new THREE.Mesh(new THREE.CircleGeometry(1, 48), material);
-    halo.scale.set(Math.max(1.4, structure.width * 0.55), Math.max(1.1, structure.depth * 0.55), 1);
-    halo.position.set(structure.x, structure.y, structure.z + structure.height + 0.18);
-    return halo;
-  }
-
-  function addParMarkers() {
+  function addMap2ParMarkers() {
     (state.map.parMarkers || []).forEach((marker) => {
-      const anchor = getMarkerAnchor(marker);
+      const anchor = getMap2MarkerAnchor(marker);
       const value = Number(marker.value);
       const color = Number.isFinite(value) && value >= 180 ? 0xf2c94c : Number.isFinite(value) && value >= 90 ? 0x4dbb7b : 0x4d9de0;
       const pin = new THREE.Mesh(
@@ -3628,15 +3216,15 @@
       );
       pin.position.copy(anchor);
       pin.castShadow = true;
-      mapRoot.add(pin);
-      mapRoot.add(createMapLabel(String(marker.value || "?"), anchor.clone().add(new THREE.Vector3(0, 0, 0.72)), "#36514f"));
+      map2Root.add(pin);
+      map2Root.add(createMapLabel(String(marker.value || "?"), anchor.clone().add(new THREE.Vector3(0, 0, 0.72)), "#36514f"));
     });
   }
 
-  function addLivestockMarkers() {
+  function addMap2LivestockMarkers() {
     getLivestockMapPlacements().forEach((placement, index) => {
       if (!placement.anchor) return;
-      const anchor = placement.anchor;
+      const anchor = getMap2MarkerAnchor(placement.anchor);
       const color = livestockColor(placement.category);
       const marker = new THREE.Mesh(
         new THREE.SphereGeometry(0.22, 18, 12),
@@ -3644,9 +3232,9 @@
       );
       marker.position.copy(anchor);
       marker.castShadow = true;
-      mapRoot.add(marker);
+      map2Root.add(marker);
       if (index < 18) {
-        mapRoot.add(createMapLabel(placement.species, anchor.clone().add(new THREE.Vector3(0, 0, 0.85)), "#405856"));
+        map2Root.add(createMapLabel(placement.species, anchor.clone().add(new THREE.Vector3(0, 0, 0.85)), "#405856"));
       }
     });
   }
@@ -3712,7 +3300,17 @@
     return new THREE.Vector3(point.x, point.y, Math.max(z, surface.z) + 0.24);
   }
 
+  function getMap2MarkerAnchor(point) {
+    if (!point) return null;
+    const surface = getMap2SurfaceAt(point.x, point.y);
+    if (!surface) return getMarkerAnchor(point);
+    const z = Number.isFinite(Number(point.z)) ? Number(point.z) : surface.z;
+    return new THREE.Vector3(point.x, point.y, Math.max(z, surface.z) + 0.24);
+  }
+
   function getMapSurfaceAt(x, y) {
+    const map2Surface = getMap2SurfaceAt(x, y);
+    if (map2Surface) return map2Surface;
     const dimensions = state.map.dimensions;
     let best = {
       z: dimensions.sandDepth + 0.08,
@@ -3729,6 +3327,41 @@
       }
     });
     return best;
+  }
+
+  function getMap2SurfaceAt(x, y) {
+    if (!map2Root || !window.THREE) return null;
+    const dimensions = state.map.dimensions;
+    if (x < -dimensions.width / 2 || x > dimensions.width / 2 || y < -dimensions.depth / 2 || y > dimensions.depth / 2) {
+      return null;
+    }
+    const meshes = getMap2SurfaceMeshes();
+    if (!meshes.length) return null;
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(x, y, dimensions.height + 12),
+      new THREE.Vector3(0, 0, -1),
+      0,
+      dimensions.height + 24,
+    );
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (!hits.length) return null;
+    const hit = hits[0];
+    const structureId = hit.object.userData?.map2StructureId || "";
+    return {
+      z: hit.point.z,
+      structure: structureId ? state.map.structures.find((structure) => structure.id === structureId) || null : null,
+    };
+  }
+
+  function getMap2SurfaceMeshes() {
+    const meshes = [];
+    if (!map2Root) return meshes;
+    map2Root.traverse((child) => {
+      if (child.isMesh && (child.userData?.map2StructureId || child.userData?.map2Surface === "sand")) {
+        meshes.push(child);
+      }
+    });
+    return meshes;
   }
 
   function createMapLabel(text, position, color) {
@@ -3781,58 +3414,6 @@
     if (category === "Noticed pest") return 0xc2413a;
     if (category === "Microfauna") return 0x2f855a;
     return 0x6d7d87;
-  }
-
-  function updateMapCamera() {
-    if (!mapCamera) return;
-    const dimensions = state.map.dimensions;
-    const target = new THREE.Vector3(0, 0, dimensions.height * 0.46);
-    const pitch = Math.max(-1.2, Math.min(1.54, mapViewState.pitch));
-    const distance = Math.max(18, Math.min(95, mapViewState.distance));
-    const horizontal = Math.cos(pitch) * distance;
-    if (pitch > 1.45) {
-      mapCamera.up.set(0, 1, 0);
-    } else {
-      mapCamera.up.set(0, 0, 1);
-    }
-    mapCamera.position.set(
-      Math.sin(mapViewState.yaw) * horizontal,
-      -Math.cos(mapViewState.yaw) * horizontal,
-      target.z + Math.sin(pitch) * distance,
-    );
-    mapCamera.lookAt(target);
-  }
-
-  function applyMapViewPreset(view) {
-    const normalizedView = ["front", "left", "right", "top"].includes(view) ? view : "front";
-    const dimensions = state.map.dimensions;
-    const maxDimension = Math.max(dimensions.width, dimensions.depth, dimensions.height);
-    if (normalizedView === "front") {
-      mapViewState.yaw = 0;
-      mapViewState.pitch = 0;
-      mapViewState.distance = maxDimension * 1.5;
-    } else if (normalizedView === "left") {
-      mapViewState.yaw = -Math.PI / 2;
-      mapViewState.pitch = 0;
-      mapViewState.distance = maxDimension * 1.42;
-    } else if (normalizedView === "right") {
-      mapViewState.yaw = Math.PI / 2;
-      mapViewState.pitch = 0;
-      mapViewState.distance = maxDimension * 1.42;
-    } else if (normalizedView === "top") {
-      mapViewState.yaw = 0;
-      mapViewState.pitch = 1.53;
-      mapViewState.distance = maxDimension * 1.28;
-    }
-    appliedMapViewPreset = normalizedView;
-    return normalizedView;
-  }
-
-  function setMapViewPreset(view) {
-    state.map.view = applyMapViewPreset(view);
-    saveState();
-    renderMapSettings();
-    renderReefMap();
   }
 
   function updateMap2Camera() {
@@ -3967,95 +3548,6 @@
     setMap2TargetOffsetVector(offset);
   }
 
-  function bindMapPointerEvents(stage) {
-    stage.addEventListener("pointerdown", (event) => {
-      stage.setPointerCapture(event.pointerId);
-      if (!mapPointerState) {
-        mapPointerState = {
-          id: event.pointerId,
-          startX: event.clientX,
-          startY: event.clientY,
-          x: event.clientX,
-          y: event.clientY,
-          moved: false,
-          pointers: new Map(),
-          pinchStartGap: 0,
-          pinchStartDistance: mapViewState.distance,
-        };
-      }
-      mapPointerState.pointers.set(event.pointerId, {
-        x: event.clientX,
-        y: event.clientY,
-      });
-      if (mapPointerState.pointers.size === 2) {
-        mapPointerState.moved = true;
-        mapPointerState.pinchStartGap = getMapPointerGap(mapPointerState.pointers);
-        mapPointerState.pinchStartDistance = mapViewState.distance;
-      }
-    });
-    stage.addEventListener("pointermove", (event) => {
-      if (!mapPointerState || !mapPointerState.pointers.has(event.pointerId)) return;
-      mapPointerState.pointers.set(event.pointerId, {
-        x: event.clientX,
-        y: event.clientY,
-      });
-      if (mapPointerState.pointers.size >= 2) {
-        const gap = getMapPointerGap(mapPointerState.pointers);
-        if (gap > 0 && mapPointerState.pinchStartGap > 0) {
-          mapViewState.distance = mapPointerState.pinchStartDistance * (mapPointerState.pinchStartGap / gap);
-          mapViewState.distance = Math.max(18, Math.min(95, mapViewState.distance));
-        }
-        return;
-      }
-      const dx = event.clientX - mapPointerState.x;
-      const dy = event.clientY - mapPointerState.y;
-      const totalMove = Math.hypot(event.clientX - mapPointerState.startX, event.clientY - mapPointerState.startY);
-      if (totalMove > 8) mapPointerState.moved = true;
-      mapPointerState.x = event.clientX;
-      mapPointerState.y = event.clientY;
-      mapViewState.yaw -= dx * 0.008;
-      mapViewState.pitch += dy * 0.006;
-      mapViewState.pitch = Math.max(-0.75, Math.min(1.54, mapViewState.pitch));
-      state.map.view = "custom";
-      appliedMapViewPreset = "custom";
-      renderMapSettings();
-    });
-    stage.addEventListener("pointerup", (event) => {
-      if (mapPointerState && mapPointerState.id === event.pointerId && !mapPointerState.moved) {
-        handleMapPlacementPointer(event);
-      }
-      releaseMapPointer(event.pointerId);
-    });
-    stage.addEventListener("pointercancel", (event) => {
-      releaseMapPointer(event.pointerId);
-    });
-    stage.addEventListener("wheel", (event) => {
-      event.preventDefault();
-      mapViewState.distance += event.deltaY * 0.025;
-      mapViewState.distance = Math.max(18, Math.min(95, mapViewState.distance));
-    }, { passive: false });
-  }
-
-  function releaseMapPointer(pointerId) {
-    if (!mapPointerState) return;
-    mapPointerState.pointers.delete(pointerId);
-    if (!mapPointerState.pointers.size) {
-      mapPointerState = null;
-      return;
-    }
-    const [nextPointerId, nextPointer] = mapPointerState.pointers.entries().next().value;
-    mapPointerState.id = nextPointerId;
-    mapPointerState.startX = nextPointer.x;
-    mapPointerState.startY = nextPointer.y;
-    mapPointerState.x = nextPointer.x;
-    mapPointerState.y = nextPointer.y;
-    mapPointerState.moved = true;
-    if (mapPointerState.pointers.size === 2) {
-      mapPointerState.pinchStartGap = getMapPointerGap(mapPointerState.pointers);
-      mapPointerState.pinchStartDistance = mapViewState.distance;
-    }
-  }
-
   function getMapPointerGap(pointers) {
     const points = Array.from(pointers.values());
     if (points.length < 2) return 0;
@@ -4065,11 +3557,14 @@
   function bindMap2PointerEvents(stage) {
     stage.addEventListener("pointerdown", (event) => {
       stage.setPointerCapture(event.pointerId);
-      if (getMap2RefinementShape() !== "navigate") {
+      const markerTool = getMapTool();
+      const refinementShape = getMap2RefinementShape();
+      if (markerTool !== "navigate" || refinementShape !== "navigate") {
         event.preventDefault();
         map2PointerState = {
           id: event.pointerId,
-          annotation: true,
+          annotation: markerTool === "navigate",
+          placement: markerTool !== "navigate",
           startX: event.clientX,
           startY: event.clientY,
           x: event.clientX,
@@ -4102,7 +3597,7 @@
     });
     stage.addEventListener("pointermove", (event) => {
       if (!map2PointerState || !map2PointerState.pointers.has(event.pointerId)) return;
-      if (map2PointerState.annotation) {
+      if (map2PointerState.annotation || map2PointerState.placement) {
         map2PointerState.x = event.clientX;
         map2PointerState.y = event.clientY;
         map2PointerState.pointers.set(event.pointerId, {
@@ -4138,9 +3633,15 @@
       renderMap2Settings();
     });
     stage.addEventListener("pointerup", (event) => {
-      if (map2PointerState?.annotation && map2PointerState.pointers.has(event.pointerId)) {
+      if ((map2PointerState?.annotation || map2PointerState?.placement) && map2PointerState.pointers.has(event.pointerId)) {
         const moved = Math.hypot(event.clientX - map2PointerState.startX, event.clientY - map2PointerState.startY);
-        if (moved <= 14) handleMap2RefinementPointer(event);
+        if (moved <= 14) {
+          if (map2PointerState.placement) {
+            handleMapPlacementPointer(event);
+          } else {
+            handleMap2RefinementPointer(event);
+          }
+        }
       }
       releaseMap2Pointer(event.pointerId);
     });
@@ -4285,12 +3786,12 @@
   function handleMapPlacementPointer(event) {
     const tool = getMapTool();
     if (tool === "navigate") return;
-    if ((state.map.view || "front") !== "top") {
-      setMapViewPreset("top");
+    if (appliedMap2ViewPreset !== "top") {
+      setMap2ViewPreset("top");
       showToast("Top view selected.");
       return;
     }
-    const coordinate = getMapCoordinateFromPointer(event);
+    const coordinate = getMap2CoordinateFromPointer(event);
     if (!coordinate) {
       showToast("Marker missed the tank.");
       return;
@@ -4331,33 +3832,35 @@
     saveState();
     renderMapMarkerControls();
     renderMapSummaries();
-    renderReefMap({ rebuild: true });
+    renderMap2Settings();
+    renderReefMap2({ rebuild: true });
     renderInsightsContext();
   }
 
-  function getMapCoordinateFromPointer(event) {
-    if (!mapCamera || !mapRenderer || !window.THREE) return null;
-    const canvas = mapRenderer.domElement;
+  function getMap2CoordinateFromPointer(event) {
+    if (!map2Camera || !map2Renderer || !window.THREE) return null;
+    const canvas = map2Renderer.domElement;
     const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
     const pointer = new THREE.Vector2(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
       -(((event.clientY - rect.top) / rect.height) * 2 - 1),
     );
     const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(pointer, mapCamera);
-    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -state.map.dimensions.sandDepth);
-    const hit = new THREE.Vector3();
-    if (!raycaster.ray.intersectPlane(plane, hit)) return null;
+    raycaster.setFromCamera(pointer, map2Camera);
+    const hits = raycaster.intersectObjects(getMap2SurfaceMeshes(), false);
+    if (!hits.length) return null;
+    const hit = hits[0];
     const dimensions = state.map.dimensions;
-    if (hit.x < -dimensions.width / 2 || hit.x > dimensions.width / 2 || hit.y < -dimensions.depth / 2 || hit.y > dimensions.depth / 2) {
+    if (hit.point.x < -dimensions.width / 2 || hit.point.x > dimensions.width / 2 || hit.point.y < -dimensions.depth / 2 || hit.point.y > dimensions.depth / 2) {
       return null;
     }
-    const surface = getMapSurfaceAt(hit.x, hit.y);
+    const structureId = hit.object.userData?.map2StructureId || "";
     return {
-      x: Number(hit.x.toFixed(2)),
-      y: Number(hit.y.toFixed(2)),
-      z: Number(surface.z.toFixed(2)),
-      structureId: surface.structure?.id || "",
+      x: Number(hit.point.x.toFixed(2)),
+      y: Number(hit.point.y.toFixed(2)),
+      z: Number(hit.point.z.toFixed(2)),
+      structureId,
     };
   }
 
@@ -5319,7 +4822,7 @@
     saveState();
     renderZones();
     renderMapSummaries();
-    renderReefMap({ rebuild: true });
+    renderReefMap2({ rebuild: true });
     renderInsightsContext();
     showToast("Zone added.");
   }
@@ -5450,7 +4953,7 @@
       renderPhotoLibrary();
       renderMapMarkerControls();
       renderMapSummaries();
-      renderReefMap({ rebuild: true });
+      renderReefMap2({ rebuild: true });
       renderDashboard();
       renderInsightsContext();
       showToast(existing ? "Stock updated." : "Stock added.");
@@ -5770,12 +5273,6 @@
       return;
     }
 
-    const mapView = event.target.closest("[data-map-view]");
-    if (mapView) {
-      setMapViewPreset(mapView.dataset.mapView);
-      return;
-    }
-
     const map2View = event.target.closest("[data-map2-view]");
     if (map2View) {
       setMap2ViewPreset(map2View.dataset.map2View);
@@ -5787,9 +5284,11 @@
       state.ui.map2NavTool = ["rotate", "pan"].includes(map2Nav.dataset.map2Nav)
         ? map2Nav.dataset.map2Nav
         : "rotate";
+      state.ui.mapTool = "navigate";
       state.ui.map2RefinementShape = "navigate";
       map2RefinementDraft = null;
       saveLocalState();
+      renderMapMarkerControls();
       renderMap2Settings();
       renderReefMap2({ rebuild: true });
       return;
@@ -5811,11 +5310,13 @@
 
     const map2RefineShape = event.target.closest("[data-map2-refine-shape]");
     if (map2RefineShape) {
+      state.ui.mapTool = "navigate";
       state.ui.map2RefinementShape = MAP2_REFINEMENT_SHAPES.includes(map2RefineShape.dataset.map2RefineShape)
         ? map2RefineShape.dataset.map2RefineShape
         : "navigate";
       map2RefinementDraft = null;
       saveLocalState();
+      renderMapMarkerControls();
       renderMap2RefinementControls();
       renderReefMap2({ rebuild: true });
       return;
@@ -5848,7 +5349,7 @@
       state.map.layers[layer] = !state.map.layers[layer];
       saveState();
       renderMapSettings();
-      renderReefMap({ rebuild: true });
+      renderReefMap2({ rebuild: true });
       renderInsightsContext();
       return;
     }
@@ -5856,9 +5357,13 @@
     const mapTool = event.target.closest("[data-map-tool]");
     if (mapTool) {
       state.ui.mapTool = mapTool.dataset.mapTool;
-      if (state.ui.mapTool !== "navigate") setMapViewPreset("top");
+      state.ui.map2RefinementShape = "navigate";
+      map2RefinementDraft = null;
+      if (state.ui.mapTool !== "navigate") setMap2ViewPreset("top");
       saveLocalState();
       renderMapMarkerControls();
+      renderMap2RefinementControls();
+      renderReefMap2({ rebuild: true });
       return;
     }
 
@@ -5867,7 +5372,7 @@
       state.map.parMarkers = (state.map.parMarkers || []).filter((marker) => marker.id !== parMarkerDelete.dataset.parMarkerDelete);
       saveState();
       renderMapSummaries();
-      renderReefMap({ rebuild: true });
+      renderReefMap2({ rebuild: true });
       renderInsightsContext();
       showToast("PAR marker deleted.");
       return;
@@ -5876,10 +5381,13 @@
     const stockPlace = event.target.closest("[data-map-stock-place]");
     if (stockPlace) {
       state.ui.mapTool = "stock";
+      state.ui.map2RefinementShape = "navigate";
       state.ui.selectedMapStockId = stockPlace.dataset.mapStockPlace;
-      setMapViewPreset("top");
+      map2RefinementDraft = null;
+      setMap2ViewPreset("top");
       saveLocalState();
       renderMapMarkerControls();
+      renderMap2RefinementControls();
       return;
     }
 
@@ -5890,7 +5398,7 @@
       saveState();
       renderMapMarkerControls();
       renderMapSummaries();
-      renderReefMap({ rebuild: true });
+      renderReefMap2({ rebuild: true });
       renderInsightsContext();
       showToast("Stock marker cleared.");
       return;
@@ -5908,7 +5416,7 @@
       renderLivestock();
       renderMapMarkerControls();
       renderMapSummaries();
-      renderReefMap({ rebuild: true });
+      renderReefMap2({ rebuild: true });
       renderInsightsContext();
       showToast("Zone deleted.");
       return;
@@ -5960,7 +5468,7 @@
     renderPhotoLibrary();
     renderMapMarkerControls();
     renderMapSummaries();
-    renderReefMap({ rebuild: true });
+    renderReefMap2({ rebuild: true });
     renderDashboard();
     renderInsightsContext();
     showToast("Livestock updated.");
