@@ -2239,6 +2239,72 @@
       .filter((annotation) => annotation.structureId === structureId);
   }
 
+  function getMap2RefinedFootprint(structure, footprint, annotations) {
+    const lateralAnnotations = (annotations || []).filter((annotation) =>
+      (annotation.direction === "left-right" || annotation.direction === "front-back") &&
+      getMap2RefinementLateralAmount(structure, annotation) !== 0,
+    );
+    if (!lateralAnnotations.length) return footprint;
+
+    const dimensions = state.map.dimensions;
+    const center = polygonCentroid(footprint);
+    const bounds = getPointBounds(footprint);
+    const maxShift = clamp(0.18, 1.35, Math.min(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.18);
+    const tankMinX = -dimensions.width / 2 - structure.x + 0.05;
+    const tankMaxX = dimensions.width / 2 - structure.x - 0.05;
+    const tankMinY = -dimensions.depth / 2 - structure.y + 0.05;
+    const tankMaxY = dimensions.depth / 2 - structure.y - 0.05;
+
+    return footprint.map((point) => {
+      let dx = 0;
+      let dy = 0;
+      lateralAnnotations.forEach((annotation) => {
+        const influence = getMap2RefinementInfluence(annotation, point[0], point[1]);
+        if (influence <= 0) return;
+        const amount = getMap2RefinementLateralAmount(structure, annotation) * influence;
+        if (annotation.direction === "left-right") {
+          const sign = getMap2RefinementAxisSign(annotation, point[0], center[0], "x");
+          dx += sign * amount;
+        } else if (annotation.direction === "front-back") {
+          const sign = getMap2RefinementAxisSign(annotation, point[1], center[1], "y");
+          dy += sign * amount;
+        }
+      });
+
+      return [
+        clamp(tankMinX, tankMaxX, point[0] + clamp(-maxShift, maxShift, dx)),
+        clamp(tankMinY, tankMaxY, point[1] + clamp(-maxShift, maxShift, dy)),
+      ];
+    });
+  }
+
+  function getMap2RefinementLateralAmount(structure, annotation) {
+    const sign = {
+      raise: 1,
+      ridge: 0.72,
+      depress: -0.72,
+      "cut-back": -1,
+    }[annotation.action] || 0;
+    if (!sign) return 0;
+    return getMap2RefinementAmount(structure, annotation) * sign;
+  }
+
+  function getMap2RefinementAxisSign(annotation, coordinate, centerCoordinate, axis) {
+    const localSign = Math.sign(coordinate - centerCoordinate);
+    if (localSign) return localSign;
+    const average = getMap2RefinementAverageAxis(annotation, axis);
+    return Math.sign(average - centerCoordinate) || 1;
+  }
+
+  function getMap2RefinementAverageAxis(annotation, axis) {
+    const points = Array.isArray(annotation.points)
+      ? annotation.points.map(normalizeMap2RefinementPoint).filter(Boolean)
+      : [];
+    if (!points.length) return 0;
+    const key = axis === "y" ? "y" : "x";
+    return points.reduce((total, point) => total + point[key], 0) / points.length;
+  }
+
   function applyMap2RefinementHeight(structure, annotations, x, y, z, maxHeight = structure.height) {
     if (!annotations.length) return z;
     const minimum = structure.id === "center-shelf" ? 0.04 : 0.02;
@@ -2251,16 +2317,23 @@
       const influence = getMap2RefinementInfluence(annotation, x, y);
       if (influence <= 0) return total;
       const amount = getMap2RefinementAmount(structure, annotation);
-      if (annotation.action === "raise" || annotation.action === "ridge") return total + amount * influence;
-      if (annotation.action === "depress") return total - amount * influence;
-      if (annotation.action === "cut-back") return total - amount * 0.75 * influence;
+      const directionalScale = getMap2RefinementVerticalScale(annotation);
+      if (annotation.action === "raise" || annotation.action === "ridge") return total + amount * directionalScale * influence;
+      if (annotation.action === "depress") return total - amount * directionalScale * influence;
+      if (annotation.action === "cut-back") return total - amount * 0.75 * directionalScale * influence;
       if (annotation.action === "flatten" || annotation.action === "smooth") {
         const target = getMap2RefinementAverageZ(annotation);
         const blend = annotation.action === "flatten" ? 0.42 : 0.18;
-        return total + (target - z) * blend * influence;
+        return total + (target - z) * blend * directionalScale * influence;
       }
       return total;
     }, 0);
+  }
+
+  function getMap2RefinementVerticalScale(annotation) {
+    if (annotation.direction === "left-right" || annotation.direction === "front-back") return 0.22;
+    if (annotation.direction === "top-bottom") return 1.12;
+    return 1;
   }
 
   function getMap2RefinementAmount(structure, annotation) {
@@ -2318,7 +2391,8 @@
   function createMap2LidarRock(structure, index) {
     const heightMap = getLidarHeightMap(structure.map2Mesh?.key);
     if (!heightMap) return null;
-    const footprint = getRockFootprint(structure);
+    const refinementAnnotations = getMap2StructureRefinementAnnotations(structure.id);
+    const footprint = getMap2RefinedFootprint(structure, getRockFootprint(structure), refinementAnnotations);
     const bounds = getPointBounds(footprint);
     const width = Math.max(0.01, bounds.maxX - bounds.minX);
     const depth = Math.max(0.01, bounds.maxY - bounds.minY);
@@ -2333,7 +2407,6 @@
     const indices = [];
     const verticalScale = positiveNumber(structure.map2Mesh?.verticalScale, 1);
     const scaledHeight = structure.height * verticalScale;
-    const refinementAnnotations = getMap2StructureRefinementAnnotations(structure.id);
 
     const pushVertex = (x, y, z, shade) => {
       const vertexIndex = vertices.length / 3;
@@ -2727,10 +2800,12 @@
   }
 
   function createProfileRockGeometry(structure, index, heightScale = 1, options = {}) {
-    const footprint = getRockFootprint(structure);
     const refinementAnnotations = options.applyMap2Refinements
       ? getMap2StructureRefinementAnnotations(structure.id)
       : [];
+    const footprint = options.applyMap2Refinements
+      ? getMap2RefinedFootprint(structure, getRockFootprint(structure), refinementAnnotations)
+      : getRockFootprint(structure);
     const bounds = getPointBounds(footprint);
     const maxDimension = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
     const perimeterLength = getPerimeterLength(footprint);
@@ -3169,6 +3244,15 @@
     return minDistance;
   }
 
+  function getClosestPointOnPolygonEdge(point, polygon) {
+    if (!Array.isArray(polygon) || !polygon.length) return null;
+    return polygon.reduce((best, start, index) => {
+      const end = polygon[(index + 1) % polygon.length];
+      const candidate = closestPointOnSegment(point, start, end);
+      return !best || candidate.distance < best.distance ? candidate : best;
+    }, null);
+  }
+
   function distanceToSegment(point, start, end) {
     const vx = end[0] - start[0];
     const vy = end[1] - start[1];
@@ -3177,6 +3261,20 @@
     const lengthSq = vx * vx + vy * vy || 1e-6;
     const t = clamp(0, 1, (wx * vx + wy * vy) / lengthSq);
     return Math.hypot(point[0] - (start[0] + t * vx), point[1] - (start[1] + t * vy));
+  }
+
+  function closestPointOnSegment(point, start, end) {
+    const vx = end[0] - start[0];
+    const vy = end[1] - start[1];
+    const wx = point[0] - start[0];
+    const wy = point[1] - start[1];
+    const lengthSq = vx * vx + vy * vy || 1e-6;
+    const t = clamp(0, 1, (wx * vx + wy * vy) / lengthSq);
+    const closest = [start[0] + t * vx, start[1] + t * vy];
+    return {
+      point: closest,
+      distance: Math.hypot(point[0] - closest[0], point[1] - closest[1]),
+    };
   }
 
   function distance2d(a, b) {
@@ -3724,7 +3822,7 @@
       if (child.isMesh && child.userData?.map2StructureId) meshes.push(child);
     });
     const hits = raycaster.intersectObjects(meshes, false);
-    if (!hits.length) return null;
+    if (!hits.length) return getMap2BottomTraceRefinementHit(raycaster);
     const hit = hits[0];
     const structureId = hit.object.userData.map2StructureId;
     const structure = state.map.structures.find((entry) => entry.id === structureId);
@@ -3737,6 +3835,43 @@
         z: hit.point.z - structure.z,
       },
     };
+  }
+
+  function getMap2BottomTraceRefinementHit(raycaster) {
+    const direction = getMap2RefinementDirection();
+    if (direction !== "left-right" && direction !== "front-back") return null;
+    const dimensions = state.map.dimensions;
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -dimensions.sandDepth);
+    const worldPoint = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(plane, worldPoint)) return null;
+    if (
+      worldPoint.x < -dimensions.width / 2 ||
+      worldPoint.x > dimensions.width / 2 ||
+      worldPoint.y < -dimensions.depth / 2 ||
+      worldPoint.y > dimensions.depth / 2
+    ) {
+      return null;
+    }
+
+    const tolerance = Math.max(0.42, getMap2RefinementRadius() * 1.6);
+    let best = null;
+    getMap2Structures().forEach((structure) => {
+      const annotations = getMap2StructureRefinementAnnotations(structure.id);
+      const footprint = getMap2RefinedFootprint(structure, getRockFootprint(structure), annotations);
+      const localPoint = [worldPoint.x - structure.x, worldPoint.y - structure.y];
+      const edge = getClosestPointOnPolygonEdge(localPoint, footprint);
+      if (!edge || edge.distance > tolerance || (best && edge.distance >= best.distance)) return;
+      best = {
+        distance: edge.distance,
+        structure,
+        point: {
+          x: edge.point[0],
+          y: edge.point[1],
+          z: structure.id === "center-shelf" ? 0.08 : 0.02,
+        },
+      };
+    });
+    return best ? { structure: best.structure, point: best.point } : null;
   }
 
   function createMap2RefinementAnnotation(shape, structure, points) {
