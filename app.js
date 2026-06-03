@@ -759,7 +759,15 @@
     const y = finiteNumber(point.y, NaN);
     const z = finiteNumber(point.z, NaN);
     if (![x, y, z].every(Number.isFinite)) return null;
-    return { x, y, z };
+    const targetX = finiteNumber(point.targetX, NaN);
+    const targetY = finiteNumber(point.targetY, NaN);
+    return {
+      x,
+      y,
+      z,
+      ...(Number.isFinite(targetX) ? { targetX } : {}),
+      ...(Number.isFinite(targetY) ? { targetY } : {}),
+    };
   }
 
   function normalizeRockLobes(value, fallback = []) {
@@ -2249,7 +2257,7 @@
     const dimensions = state.map.dimensions;
     const center = polygonCentroid(footprint);
     const bounds = getPointBounds(footprint);
-    const maxShift = clamp(0.18, 1.35, Math.min(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.18);
+    const maxShift = clamp(0.4, 2.4, Math.min(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.32);
     const tankMinX = -dimensions.width / 2 - structure.x + 0.05;
     const tankMaxX = dimensions.width / 2 - structure.x - 0.05;
     const tankMinY = -dimensions.depth / 2 - structure.y + 0.05;
@@ -2261,13 +2269,10 @@
       lateralAnnotations.forEach((annotation) => {
         const influence = getMap2RefinementInfluence(annotation, point[0], point[1]);
         if (influence <= 0) return;
-        const amount = getMap2RefinementLateralAmount(structure, annotation) * influence;
         if (annotation.direction === "left-right") {
-          const sign = getMap2RefinementAxisSign(annotation, point[0], center[0], "x");
-          dx += sign * amount;
+          dx += getMap2RefinementLateralShift(structure, annotation, point, center, "x") * influence;
         } else if (annotation.direction === "front-back") {
-          const sign = getMap2RefinementAxisSign(annotation, point[1], center[1], "y");
-          dy += sign * amount;
+          dy += getMap2RefinementLateralShift(structure, annotation, point, center, "y") * influence;
         }
       });
 
@@ -2276,6 +2281,53 @@
         clamp(tankMinY, tankMaxY, point[1] + clamp(-maxShift, maxShift, dy)),
       ];
     });
+  }
+
+  function getMap2RefinementLateralShift(structure, annotation, point, center, axis) {
+    const targetShift = getMap2RefinementTargetShift(annotation, point, axis);
+    if (Number.isFinite(targetShift) && Math.abs(targetShift) > 0.03) {
+      return targetShift * getMap2RefinementTargetStrengthScale(annotation);
+    }
+    const amount = getMap2RefinementLateralAmount(structure, annotation);
+    const coordinate = axis === "y" ? point[1] : point[0];
+    const centerCoordinate = axis === "y" ? center[1] : center[0];
+    const sign = getMap2RefinementAxisSign(annotation, coordinate, centerCoordinate, axis);
+    return sign * amount;
+  }
+
+  function getMap2RefinementTargetShift(annotation, point, axis) {
+    const points = Array.isArray(annotation.points)
+      ? annotation.points.map(normalizeMap2RefinementPoint).filter(Boolean)
+      : [];
+    const key = axis === "y" ? "y" : "x";
+    const targetKey = axis === "y" ? "targetY" : "targetX";
+    const targetPoints = points.filter((entry) => Number.isFinite(entry[targetKey]));
+    if (!targetPoints.length) return null;
+    const radius = Math.max(0.25, positiveNumber(annotation.radius, 0.8));
+    let weightedShift = 0;
+    let totalWeight = 0;
+    targetPoints.forEach((entry) => {
+      const distance = Math.hypot(point[0] - entry.x, point[1] - entry.y);
+      const weight = Math.exp(-(distance * distance) / (2 * radius * radius));
+      weightedShift += (entry[targetKey] - entry[key]) * weight;
+      totalWeight += weight;
+    });
+    return totalWeight > 0 ? weightedShift / totalWeight : null;
+  }
+
+  function getMap2RefinementTargetStrengthScale(annotation) {
+    const strengthScale = {
+      light: 0.45,
+      medium: 0.72,
+      strong: 1,
+    }[annotation.strength] || 0.72;
+    const actionScale = {
+      raise: 1,
+      depress: 1,
+      "cut-back": 1,
+      ridge: 0.75,
+    }[annotation.action] || 0.5;
+    return strengthScale * actionScale;
   }
 
   function getMap2RefinementLateralAmount(structure, annotation) {
@@ -2582,6 +2634,20 @@
       group.add(marker);
     });
 
+    const targetSegments = getMap2RefinementTargetWorldSegments(annotation);
+    if (targetSegments.length) {
+      const targetLine = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(targetSegments), new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: draft ? 0.92 : 0.72,
+        depthTest: false,
+        depthWrite: false,
+      }));
+      targetLine.renderOrder = 44;
+      tagMap2RefinementOverlayObject(targetLine, draft);
+      group.add(targetLine);
+    }
+
     if (annotation.shape === "point" && points[0]) {
       const halo = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.2, annotation.radius || 0.8), 18, 10), haloMaterial);
       halo.position.copy(points[0]);
@@ -2630,6 +2696,26 @@
         structure.y + point.y,
         structure.z + point.z + 0.08,
       ));
+  }
+
+  function getMap2RefinementTargetWorldSegments(annotation) {
+    if (annotation.direction !== "left-right" && annotation.direction !== "front-back") return [];
+    const structure = state.map.structures.find((entry) => entry.id === annotation.structureId);
+    if (!structure || !Array.isArray(annotation.points)) return [];
+    const segments = [];
+    annotation.points
+      .map(normalizeMap2RefinementPoint)
+      .filter((point) => point && (Number.isFinite(point.targetX) || Number.isFinite(point.targetY)))
+      .forEach((point) => {
+        const targetX = Number.isFinite(point.targetX) ? point.targetX : point.x;
+        const targetY = Number.isFinite(point.targetY) ? point.targetY : point.y;
+        const z = structure.z + point.z + 0.14;
+        segments.push(
+          new THREE.Vector3(structure.x + point.x, structure.y + point.y, z),
+          new THREE.Vector3(structure.x + targetX, structure.y + targetY, z),
+        );
+      });
+    return segments;
   }
 
   function getMap2RefinementColor(action) {
@@ -3817,12 +3903,14 @@
     );
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(pointer, map2Camera);
+    const bottomTraceHit = getMap2BottomTraceRefinementHit(raycaster);
+    if (bottomTraceHit) return bottomTraceHit;
     const meshes = [];
     map2Root.traverse((child) => {
       if (child.isMesh && child.userData?.map2StructureId) meshes.push(child);
     });
     const hits = raycaster.intersectObjects(meshes, false);
-    if (!hits.length) return getMap2BottomTraceRefinementHit(raycaster);
+    if (!hits.length) return null;
     const hit = hits[0];
     const structureId = hit.object.userData.map2StructureId;
     const structure = state.map.structures.find((entry) => entry.id === structureId);
@@ -3853,9 +3941,13 @@
       return null;
     }
 
-    const tolerance = Math.max(0.42, getMap2RefinementRadius() * 1.6);
+    const focusedStructure = getMap2FocusedStructure();
+    const tolerance = Math.max(focusedStructure ? 1.5 : 0.9, getMap2RefinementRadius() * (focusedStructure ? 4 : 2.5));
+    const candidateStructures = focusedStructure
+      ? getMap2Structures().filter((structure) => structure.id === focusedStructure.id)
+      : getMap2Structures();
     let best = null;
-    getMap2Structures().forEach((structure) => {
+    candidateStructures.forEach((structure) => {
       const annotations = getMap2StructureRefinementAnnotations(structure.id);
       const footprint = getMap2RefinedFootprint(structure, getRockFootprint(structure), annotations);
       const localPoint = [worldPoint.x - structure.x, worldPoint.y - structure.y];
@@ -3868,6 +3960,8 @@
           x: edge.point[0],
           y: edge.point[1],
           z: structure.id === "center-shelf" ? 0.08 : 0.02,
+          targetX: localPoint[0],
+          targetY: localPoint[1],
         },
       };
     });
@@ -3886,11 +3980,7 @@
       strength: getMap2RefinementStrength(),
       radius: getMap2RefinementRadius(),
       note: state.ui.map2RefinementNote || "",
-      points: points.map((point) => ({
-        x: Number(point.x.toFixed(3)),
-        y: Number(point.y.toFixed(3)),
-        z: Number(point.z.toFixed(3)),
-      })),
+      points: points.map(serializeMap2RefinementPoint),
     };
     state.map.refinementAnnotations = [
       ...(state.map.refinementAnnotations || []),
@@ -3901,6 +3991,17 @@
     renderReefMap2({ rebuild: true });
     renderInsightsContext();
     showToast("Geometry note added.");
+  }
+
+  function serializeMap2RefinementPoint(point) {
+    const serialized = {
+      x: Number(point.x.toFixed(3)),
+      y: Number(point.y.toFixed(3)),
+      z: Number(point.z.toFixed(3)),
+    };
+    if (Number.isFinite(Number(point.targetX))) serialized.targetX = Number(Number(point.targetX).toFixed(3));
+    if (Number.isFinite(Number(point.targetY))) serialized.targetY = Number(Number(point.targetY).toFixed(3));
+    return serialized;
   }
 
   function finishMap2RefinementArea() {
