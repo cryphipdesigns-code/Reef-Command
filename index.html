@@ -17,10 +17,10 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <script src="./vendor/supabase.min.js?v=38"></script>
-    <script src="./vendor/lucide.min.js?v=38"></script>
+    <script src="./vendor/supabase.min.js?v=39"></script>
+    <script src="./vendor/lucide.min.js?v=39"></script>
     <script src="./vendor/three.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=38" />
+    <link rel="stylesheet" href="./styles.css?v=39" />
   </head>
   <body>
     <div id="appShell">
@@ -327,16 +327,6 @@
                 Reset
               </button>
             </div>
-            <div class="map-toolbar map-layer-toolbar" role="toolbar" aria-label="Map 2.0 marker layers">
-              <button class="mini-button active" type="button" data-map-layer="par">
-                <i data-lucide="sun"></i>
-                PAR
-              </button>
-              <button class="mini-button active" type="button" data-map-layer="livestock">
-                <i data-lucide="map-pin"></i>
-                Stock
-              </button>
-            </div>
             <div class="map2-view-options">
               <label>
                 Focus
@@ -353,40 +343,6 @@
                   <span id="map2RefinementOpacityValue">35%</span>
                 </label>
               </div>
-            </div>
-            <div class="marker-panel map-marker-panel">
-              <div class="section-heading">
-                <h2>Markers</h2>
-                <span id="mapMarkerModePill" class="status-pill">Navigate</span>
-              </div>
-              <div class="map-toolbar map-tool-toolbar" role="toolbar" aria-label="Marker tools">
-                <button class="mini-button active" type="button" data-map-tool="navigate">
-                  <i data-lucide="move-3d"></i>
-                  Navigate
-                </button>
-                <button class="mini-button" type="button" data-map-tool="par">
-                  <i data-lucide="sun-medium"></i>
-                  PAR Point
-                </button>
-                <button class="mini-button" type="button" data-map-tool="stock">
-                  <i data-lucide="map-pin-plus"></i>
-                  Stock
-                </button>
-              </div>
-              <form id="mapMarkerForm" class="field-grid">
-                <label id="mapParValueField">
-                  PAR
-                  <input id="mapParValue" type="number" min="0" step="1" inputmode="numeric" />
-                </label>
-                <label id="mapStockSelectField">
-                  Stock
-                  <select id="mapStockSelect"></select>
-                </label>
-                <label class="wide-field">
-                  Note
-                  <input id="mapMarkerNote" type="text" />
-                </label>
-              </form>
             </div>
             <div class="marker-panel map2-refine-panel">
               <div class="section-heading map-heading">
@@ -457,6 +413,108 @@
                 <button class="mini-button" type="button" data-map2-refinement-cancel>Cancel draft</button>
               </div>
               <div id="map2RefinementList" class="map2-refinement-list"></div>
+            </div>
+          </section>
+
+          <section class="map-surface map3-surface">
+            <div class="section-heading map-heading">
+              <div>
+                <h2>Map 3.0</h2>
+                <p id="map3Summary" class="muted-line">Silhouette placement draft</p>
+              </div>
+              <span id="map3QualityPill" class="status-pill">Scratch silhouette</span>
+            </div>
+
+            <div class="reef-map-stage" id="reefMap3Stage">
+              <canvas id="reefMap3Canvas"></canvas>
+              <div id="reefMap3Fallback" class="map-fallback" hidden>
+                3D renderer unavailable.
+              </div>
+              <div class="map-corner-label map-corner-label-front">Front glass</div>
+              <div class="map-corner-label map-corner-label-right">Right side</div>
+            </div>
+
+            <div class="map-toolbar" role="toolbar" aria-label="Map 3.0 controls">
+              <button class="mini-button active" type="button" data-map3-view="front">
+                <i data-lucide="square"></i>
+                Front
+              </button>
+              <button class="mini-button" type="button" data-map3-view="left">
+                <i data-lucide="arrow-left"></i>
+                Left
+              </button>
+              <button class="mini-button" type="button" data-map3-view="right">
+                <i data-lucide="arrow-right"></i>
+                Right
+              </button>
+              <button class="mini-button" type="button" data-map3-view="top">
+                <i data-lucide="arrow-up"></i>
+                Top
+              </button>
+            </div>
+            <div class="map-toolbar map3-nav-toolbar" role="toolbar" aria-label="Map 3.0 navigation tools">
+              <button class="mini-button active" type="button" data-map3-nav="rotate">
+                <i data-lucide="rotate-3d"></i>
+                Rotate
+              </button>
+              <button class="mini-button" type="button" data-map3-nav="pan">
+                <i data-lucide="move"></i>
+                Pan
+              </button>
+              <button class="mini-button" type="button" data-map3-reset-camera>
+                <i data-lucide="locate-fixed"></i>
+                Reset
+              </button>
+            </div>
+            <div class="map-toolbar map-layer-toolbar" role="toolbar" aria-label="Map 3.0 marker layers">
+              <button class="mini-button active" type="button" data-map-layer="par">
+                <i data-lucide="sun"></i>
+                PAR
+              </button>
+              <button class="mini-button active" type="button" data-map-layer="livestock">
+                <i data-lucide="map-pin"></i>
+                Stock
+              </button>
+            </div>
+            <div class="map3-view-options">
+              <label>
+                Focus
+                <select id="map3FocusSelect"></select>
+              </label>
+            </div>
+            <div class="marker-panel map-marker-panel">
+              <div class="section-heading">
+                <h2>Markers</h2>
+                <span id="mapMarkerModePill" class="status-pill">Navigate</span>
+              </div>
+              <div class="map-toolbar map-tool-toolbar" role="toolbar" aria-label="Marker tools">
+                <button class="mini-button active" type="button" data-map-tool="navigate">
+                  <i data-lucide="move-3d"></i>
+                  Navigate
+                </button>
+                <button class="mini-button" type="button" data-map-tool="par">
+                  <i data-lucide="sun-medium"></i>
+                  PAR Point
+                </button>
+                <button class="mini-button" type="button" data-map-tool="stock">
+                  <i data-lucide="map-pin-plus"></i>
+                  Stock
+                </button>
+              </div>
+              <form id="mapMarkerForm" class="field-grid">
+                <label id="mapParValueField">
+                  PAR
+                  <input id="mapParValue" type="number" min="0" step="1" inputmode="numeric" />
+                </label>
+                <label id="mapStockSelectField">
+                  Stock
+                  <select id="mapStockSelect"></select>
+                </label>
+                <label class="wide-field">
+                  Note
+                  <input id="mapMarkerNote" type="text" />
+                </label>
+              </form>
             </div>
           </section>
 
@@ -946,7 +1004,7 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </div>
 
-    <script src="./map-lidar-data.js?v=38"></script>
-    <script src="./app.js?v=38"></script>
+    <script src="./map-lidar-data.js?v=39"></script>
+    <script src="./app.js?v=39"></script>
   </body>
 </html>

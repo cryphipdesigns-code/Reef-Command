@@ -571,6 +571,12 @@ textarea:focus {
     #eef7f6;
 }
 
+.map3-surface .reef-map-stage {
+  background:
+    linear-gradient(180deg, rgba(231, 244, 241, 0.95), rgba(253, 255, 252, 0.97)),
+    #edf6f2;
+}
+
 .map-fallback {
   position: absolute;
   inset: 0;
@@ -645,6 +651,11 @@ textarea:focus {
   gap: 10px;
 }
 
+.map3-view-options {
+  display: grid;
+  grid-template-columns: minmax(180px, 320px);
+}
+
 .map2-overlay-controls {
   display: grid;
   gap: 8px;
@@ -669,6 +680,10 @@ textarea:focus {
 }
 
 .map2-nav-toolbar {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.map3-nav-toolbar {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 

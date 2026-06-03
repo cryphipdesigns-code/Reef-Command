@@ -26,6 +26,90 @@
     water_change: "waterChangeForm",
   };
 
+  const MAP3_SILHOUETTE_STRUCTURES = [
+    {
+      id: "left-rock",
+      name: "Left back rock",
+      x: -8.6,
+      y: 1.35,
+      z: 1.3,
+      width: 6.6,
+      depth: 8.7,
+      height: 6.0,
+      touchesBackGlass: true,
+      footprint: [[-3.3, -3.15], [-2.55, -4.25], [-1.05, -4.65], [0.85, -4.52], [2.35, -3.62], [3.05, -2.15], [3.18, -0.4], [2.9, 1.35], [2.05, 2.72], [0.75, 3.42], [-0.95, 3.55], [-2.25, 2.92], [-3.1, 1.55], [-3.38, -0.35]],
+      frontProfile: [[-3.3, 0.55], [-2.55, 1.35], [-1.72, 3.05], [-0.55, 5.0], [0.65, 5.7], [1.75, 4.65], [2.55, 2.45], [3.18, 0.72]],
+      sideProfile: [[-4.65, 0.35], [-3.45, 1.35], [-2.2, 3.15], [-0.8, 4.95], [0.65, 5.7], [2.0, 4.35], [3.55, 1.2]],
+      surfaceRidges: [
+        { from: [-2.4, -1.8], to: [1.9, 1.4], h: 0.28, r: 0.9 },
+      ],
+    },
+    {
+      id: "front-left-rock",
+      name: "Front left sand rock",
+      x: -6.45,
+      y: -4.15,
+      z: 1.3,
+      width: 5.2,
+      depth: 2.9,
+      height: 2.35,
+      footprint: [[-2.55, -1.05], [-1.75, -1.35], [-0.38, -1.28], [1.32, -0.88], [2.48, -0.08], [2.3, 0.9], [1.05, 1.35], [-0.55, 1.22], [-1.88, 0.72], [-2.5, -0.18]],
+      frontProfile: [[-2.55, 0.35], [-1.55, 1.0], [-0.32, 2.05], [0.9, 1.8], [1.92, 1.05], [2.48, 0.4]],
+      sideProfile: [[-1.35, 0.2], [-0.48, 1.35], [0.25, 2.05], [1.25, 0.8]],
+    },
+    {
+      id: "front-right-rock",
+      name: "Front right sand rock",
+      x: 4.8,
+      y: -4.05,
+      z: 1.3,
+      width: 5.8,
+      depth: 3.25,
+      height: 2.85,
+      footprint: [[-2.8, -1.25], [-1.58, -1.62], [0.25, -1.45], [1.85, -0.92], [2.72, 0.02], [2.58, 1.04], [1.42, 1.55], [-0.28, 1.42], [-1.85, 0.92], [-2.68, -0.1]],
+      frontProfile: [[-2.8, 0.5], [-1.8, 1.28], [-0.56, 2.38], [0.7, 2.72], [1.78, 1.9], [2.72, 0.68]],
+      sideProfile: [[-1.62, 0.18], [-0.62, 1.72], [0.42, 2.68], [1.55, 0.95]],
+      surfaceRidges: [
+        { from: [-1.4, -0.2], to: [1.4, 0.52], h: 0.18, r: 0.6 },
+      ],
+    },
+    {
+      id: "right-rock",
+      name: "Right back rock",
+      x: 9.15,
+      y: 1.2,
+      z: 1.3,
+      width: 7.0,
+      depth: 8.9,
+      height: 5.45,
+      touchesBackGlass: true,
+      footprint: [[-3.45, -2.88], [-3.12, -4.05], [-2.15, -4.65], [-0.85, -4.35], [0.2, -4.82], [1.2, -4.18], [2.62, -3.82], [3.4, -2.58], [3.25, -1.02], [3.55, 0.6], [3.12, 2.18], [2.12, 3.34], [0.55, 3.82], [-0.88, 3.45], [-2.1, 3.68], [-3.12, 2.55], [-3.5, 0.95], [-3.22, -0.88]],
+      frontProfile: [[-3.45, 0.6], [-2.65, 1.45], [-1.55, 2.85], [-0.25, 3.72], [1.05, 5.12], [2.15, 4.45], [3.1, 2.32], [3.55, 0.76]],
+      sideProfile: [[-4.82, 0.18], [-3.55, 1.12], [-2.2, 2.62], [-0.72, 4.1], [0.95, 5.2], [2.45, 4.35], [3.82, 2.25]],
+      surfaceRidges: [
+        { from: [-2.1, -2.0], to: [2.2, 1.8], h: 0.32, r: 0.85 },
+      ],
+    },
+    {
+      id: "center-shelf",
+      name: "Center shelf",
+      x: 0.15,
+      y: 1.45,
+      z: 4.85,
+      width: 13.6,
+      depth: 7.9,
+      height: 5.55,
+      touchesBackGlass: true,
+      footprint: [[-6.75, -2.58], [-5.55, -3.35], [-3.75, -3.62], [-2.15, -2.75], [-0.65, -3.1], [1.1, -3.18], [3.08, -2.68], [5.25, -1.88], [6.62, -0.35], [6.48, 1.42], [5.35, 2.82], [3.38, 3.55], [0.85, 3.82], [-1.25, 3.58], [-3.35, 3.4], [-5.72, 2.55], [-6.82, 0.88]],
+      frontProfile: [[-6.75, 0.82], [-5.52, 2.22], [-3.95, 3.72], [-2.25, 4.65], [-0.45, 5.0], [1.35, 4.78], [3.15, 4.18], [5.05, 2.8], [6.62, 0.95]],
+      sideProfile: [[-3.62, 0.62], [-2.4, 1.82], [-1.05, 3.62], [0.62, 4.82], [2.35, 5.05], [3.82, 2.65]],
+      surfaceRidges: [
+        { from: [-5.35, -0.85], to: [5.35, 1.45], h: 0.24, r: 0.95 },
+        { from: [-3.0, 1.65], to: [3.0, 2.4], h: 0.18, r: 0.72 },
+      ],
+    },
+  ];
+
   let state = normalizeState(readJson(STORAGE_KEY) || getDefaultState());
   let backendConfig = readJson(BACKEND_KEY) || {};
   let supabaseClient = null;
@@ -46,8 +130,24 @@
   let map2ResizeObserver = null;
   let map2PointerState = null;
   let appliedMap2ViewPreset = null;
+  let map3Renderer = null;
+  let map3Scene = null;
+  let map3Camera = null;
+  let map3Root = null;
+  let map3AnimationFrame = null;
+  let map3ResizeObserver = null;
+  let map3PointerState = null;
+  let appliedMap3ViewPreset = null;
   const scanMeshAssetCache = new Map();
   const map2ViewState = {
+    yaw: 0,
+    pitch: 0,
+    distance: 42,
+    targetOffsetX: 0,
+    targetOffsetY: 0,
+    targetOffsetZ: 0,
+  };
+  const map3ViewState = {
     yaw: 0,
     pitch: 0,
     distance: 42,
@@ -155,6 +255,8 @@
         map2RefinementNote: "",
         map2RefinementOverlayVisible: true,
         map2RefinementOverlayOpacity: 0.35,
+        map3FocusStructureId: "tank",
+        map3NavTool: "rotate",
       },
     };
   }
@@ -1536,6 +1638,7 @@
     $("viewTitle").textContent = $(viewMap[next]).dataset.title || "Reef Command";
     if (next === "map") {
       requestAnimationFrame(() => renderReefMap2({ rebuild: true }));
+      requestAnimationFrame(() => renderReefMap3({ rebuild: true }));
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
     refreshIcons();
@@ -1547,6 +1650,7 @@
     renderZones();
     renderMapSettings();
     renderMap2Settings();
+    renderMap3Settings();
     renderMapSummaries();
     renderMapMarkerControls();
     syncLivestockDateControls();
@@ -1729,6 +1833,25 @@
     });
   }
 
+  function renderMap3Settings() {
+    if (!$("map3Summary")) return;
+    const dimensions = state.map.dimensions;
+    $("map3Summary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · 5 silhouette rocks`;
+    $("map3QualityPill").textContent = "Scratch silhouette";
+    renderMap3FocusSelect();
+    $$("[data-map3-view]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.map3View === (appliedMap3ViewPreset || "front"));
+    });
+    renderMap3NavigationControls();
+  }
+
+  function renderMap3NavigationControls() {
+    const navTool = getMap3NavTool();
+    $$("[data-map3-nav]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.map3Nav === navTool);
+    });
+  }
+
   function renderMap2FocusSelect() {
     const select = $("map2FocusSelect");
     if (!select) return;
@@ -1740,6 +1863,21 @@
       ? state.ui.map2FocusStructureId
       : "tank";
     if (current !== state.ui.map2FocusStructureId) state.ui.map2FocusStructureId = current;
+    select.replaceChildren(...options.map((option) => new Option(option.name, option.id)));
+    select.value = current;
+  }
+
+  function renderMap3FocusSelect() {
+    const select = $("map3FocusSelect");
+    if (!select) return;
+    const options = [
+      { id: "tank", name: "Whole tank" },
+      ...getMap3Structures().map((structure) => ({ id: structure.id, name: structure.name })),
+    ];
+    const current = options.some((option) => option.id === state.ui.map3FocusStructureId)
+      ? state.ui.map3FocusStructureId
+      : "tank";
+    if (current !== state.ui.map3FocusStructureId) state.ui.map3FocusStructureId = current;
     select.replaceChildren(...options.map((option) => new Option(option.name, option.id)));
     select.value = current;
   }
@@ -1852,6 +1990,10 @@
     return ["rotate", "pan"].includes(state.ui.map2NavTool) ? state.ui.map2NavTool : "rotate";
   }
 
+  function getMap3NavTool() {
+    return ["rotate", "pan"].includes(state.ui.map3NavTool) ? state.ui.map3NavTool : "rotate";
+  }
+
   function getMap2RefinementShapeLabel(shape) {
     return {
       point: "Point",
@@ -1927,8 +2069,10 @@
     saveState();
     renderMapSettings();
     renderMap2Settings();
+    renderMap3Settings();
     renderMapSummaries();
     renderReefMap2({ rebuild: true });
+    renderReefMap3({ rebuild: true });
     renderInsightsContext();
   }
 
@@ -2020,7 +2164,7 @@
   }
 
   function getMapStructureName(id) {
-    return state.map.structures.find((structure) => structure.id === id)?.name || "Mapped";
+    return getMap3StructureById(id)?.name || state.map.structures.find((structure) => structure.id === id)?.name || "Mapped";
   }
 
   function renderReefMap2(options = {}) {
@@ -2108,8 +2252,6 @@
       const mesh = createMap2Rock(structure, index);
       if (mesh) map2Root.add(mesh);
     });
-    if (state.map.layers.par) addMap2ParMarkers();
-    if (state.map.layers.livestock) addMap2LivestockMarkers();
     addMap2RefinementAnnotations();
   }
 
@@ -2199,6 +2341,390 @@
     sand.name = "map2-sand-bed";
     sand.userData.map2Surface = "sand";
     map2Root.add(sand);
+  }
+
+  function renderReefMap3(options = {}) {
+    if (!$("reefMap3Stage")) return;
+    if (!window.THREE) {
+      $("reefMap3Fallback").hidden = false;
+      return;
+    }
+    $("reefMap3Fallback").hidden = true;
+    if (!ensureMap3Renderer()) return;
+    resizeMap3Renderer();
+    if (options.rebuild || !map3Root) rebuildReefMap3Scene();
+    if (!appliedMap3ViewPreset) applyMap3ViewPreset("front");
+    updateMap3Camera();
+    map3Renderer.render(map3Scene, map3Camera);
+    renderMap3Settings();
+  }
+
+  function ensureMap3Renderer() {
+    if (map3Renderer) return true;
+    const canvas = $("reefMap3Canvas");
+    if (!canvas || !window.THREE) return false;
+
+    map3Scene = new THREE.Scene();
+    map3Scene.fog = new THREE.Fog(0xeaf6f2, 44, 94);
+    map3Camera = new THREE.PerspectiveCamera(42, 1, 0.1, 500);
+    map3Camera.up.set(0, 0, 1);
+    map3Renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
+    map3Renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    if ("outputColorSpace" in map3Renderer && THREE.SRGBColorSpace) {
+      map3Renderer.outputColorSpace = THREE.SRGBColorSpace;
+    }
+    map3Renderer.shadowMap.enabled = true;
+    map3Renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    bindMap3PointerEvents($("reefMap3Stage"));
+    map3ResizeObserver = new ResizeObserver(() => renderReefMap3());
+    map3ResizeObserver.observe($("reefMap3Stage"));
+    startMap3Animation();
+    return true;
+  }
+
+  function resizeMap3Renderer() {
+    const stage = $("reefMap3Stage");
+    if (!stage || !map3Renderer || !map3Camera) return;
+    const rect = stage.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    const canvas = map3Renderer.domElement;
+    if (canvas.width !== Math.floor(width * map3Renderer.getPixelRatio()) || canvas.height !== Math.floor(height * map3Renderer.getPixelRatio())) {
+      map3Renderer.setSize(width, height, false);
+      map3Camera.aspect = width / height;
+      map3Camera.updateProjectionMatrix();
+    }
+  }
+
+  function startMap3Animation() {
+    if (map3AnimationFrame) cancelAnimationFrame(map3AnimationFrame);
+    const tick = () => {
+      if (map3Renderer && $("mapView")?.classList.contains("active")) {
+        updateMap3Camera();
+        map3Renderer.render(map3Scene, map3Camera);
+      }
+      map3AnimationFrame = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  function rebuildReefMap3Scene() {
+    clearMap3Scene();
+    map3Root = new THREE.Group();
+    map3Scene.add(map3Root);
+
+    const dimensions = state.map.dimensions;
+    addMap3Lighting(dimensions);
+    addMap3TankEnvelope(dimensions);
+    addMap3SandBed(dimensions);
+
+    getMap3Structures().forEach((structure, index) => {
+      const rock = createMap3SilhouetteRock(structure, index);
+      if (rock) map3Root.add(rock);
+    });
+    if (state.map.layers.par) addMap3ParMarkers();
+    if (state.map.layers.livestock) addMap3LivestockMarkers();
+  }
+
+  function clearMap3Scene() {
+    if (!map3Scene) return;
+    while (map3Scene.children.length) {
+      const child = map3Scene.children.pop();
+      disposeThreeObject(child);
+    }
+    map3Root = null;
+  }
+
+  function addMap3Lighting(dimensions) {
+    const ambient = new THREE.HemisphereLight(0xedfbff, 0x4b5f54, 1.62);
+    map3Scene.add(ambient);
+
+    const key = new THREE.DirectionalLight(0xffffff, 3.0);
+    key.position.set(-dimensions.width * 0.2, -dimensions.depth * 0.48, dimensions.height * 1.95);
+    key.castShadow = true;
+    key.shadow.mapSize.width = 2048;
+    key.shadow.mapSize.height = 2048;
+    key.shadow.camera.near = 1;
+    key.shadow.camera.far = 85;
+    key.shadow.camera.left = -dimensions.width;
+    key.shadow.camera.right = dimensions.width;
+    key.shadow.camera.top = dimensions.height;
+    key.shadow.camera.bottom = -dimensions.height;
+    map3Scene.add(key);
+
+    const fill = new THREE.PointLight(0x91d7c8, 0.8, 82);
+    fill.position.set(dimensions.width * 0.45, -dimensions.depth * 0.68, dimensions.height * 0.72);
+    map3Scene.add(fill);
+  }
+
+  function addMap3TankEnvelope(dimensions) {
+    const glassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xd2eeee,
+      transparent: true,
+      opacity: 0.1,
+      roughness: 0.05,
+      metalness: 0,
+      transmission: 0.2,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const tank = new THREE.Mesh(new THREE.BoxGeometry(dimensions.width, dimensions.depth, dimensions.height), glassMaterial);
+    tank.position.z = dimensions.height / 2;
+    map3Root.add(tank);
+
+    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x2d4a45, transparent: true, opacity: 0.68 });
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(tank.geometry), edgeMaterial);
+    edges.position.copy(tank.position);
+    map3Root.add(edges);
+
+    const water = new THREE.Mesh(
+      new THREE.PlaneGeometry(dimensions.width, dimensions.depth),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x8bd6d7,
+        transparent: true,
+        opacity: 0.14,
+        roughness: 0.08,
+        metalness: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    water.position.z = dimensions.waterline;
+    map3Root.add(water);
+  }
+
+  function addMap3SandBed(dimensions) {
+    const random = seededRandom("map3-sand-bed");
+    const geometry = new THREE.PlaneGeometry(dimensions.width, dimensions.depth, 52, 24);
+    const positions = geometry.attributes.position;
+    for (let index = 0; index < positions.count; index += 1) {
+      const x = positions.getX(index);
+      const y = positions.getY(index);
+      const ripple = Math.sin(x * 0.58 + y * 1.18) * 0.04 + Math.cos(y * 1.5 - x * 0.12) * 0.035;
+      positions.setZ(index, dimensions.sandDepth + ripple + random() * 0.04);
+    }
+    geometry.computeVertexNormals();
+    const sand = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({ color: 0xd8ccb0, roughness: 0.96, metalness: 0 }),
+    );
+    sand.receiveShadow = true;
+    sand.name = "map3-sand-bed";
+    sand.userData.map3Surface = "sand";
+    map3Root.add(sand);
+  }
+
+  function getMap3Structures() {
+    return MAP3_SILHOUETTE_STRUCTURES.map((structure) => {
+      const existing = state.map.structures.find((entry) => entry.id === structure.id) || {};
+      return {
+        ...structure,
+        type: "silhouette-rock",
+        light: existing.light || "Medium",
+        flow: existing.flow || "Medium",
+        parMin: existing.parMin || 0,
+        parMax: existing.parMax || 0,
+        heightPoints: [],
+        ridges: Array.isArray(structure.surfaceRidges) ? structure.surfaceRidges : [],
+        depressions: [],
+        troughs: [],
+        meshResolution: structure.id === "center-shelf" ? 1.22 : 1.08,
+        edgeSoftness: structure.id === "center-shelf" ? 0.95 : 0.72,
+        edgeFloor: structure.id === "center-shelf" ? 0.34 : 0.2,
+        reliefMin: structure.id === "center-shelf" ? 0.94 : 0.9,
+        reliefMax: structure.id === "center-shelf" ? 1.04 : 1.07,
+        surfaceNoise: structure.id === "center-shelf" ? 0.035 : 0.055,
+      };
+    });
+  }
+
+  function getMap3StructureById(id) {
+    return getMap3Structures().find((structure) => structure.id === id) || null;
+  }
+
+  function createMap3SilhouetteRock(structure, index) {
+    const footprint = getMap3RockFootprint(structure);
+    const group = new THREE.Group();
+    group.name = `${structure.id}-map3-silhouette`;
+
+    const mesh = new THREE.Mesh(
+      createMap3SilhouetteRockGeometry(structure, footprint, index),
+      createMap3RockMaterial(structure),
+    );
+    mesh.name = `${structure.id}-map3-rock`;
+    mesh.userData.map3StructureId = structure.id;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 5 + index;
+    group.add(mesh);
+
+    addMap3SilhouetteOutlines(group, structure, footprint);
+    return group;
+  }
+
+  function createMap3SilhouetteRockGeometry(structure, footprint, index) {
+    const bounds = getPointBounds(footprint);
+    const maxDimension = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+    const perimeterLength = getPerimeterLength(footprint);
+    const sampleCount = Math.round(clamp(64, 176, (perimeterLength / 0.15) * structure.meshResolution));
+    const ringCount = Math.round(clamp(18, 52, (maxDimension / 0.23) * structure.meshResolution));
+    const perimeter = sampleFootprintPerimeter(footprint, sampleCount);
+    const center = polygonCentroid(footprint);
+    const vertices = [];
+    const colors = [];
+    const indices = [];
+
+    const addVertex = (x, y, z, color) => {
+      const vertexIndex = vertices.length / 3;
+      vertices.push(structure.x + x, structure.y + y, structure.z + z);
+      colors.push(color.r, color.g, color.b);
+      return vertexIndex;
+    };
+
+    const centerZ = map3RockHeightAt(structure, footprint, center[0], center[1]);
+    const centerIndex = addVertex(center[0], center[1], centerZ, map3RockVertexColor(structure, center[0], center[1], centerZ, index));
+    const rings = [];
+
+    for (let ringIndex = 1; ringIndex <= ringCount; ringIndex += 1) {
+      const radialT = ringIndex / ringCount;
+      const ring = [];
+      perimeter.forEach((point, pointIndex) => {
+        const x = lerp(center[0], point[0], radialT);
+        const y = lerp(center[1], point[1], radialT);
+        const z = map3RockHeightAt(structure, footprint, x, y);
+        ring.push(addVertex(x, y, z, map3RockVertexColor(structure, x, y, z, index + pointIndex)));
+      });
+      rings.push(ring);
+    }
+
+    for (let pointIndex = 0; pointIndex < sampleCount; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % sampleCount;
+      indices.push(centerIndex, rings[0][pointIndex], rings[0][nextIndex]);
+    }
+
+    for (let ringIndex = 1; ringIndex < rings.length; ringIndex += 1) {
+      const innerRing = rings[ringIndex - 1];
+      const outerRing = rings[ringIndex];
+      for (let pointIndex = 0; pointIndex < sampleCount; pointIndex += 1) {
+        const nextIndex = (pointIndex + 1) % sampleCount;
+        const innerA = innerRing[pointIndex];
+        const innerB = innerRing[nextIndex];
+        const outerA = outerRing[pointIndex];
+        const outerB = outerRing[nextIndex];
+        indices.push(innerA, outerA, innerB, innerB, outerA, outerB);
+      }
+    }
+
+    addMap3FootprintSkirt(structure, footprint, perimeter, rings[rings.length - 1], vertices, colors, indices);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+    return geometry;
+  }
+
+  function addMap3FootprintSkirt(structure, footprint, perimeter, outerRing, vertices, colors, indices) {
+    const dark = new THREE.Color(structure.id === "center-shelf" ? 0x332832 : 0x312a2d);
+    const bottom = new THREE.Color(0x282428);
+    const center = polygonCentroid(footprint);
+    const baseZ = structure.id === "center-shelf" ? 0.06 : -0.06;
+    const addVertex = (x, y, z, color) => {
+      const vertexIndex = vertices.length / 3;
+      vertices.push(structure.x + x, structure.y + y, structure.z + z);
+      colors.push(color.r, color.g, color.b);
+      return vertexIndex;
+    };
+
+    const bottomRing = perimeter.map((point) => addVertex(point[0], point[1], baseZ, dark));
+    for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % perimeter.length;
+      indices.push(outerRing[pointIndex], bottomRing[pointIndex], outerRing[nextIndex]);
+      indices.push(outerRing[nextIndex], bottomRing[pointIndex], bottomRing[nextIndex]);
+    }
+
+    const bottomCenter = addVertex(center[0], center[1], baseZ, bottom);
+    for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % perimeter.length;
+      indices.push(bottomCenter, bottomRing[nextIndex], bottomRing[pointIndex]);
+    }
+  }
+
+  function addMap3SilhouetteOutlines(group, structure, footprint) {
+    const baseMaterial = new THREE.LineBasicMaterial({ color: 0x274845, transparent: true, opacity: 0.32 });
+    const topMaterial = new THREE.LineBasicMaterial({ color: 0xe4c467, transparent: true, opacity: 0.42 });
+    const basePoints = footprint.map(([x, y]) => new THREE.Vector3(structure.x + x, structure.y + y, structure.z + 0.08));
+    const topPoints = footprint.map(([x, y]) => new THREE.Vector3(
+      structure.x + x,
+      structure.y + y,
+      structure.z + map3RockHeightAt(structure, footprint, x, y) + 0.06,
+    ));
+    const baseLine = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(basePoints), baseMaterial);
+    const topLine = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(topPoints), topMaterial);
+    baseLine.renderOrder = 18;
+    topLine.renderOrder = 19;
+    group.add(baseLine);
+    group.add(topLine);
+  }
+
+  function createMap3RockMaterial(structure) {
+    return new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      emissive: structure.id === "center-shelf" ? 0x251923 : 0x20191f,
+      emissiveIntensity: structure.id === "center-shelf" ? 0.2 : 0.17,
+      roughness: 0.96,
+      metalness: 0.01,
+      flatShading: false,
+      side: THREE.DoubleSide,
+    });
+  }
+
+  function getMap3RockFootprint(structure) {
+    const footprint = Array.isArray(structure.footprint) && structure.footprint.length >= 3
+      ? structure.footprint.map((point) => [point[0], point[1]])
+      : getRockFootprint(structure).map((point) => [point[0], point[1]]);
+    return structure.touchesBackGlass ? lockFootprintToBackGlass(structure, footprint) : footprint;
+  }
+
+  function map3RockHeightAt(structure, footprint, x, y) {
+    const frontLimit = profileValueAt(structure.frontProfile, x, structure.height);
+    const sideLimit = profileValueAt(structure.sideProfile, y, structure.height);
+    const silhouetteLimit = clamp(0.18, structure.height, Math.min(frontLimit, sideLimit));
+    const edgeDistance = distanceToPolygonEdge([x, y], footprint);
+    const edgeTaper = smoothstep(0, structure.edgeSoftness || 0.72, edgeDistance);
+    const edgeFloor = clamp(0.1, 0.98, structure.edgeFloor || 0.2);
+    let relief =
+      1 +
+      (surfaceNoise(`${structure.id}-map3-surface`, x * 0.7, y * 0.7) - 0.5) * (structure.surfaceNoise || 0.05) +
+      (surfaceNoise(`${structure.id}-map3-broad`, x * 0.22 - y * 0.08, y * 0.22 + x * 0.04) - 0.5) * 0.035;
+
+    (structure.ridges || []).forEach((ridge) => {
+      const distance = distanceToSegment([x, y], ridge.from, ridge.to);
+      relief += (ridge.h / Math.max(1, structure.height)) * Math.exp(-(distance * distance) / (2 * ridge.r * ridge.r));
+    });
+
+    let height = silhouetteLimit * (edgeFloor + (1 - edgeFloor) * edgeTaper) * clamp(structure.reliefMin || 0.9, structure.reliefMax || 1.07, relief);
+    if (structure.id === "center-shelf") {
+      const plateau = silhouetteLimit * (0.72 + edgeTaper * 0.18);
+      height = Math.max(height, plateau);
+      const terrace = Math.round(height / 0.52) * 0.52;
+      height = lerp(height, terrace, edgeTaper * 0.14);
+    }
+    return clamp(structure.id === "center-shelf" ? 0.62 : 0.16, structure.height, height);
+  }
+
+  function map3RockVertexColor(structure, x, y, z, salt) {
+    const color = rockVertexColor(structure, x, y, z, salt);
+    if (structure.id === "center-shelf") color.lerp(new THREE.Color(0x7d4763), 0.08);
+    return color;
   }
 
   function getMap2Structures() {
@@ -3239,6 +3765,44 @@
     });
   }
 
+  function addMap3ParMarkers() {
+    (state.map.parMarkers || []).forEach((marker) => {
+      const anchor = getMap3MarkerAnchor(marker);
+      if (!anchor) return;
+      const value = Number(marker.value);
+      const color = Number.isFinite(value) && value >= 180 ? 0xf2c94c : Number.isFinite(value) && value >= 90 ? 0x4dbb7b : 0x4d9de0;
+      const pin = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 18, 12),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.34, roughness: 0.35 }),
+      );
+      pin.position.copy(anchor);
+      pin.castShadow = true;
+      map3Root.add(pin);
+      map3Root.add(createMapLabel(String(marker.value || "?"), anchor.clone().add(new THREE.Vector3(0, 0, 0.72)), "#36514f"));
+    });
+  }
+
+  function addMap3LivestockMarkers() {
+    getLivestockMapPlacements().forEach((placement, index) => {
+      const map3Structure = placement.structure?.id ? getMap3StructureById(placement.structure.id) : null;
+      const anchor = placement.manual
+        ? getMap3MarkerAnchor(placement.anchor)
+        : map3Structure ? getMap3PlacementAnchor(map3Structure, placement.id || `${index}`) : null;
+      if (!anchor) return;
+      const color = livestockColor(placement.category);
+      const marker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.22, 18, 12),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.24, roughness: 0.4 }),
+      );
+      marker.position.copy(anchor);
+      marker.castShadow = true;
+      map3Root.add(marker);
+      if (index < 18) {
+        map3Root.add(createMapLabel(placement.species, anchor.clone().add(new THREE.Vector3(0, 0, 0.85)), "#405856"));
+      }
+    });
+  }
+
   function getLivestockMapPlacements() {
     return state.livestock
       .filter((item) => isCasualStockCategory(item.category) || item.status === "active")
@@ -3294,6 +3858,22 @@
     return new THREE.Vector3(structure.x + x, structure.y + y, structure.z + z);
   }
 
+  function getMap3PlacementAnchor(structure, seed) {
+    if (!window.THREE || !structure) return null;
+    const random = seededRandom(`map3-placement-${seed}`);
+    const footprint = getMap3RockFootprint(structure);
+    const bounds = getPointBounds(footprint);
+    let x = 0;
+    let y = 0;
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      x = lerp(bounds.minX, bounds.maxX, random());
+      y = lerp(bounds.minY, bounds.maxY, random());
+      if (pointInPolygon([x, y], footprint)) break;
+    }
+    const z = map3RockHeightAt(structure, footprint, x, y) + 0.24;
+    return new THREE.Vector3(structure.x + x, structure.y + y, structure.z + z);
+  }
+
   function getMarkerAnchor(point) {
     const surface = getMapSurfaceAt(point.x, point.y);
     const z = Number.isFinite(Number(point.z)) ? Number(point.z) : surface.z;
@@ -3308,7 +3888,20 @@
     return new THREE.Vector3(point.x, point.y, Math.max(z, surface.z) + 0.24);
   }
 
+  function getMap3MarkerAnchor(point) {
+    if (!point || !window.THREE) return null;
+    const x = Number(point.x);
+    const y = Number(point.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const surface = getMap3SurfaceAt(x, y);
+    if (!surface) return null;
+    const z = Number.isFinite(Number(point.z)) ? Number(point.z) : surface.z;
+    return new THREE.Vector3(x, y, Math.max(z, surface.z) + 0.24);
+  }
+
   function getMapSurfaceAt(x, y) {
+    const map3Surface = getMap3SurfaceAt(x, y);
+    if (map3Surface) return map3Surface;
     const map2Surface = getMap2SurfaceAt(x, y);
     if (map2Surface) return map2Surface;
     const dimensions = state.map.dimensions;
@@ -3358,6 +3951,64 @@
     if (!map2Root) return meshes;
     map2Root.traverse((child) => {
       if (child.isMesh && (child.userData?.map2StructureId || child.userData?.map2Surface === "sand")) {
+        meshes.push(child);
+      }
+    });
+    return meshes;
+  }
+
+  function getMap3SurfaceAt(x, y) {
+    const worldX = Number(x);
+    const worldY = Number(y);
+    if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) return null;
+    const dimensions = state.map.dimensions;
+    if (worldX < -dimensions.width / 2 || worldX > dimensions.width / 2 || worldY < -dimensions.depth / 2 || worldY > dimensions.depth / 2) {
+      return null;
+    }
+
+    if (map3Root && window.THREE) {
+      const meshes = getMap3SurfaceMeshes();
+      if (meshes.length) {
+        const raycaster = new THREE.Raycaster(
+          new THREE.Vector3(worldX, worldY, dimensions.height + 12),
+          new THREE.Vector3(0, 0, -1),
+          0,
+          dimensions.height + 24,
+        );
+        const hits = raycaster.intersectObjects(meshes, false);
+        if (hits.length) {
+          const hit = hits[0];
+          const structureId = hit.object.userData?.map3StructureId || "";
+          return {
+            z: hit.point.z,
+            structure: structureId ? getMap3StructureById(structureId) : null,
+          };
+        }
+      }
+    }
+
+    let best = {
+      z: dimensions.sandDepth + 0.08,
+      structure: null,
+    };
+    getMap3Structures().forEach((structure) => {
+      const footprint = getMap3RockFootprint(structure);
+      const localX = worldX - structure.x;
+      const localY = worldY - structure.y;
+      if (!pointInPolygon([localX, localY], footprint)) return;
+      const z = structure.z + map3RockHeightAt(structure, footprint, localX, localY);
+      if (z > best.z) {
+        best = { z, structure };
+      }
+    });
+    return best;
+  }
+
+  function getMap3SurfaceMeshes() {
+    const meshes = [];
+    if (!map3Root) return meshes;
+    map3Root.traverse((child) => {
+      if (child.isMesh && (child.userData?.map3StructureId || child.userData?.map3Surface === "sand")) {
         meshes.push(child);
       }
     });
@@ -3548,6 +4199,138 @@
     setMap2TargetOffsetVector(offset);
   }
 
+  function updateMap3Camera() {
+    if (!map3Camera) return;
+    const target = getMap3CameraTarget();
+    const pitch = Math.max(-1.2, Math.min(1.54, map3ViewState.pitch));
+    const distance = constrainMap3Distance(map3ViewState.distance);
+    const horizontal = Math.cos(pitch) * distance;
+    map3Camera.up.set(0, pitch > 1.45 ? 1 : 0, pitch > 1.45 ? 0 : 1);
+    map3Camera.position.set(
+      target.x + Math.sin(map3ViewState.yaw) * horizontal,
+      target.y - Math.cos(map3ViewState.yaw) * horizontal,
+      target.z + Math.sin(pitch) * distance,
+    );
+    map3Camera.lookAt(target);
+  }
+
+  function getMap3CameraTarget() {
+    const target = getMap3CameraBaseTarget();
+    const offset = getMap3TargetOffsetVector();
+    return target.add(offset);
+  }
+
+  function getMap3CameraBaseTarget() {
+    const dimensions = state.map.dimensions;
+    const structure = getMap3FocusedStructure();
+    if (!structure) return new THREE.Vector3(0, 0, dimensions.height * 0.46);
+    return new THREE.Vector3(structure.x, structure.y, structure.z + structure.height * 0.5);
+  }
+
+  function getMap3FocusedStructure() {
+    const focusId = state.ui.map3FocusStructureId || "tank";
+    if (focusId === "tank") return null;
+    return getMap3StructureById(focusId);
+  }
+
+  function getMap3FocusFrameSize() {
+    const dimensions = state.map.dimensions;
+    const structure = getMap3FocusedStructure();
+    if (!structure) return Math.max(dimensions.width, dimensions.depth, dimensions.height);
+    return Math.max(structure.width, structure.depth, structure.height * 1.6);
+  }
+
+  function getMap3PresetDistance(view) {
+    const structure = getMap3FocusedStructure();
+    const frame = getMap3FocusFrameSize();
+    if (!structure) {
+      if (view === "top") return frame * 1.28;
+      return view === "front" ? frame * 1.5 : frame * 1.42;
+    }
+    const multiplier = view === "top" ? 2.12 : 2.3;
+    return Math.max(9, frame * multiplier);
+  }
+
+  function constrainMap3Distance(distance) {
+    const minimum = getMap3FocusedStructure() ? 7 : 18;
+    return Math.max(minimum, Math.min(95, distance));
+  }
+
+  function applyMap3ViewPreset(view) {
+    const normalizedView = ["front", "left", "right", "top"].includes(view) ? view : "front";
+    resetMap3TargetOffset();
+    if (normalizedView === "front") {
+      map3ViewState.yaw = 0;
+      map3ViewState.pitch = 0;
+    } else if (normalizedView === "left") {
+      map3ViewState.yaw = -Math.PI / 2;
+      map3ViewState.pitch = 0;
+    } else if (normalizedView === "right") {
+      map3ViewState.yaw = Math.PI / 2;
+      map3ViewState.pitch = 0;
+    } else if (normalizedView === "top") {
+      map3ViewState.yaw = 0;
+      map3ViewState.pitch = 1.53;
+    }
+    map3ViewState.distance = constrainMap3Distance(getMap3PresetDistance(normalizedView));
+    appliedMap3ViewPreset = normalizedView;
+    return normalizedView;
+  }
+
+  function setMap3ViewPreset(view) {
+    applyMap3ViewPreset(view);
+    renderMap3Settings();
+    renderReefMap3();
+  }
+
+  function resetMap3Camera() {
+    const resetView = ["front", "left", "right", "top"].includes(appliedMap3ViewPreset)
+      ? appliedMap3ViewPreset
+      : "front";
+    applyMap3ViewPreset(resetView);
+    renderMap3Settings();
+    renderReefMap3();
+  }
+
+  function resetMap3TargetOffset() {
+    map3ViewState.targetOffsetX = 0;
+    map3ViewState.targetOffsetY = 0;
+    map3ViewState.targetOffsetZ = 0;
+  }
+
+  function getMap3TargetOffsetVector() {
+    return new THREE.Vector3(
+      finiteNumber(map3ViewState.targetOffsetX, 0),
+      finiteNumber(map3ViewState.targetOffsetY, 0),
+      finiteNumber(map3ViewState.targetOffsetZ, 0),
+    );
+  }
+
+  function setMap3TargetOffsetVector(offset) {
+    const frame = getMap3FocusFrameSize();
+    const maximumOffset = getMap3FocusedStructure() ? frame * 1.15 : frame * 0.55;
+    if (offset.length() > maximumOffset) offset.setLength(maximumOffset);
+    map3ViewState.targetOffsetX = offset.x;
+    map3ViewState.targetOffsetY = offset.y;
+    map3ViewState.targetOffsetZ = offset.z;
+  }
+
+  function panMap3Camera(dx, dy) {
+    if (!map3Camera || !map3Renderer || !window.THREE) return;
+    const rect = map3Renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    map3Camera.updateMatrixWorld();
+    const distance = constrainMap3Distance(map3ViewState.distance);
+    const visibleHeight = 2 * Math.tan((map3Camera.fov * Math.PI / 180) / 2) * distance;
+    const visibleWidth = visibleHeight * map3Camera.aspect;
+    const right = new THREE.Vector3().setFromMatrixColumn(map3Camera.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(map3Camera.matrixWorld, 1);
+    const offset = getMap3TargetOffsetVector()
+      .add(right.multiplyScalar(-(dx / rect.width) * visibleWidth))
+      .add(up.multiplyScalar((dy / rect.height) * visibleHeight));
+    setMap3TargetOffsetVector(offset);
+  }
+
   function getMapPointerGap(pointers) {
     const points = Array.from(pointers.values());
     if (points.length < 2) return 0;
@@ -3557,14 +4340,13 @@
   function bindMap2PointerEvents(stage) {
     stage.addEventListener("pointerdown", (event) => {
       stage.setPointerCapture(event.pointerId);
-      const markerTool = getMapTool();
       const refinementShape = getMap2RefinementShape();
-      if (markerTool !== "navigate" || refinementShape !== "navigate") {
+      if (refinementShape !== "navigate") {
         event.preventDefault();
         map2PointerState = {
           id: event.pointerId,
-          annotation: markerTool === "navigate",
-          placement: markerTool !== "navigate",
+          annotation: true,
+          placement: false,
           startX: event.clientX,
           startY: event.clientY,
           x: event.clientX,
@@ -3672,6 +4454,119 @@
     if (map2PointerState.pointers.size === 2) {
       map2PointerState.pinchStartGap = getMapPointerGap(map2PointerState.pointers);
       map2PointerState.pinchStartDistance = map2ViewState.distance;
+    }
+  }
+
+  function bindMap3PointerEvents(stage) {
+    stage.addEventListener("pointerdown", (event) => {
+      stage.setPointerCapture(event.pointerId);
+      const markerTool = getMapTool();
+      if (markerTool !== "navigate") {
+        event.preventDefault();
+        map3PointerState = {
+          id: event.pointerId,
+          placement: true,
+          startX: event.clientX,
+          startY: event.clientY,
+          x: event.clientX,
+          y: event.clientY,
+          pointers: new Map([[event.pointerId, { x: event.clientX, y: event.clientY }]]),
+        };
+        return;
+      }
+      if (!map3PointerState) {
+        map3PointerState = {
+          id: event.pointerId,
+          mode: getMap3NavTool(),
+          startX: event.clientX,
+          startY: event.clientY,
+          x: event.clientX,
+          y: event.clientY,
+          pointers: new Map(),
+          pinchStartGap: 0,
+          pinchStartDistance: map3ViewState.distance,
+        };
+      }
+      map3PointerState.pointers.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (map3PointerState.pointers.size === 2) {
+        map3PointerState.pinchStartGap = getMapPointerGap(map3PointerState.pointers);
+        map3PointerState.pinchStartDistance = map3ViewState.distance;
+      }
+    });
+    stage.addEventListener("pointermove", (event) => {
+      if (!map3PointerState || !map3PointerState.pointers.has(event.pointerId)) return;
+      if (map3PointerState.placement) {
+        map3PointerState.x = event.clientX;
+        map3PointerState.y = event.clientY;
+        map3PointerState.pointers.set(event.pointerId, {
+          x: event.clientX,
+          y: event.clientY,
+        });
+        return;
+      }
+      map3PointerState.pointers.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (map3PointerState.pointers.size >= 2) {
+        const gap = getMapPointerGap(map3PointerState.pointers);
+        if (gap > 0 && map3PointerState.pinchStartGap > 0) {
+          map3ViewState.distance = map3PointerState.pinchStartDistance * (map3PointerState.pinchStartGap / gap);
+          map3ViewState.distance = constrainMap3Distance(map3ViewState.distance);
+        }
+        return;
+      }
+      const dx = event.clientX - map3PointerState.x;
+      const dy = event.clientY - map3PointerState.y;
+      map3PointerState.x = event.clientX;
+      map3PointerState.y = event.clientY;
+      if (map3PointerState.mode === "pan") {
+        panMap3Camera(dx, dy);
+      } else {
+        map3ViewState.yaw -= dx * 0.008;
+        map3ViewState.pitch += dy * 0.006;
+        map3ViewState.pitch = Math.max(-0.75, Math.min(1.54, map3ViewState.pitch));
+        appliedMap3ViewPreset = "custom";
+      }
+      renderMap3Settings();
+    });
+    stage.addEventListener("pointerup", (event) => {
+      if (map3PointerState?.placement && map3PointerState.pointers.has(event.pointerId)) {
+        const moved = Math.hypot(event.clientX - map3PointerState.startX, event.clientY - map3PointerState.startY);
+        if (moved <= 14) handleMapPlacementPointer(event);
+      }
+      releaseMap3Pointer(event.pointerId);
+    });
+    stage.addEventListener("pointercancel", (event) => {
+      releaseMap3Pointer(event.pointerId);
+    });
+    stage.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      map3ViewState.distance += event.deltaY * 0.025;
+      map3ViewState.distance = constrainMap3Distance(map3ViewState.distance);
+    }, { passive: false });
+  }
+
+  function releaseMap3Pointer(pointerId) {
+    if (!map3PointerState) return;
+    map3PointerState.pointers.delete(pointerId);
+    if (!map3PointerState.pointers.size) {
+      map3PointerState = null;
+      return;
+    }
+    const [nextPointerId, nextPointer] = map3PointerState.pointers.entries().next().value;
+    map3PointerState.id = nextPointerId;
+    map3PointerState.mode = getMap3NavTool();
+    map3PointerState.startX = nextPointer.x;
+    map3PointerState.startY = nextPointer.y;
+    map3PointerState.x = nextPointer.x;
+    map3PointerState.y = nextPointer.y;
+    if (map3PointerState.pointers.size === 2) {
+      map3PointerState.pinchStartGap = getMapPointerGap(map3PointerState.pointers);
+      map3PointerState.pinchStartDistance = map3ViewState.distance;
     }
   }
 
@@ -3786,12 +4681,12 @@
   function handleMapPlacementPointer(event) {
     const tool = getMapTool();
     if (tool === "navigate") return;
-    if (appliedMap2ViewPreset !== "top") {
-      setMap2ViewPreset("top");
+    if (appliedMap3ViewPreset !== "top") {
+      setMap3ViewPreset("top");
       showToast("Top view selected.");
       return;
     }
-    const coordinate = getMap2CoordinateFromPointer(event);
+    const coordinate = getMap3CoordinateFromPointer(event);
     if (!coordinate) {
       showToast("Marker missed the tank.");
       return;
@@ -3832,9 +4727,37 @@
     saveState();
     renderMapMarkerControls();
     renderMapSummaries();
-    renderMap2Settings();
-    renderReefMap2({ rebuild: true });
+    renderMapSettings();
+    renderMap3Settings();
+    renderReefMap3({ rebuild: true });
     renderInsightsContext();
+  }
+
+  function getMap3CoordinateFromPointer(event) {
+    if (!map3Camera || !map3Renderer || !window.THREE) return null;
+    const canvas = map3Renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const pointer = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -(((event.clientY - rect.top) / rect.height) * 2 - 1),
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(pointer, map3Camera);
+    const hits = raycaster.intersectObjects(getMap3SurfaceMeshes(), false);
+    if (!hits.length) return null;
+    const hit = hits[0];
+    const dimensions = state.map.dimensions;
+    if (hit.point.x < -dimensions.width / 2 || hit.point.x > dimensions.width / 2 || hit.point.y < -dimensions.depth / 2 || hit.point.y > dimensions.depth / 2) {
+      return null;
+    }
+    const structureId = hit.object.userData?.map3StructureId || "";
+    return {
+      x: Number(hit.point.x.toFixed(2)),
+      y: Number(hit.point.y.toFixed(2)),
+      z: Number(hit.point.z.toFixed(2)),
+      structureId,
+    };
   }
 
   function getMap2CoordinateFromPointer(event) {
@@ -4242,10 +5165,11 @@
         z: "vertical inches from tank bottom",
       },
       calibration: {
-        source: "five-rock outline-driven mesh from traced front/top/right silhouettes, calibrated with 3 inch cards and the 2 inch in-tank ruler",
-        referenceImageCount: 28,
+        source: "Map 3.0 scratch silhouette geometry from Tank Model Refs front/top/right photos; Map 2.0 remains frozen as the annotated LiDAR/remesh reference",
+        referenceImageCount: 9,
         rawReferenceImagesStoredInApp: false,
       },
+      activePlacementModel: "Map 3.0",
       structures: state.map.structures.map((structure) => ({
         id: structure.id,
         name: structure.name,
@@ -4285,6 +5209,21 @@
         flow: structure.flow,
         parRange: { min: structure.parMin, max: structure.parMax },
         notes: structure.notes,
+      })),
+      map3Structures: getMap3Structures().map((structure) => ({
+        id: structure.id,
+        name: structure.name,
+        type: structure.type,
+        position: { x: structure.x, y: structure.y, z: structure.z },
+        size: { width: structure.width, depth: structure.depth, height: structure.height },
+        geometry: {
+          footprint: getMap3RockFootprint(structure),
+          frontProfile: structure.frontProfile,
+          sideProfile: structure.sideProfile,
+          ridges: structure.ridges,
+          edgeSoftness: structure.edgeSoftness,
+          edgeFloor: structure.edgeFloor,
+        },
       })),
       parMarkers,
       refinementAnnotations,
@@ -4822,7 +5761,7 @@
     saveState();
     renderZones();
     renderMapSummaries();
-    renderReefMap2({ rebuild: true });
+    renderReefMap3({ rebuild: true });
     renderInsightsContext();
     showToast("Zone added.");
   }
@@ -4953,7 +5892,7 @@
       renderPhotoLibrary();
       renderMapMarkerControls();
       renderMapSummaries();
-      renderReefMap2({ rebuild: true });
+      renderReefMap3({ rebuild: true });
       renderDashboard();
       renderInsightsContext();
       showToast(existing ? "Stock updated." : "Stock added.");
@@ -5279,6 +6218,12 @@
       return;
     }
 
+    const map3View = event.target.closest("[data-map3-view]");
+    if (map3View) {
+      setMap3ViewPreset(map3View.dataset.map3View);
+      return;
+    }
+
     const map2Nav = event.target.closest("[data-map2-nav]");
     if (map2Nav) {
       state.ui.map2NavTool = ["rotate", "pan"].includes(map2Nav.dataset.map2Nav)
@@ -5294,8 +6239,26 @@
       return;
     }
 
+    const map3Nav = event.target.closest("[data-map3-nav]");
+    if (map3Nav) {
+      state.ui.map3NavTool = ["rotate", "pan"].includes(map3Nav.dataset.map3Nav)
+        ? map3Nav.dataset.map3Nav
+        : "rotate";
+      state.ui.mapTool = "navigate";
+      saveLocalState();
+      renderMapMarkerControls();
+      renderMap3Settings();
+      renderReefMap3();
+      return;
+    }
+
     if (event.target.closest("[data-map2-reset-camera]")) {
       resetMap2Camera();
+      return;
+    }
+
+    if (event.target.closest("[data-map3-reset-camera]")) {
+      resetMap3Camera();
       return;
     }
 
@@ -5349,7 +6312,7 @@
       state.map.layers[layer] = !state.map.layers[layer];
       saveState();
       renderMapSettings();
-      renderReefMap2({ rebuild: true });
+      renderReefMap3({ rebuild: true });
       renderInsightsContext();
       return;
     }
@@ -5359,11 +6322,12 @@
       state.ui.mapTool = mapTool.dataset.mapTool;
       state.ui.map2RefinementShape = "navigate";
       map2RefinementDraft = null;
-      if (state.ui.mapTool !== "navigate") setMap2ViewPreset("top");
+      if (state.ui.mapTool !== "navigate") setMap3ViewPreset("top");
       saveLocalState();
       renderMapMarkerControls();
       renderMap2RefinementControls();
-      renderReefMap2({ rebuild: true });
+      renderMap3Settings();
+      renderReefMap3({ rebuild: true });
       return;
     }
 
@@ -5372,7 +6336,7 @@
       state.map.parMarkers = (state.map.parMarkers || []).filter((marker) => marker.id !== parMarkerDelete.dataset.parMarkerDelete);
       saveState();
       renderMapSummaries();
-      renderReefMap2({ rebuild: true });
+      renderReefMap3({ rebuild: true });
       renderInsightsContext();
       showToast("PAR marker deleted.");
       return;
@@ -5384,10 +6348,12 @@
       state.ui.map2RefinementShape = "navigate";
       state.ui.selectedMapStockId = stockPlace.dataset.mapStockPlace;
       map2RefinementDraft = null;
-      setMap2ViewPreset("top");
+      setMap3ViewPreset("top");
       saveLocalState();
       renderMapMarkerControls();
       renderMap2RefinementControls();
+      renderMap3Settings();
+      renderReefMap3({ rebuild: true });
       return;
     }
 
@@ -5398,7 +6364,7 @@
       saveState();
       renderMapMarkerControls();
       renderMapSummaries();
-      renderReefMap2({ rebuild: true });
+      renderReefMap3({ rebuild: true });
       renderInsightsContext();
       showToast("Stock marker cleared.");
       return;
@@ -5416,7 +6382,7 @@
       renderLivestock();
       renderMapMarkerControls();
       renderMapSummaries();
-      renderReefMap2({ rebuild: true });
+      renderReefMap3({ rebuild: true });
       renderInsightsContext();
       showToast("Zone deleted.");
       return;
@@ -5468,7 +6434,7 @@
     renderPhotoLibrary();
     renderMapMarkerControls();
     renderMapSummaries();
-    renderReefMap2({ rebuild: true });
+    renderReefMap3({ rebuild: true });
     renderDashboard();
     renderInsightsContext();
     showToast("Livestock updated.");
@@ -5525,6 +6491,13 @@
       applyMap2ViewPreset(["front", "left", "right", "top"].includes(appliedMap2ViewPreset) ? appliedMap2ViewPreset : "front");
       renderMap2Settings();
       renderReefMap2();
+    });
+    $("map3FocusSelect")?.addEventListener("change", (event) => {
+      state.ui.map3FocusStructureId = event.target.value;
+      saveLocalState();
+      applyMap3ViewPreset(["front", "left", "right", "top"].includes(appliedMap3ViewPreset) ? appliedMap3ViewPreset : "front");
+      renderMap3Settings();
+      renderReefMap3();
     });
     $("map2RefineAction")?.addEventListener("change", (event) => {
       state.ui.map2RefinementAction = event.target.value;
