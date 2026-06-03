@@ -172,7 +172,7 @@
 
   function getDefaultMap() {
     return {
-      modelVersion: 21,
+      modelVersion: 22,
       dimensions: {
         width: 30,
         depth: 12,
@@ -180,7 +180,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 21 tunes Map 2.0 with mirrored LiDAR shelf/right rocks, a shorter shelf height, and legacy front sandbed rocks.",
+        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 22 adds photo-guided Map 2.0 ridges, ledges, saddles, and front taper for the shelf and right rock only.",
       },
       view: "front",
       layers: {
@@ -370,11 +370,94 @@
           terraceStrength: 0.18,
           terraceBands: 10,
           scanHeightMap: getLidarHeightMap("rightRock"),
+          map2Refinements: [
+            {
+              id: "right-map2-back-crest",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "right-rock",
+              structureName: "Right rock",
+              shape: "line",
+              action: "ridge",
+              direction: "left-right",
+              strength: "strong",
+              radius: 0.78,
+              note: "Photo-guided uneven back crest visible from top and right.",
+              points: [
+                { x: -2.7, y: 2.45, z: 4.2 },
+                { x: -0.65, y: 3.2, z: 4.65 },
+                { x: 1.8, y: 2.75, z: 4.35 },
+                { x: 3.0, y: 1.75, z: 3.9 },
+              ],
+            },
+            {
+              id: "right-map2-center-saddle",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "right-rock",
+              structureName: "Right rock",
+              shape: "line",
+              action: "depress",
+              direction: "front-back",
+              strength: "strong",
+              radius: 0.82,
+              note: "Central saddle and shadow valley through the right rock.",
+              points: [
+                { x: -2.85, y: 0.95, z: 2.55 },
+                { x: -0.55, y: -0.35, z: 2.05 },
+                { x: 1.9, y: -1.45, z: 1.95 },
+              ],
+            },
+            {
+              id: "right-map2-front-taper",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "right-rock",
+              structureName: "Right rock",
+              shape: "area",
+              action: "cut-back",
+              direction: "front-back",
+              strength: "medium",
+              radius: 0.9,
+              note: "Lower front shelf and sand-facing taper from right-side photos.",
+              points: [
+                { x: -3.7, y: -5.0, z: 0.75 },
+                { x: -1.15, y: -5.35, z: 0.7 },
+                { x: 2.05, y: -4.95, z: 0.75 },
+                { x: 3.55, y: -3.55, z: 1.0 },
+                { x: 0.45, y: -3.0, z: 1.2 },
+                { x: -2.85, y: -3.35, z: 1.05 },
+              ],
+            },
+            {
+              id: "right-map2-rear-knob",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "right-rock",
+              structureName: "Right rock",
+              shape: "point",
+              action: "raise",
+              direction: "surface",
+              strength: "medium",
+              radius: 0.9,
+              note: "Small rear/right high knob seen in the right-side references.",
+              points: [{ x: 2.55, y: 2.05, z: 4.35 }],
+            },
+            {
+              id: "right-map2-left-shadow-pocket",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "right-rock",
+              structureName: "Right rock",
+              shape: "point",
+              action: "depress",
+              direction: "surface",
+              strength: "medium",
+              radius: 0.85,
+              note: "Dark left-side pocket from the isolated right-rock reference.",
+              points: [{ x: -3.15, y: 0.25, z: 2.25 }],
+            },
+          ],
           light: "Low-Medium",
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Back-glass-touching right rock. Version 20 uses the front/back-corrected LiDAR OBJ top envelope as the primary geometry reference, blended with the traced footprint and side/front profiles.",
+          notes: "Back-glass-touching right rock. Version 22 uses the LiDAR heightfield as reference, then adds photo-guided Map 2.0 crest, saddle, pocket, and front-taper refinements.",
         },
         {
           id: "center-shelf",
@@ -419,13 +502,117 @@
           scanHeightFloor: 0.2,
           scanHeightCeiling: 1.08,
           scanHeightMap: getLidarHeightMap("shelf"),
+          map2Refinements: [
+            {
+              id: "shelf-map2-right-crown",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "center-shelf",
+              structureName: "Shelf rock",
+              shape: "line",
+              action: "ridge",
+              direction: "left-right",
+              strength: "strong",
+              radius: 0.95,
+              note: "Raised lumpy pink crown biased to the center-right of the shelf.",
+              points: [
+                { x: -0.55, y: 0.0, z: 4.7 },
+                { x: 1.1, y: 0.8, z: 5.25 },
+                { x: 3.3, y: 0.65, z: 5.05 },
+                { x: 4.65, y: -0.35, z: 4.4 },
+              ],
+            },
+            {
+              id: "shelf-map2-front-lip-cutback",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "center-shelf",
+              structureName: "Shelf rock",
+              shape: "area",
+              action: "cut-back",
+              direction: "front-back",
+              strength: "medium",
+              radius: 1.05,
+              note: "Thin, uneven front lip and visible undercut from front/right photos.",
+              points: [
+                { x: -6.0, y: -5.15, z: 0.55 },
+                { x: -3.2, y: -5.35, z: 0.65 },
+                { x: 0.4, y: -4.45, z: 0.75 },
+                { x: 4.8, y: -5.0, z: 0.65 },
+                { x: 6.25, y: -2.75, z: 1.05 },
+                { x: 2.35, y: -2.45, z: 1.35 },
+                { x: -1.8, y: -2.75, z: 1.15 },
+                { x: -5.35, y: -2.55, z: 1.0 },
+              ],
+            },
+            {
+              id: "shelf-map2-center-channel",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "center-shelf",
+              structureName: "Shelf rock",
+              shape: "line",
+              action: "depress",
+              direction: "front-back",
+              strength: "medium",
+              radius: 0.78,
+              note: "Lower channel crossing the shelf between the left mound and right crown.",
+              points: [
+                { x: -4.45, y: 0.9, z: 3.25 },
+                { x: -1.65, y: -0.45, z: 2.9 },
+                { x: 1.25, y: -1.05, z: 3.05 },
+              ],
+            },
+            {
+              id: "shelf-map2-jagged-front-ledge",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "center-shelf",
+              structureName: "Shelf rock",
+              shape: "line",
+              action: "ridge",
+              direction: "left-right",
+              strength: "medium",
+              radius: 0.48,
+              note: "Broken ledge line along the front lip rather than a smooth oval cap.",
+              points: [
+                { x: -5.45, y: -3.05, z: 2.15 },
+                { x: -3.25, y: -3.75, z: 2.35 },
+                { x: -0.25, y: -3.25, z: 2.15 },
+                { x: 2.55, y: -3.75, z: 2.2 },
+                { x: 5.25, y: -2.55, z: 2.0 },
+              ],
+            },
+            {
+              id: "shelf-map2-left-knob",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "center-shelf",
+              structureName: "Shelf rock",
+              shape: "point",
+              action: "raise",
+              direction: "surface",
+              strength: "medium",
+              radius: 1.05,
+              note: "Lower left shelf mound visible beside the central gap.",
+              points: [{ x: -2.95, y: 1.35, z: 4.1 }],
+            },
+            {
+              id: "shelf-map2-right-front-notch",
+              createdAt: "2026-06-02T00:00:00.000Z",
+              structureId: "center-shelf",
+              structureName: "Shelf rock",
+              shape: "point",
+              action: "cut-back",
+              direction: "surface",
+              strength: "medium",
+              radius: 0.82,
+              note: "Right-front notch under the protruding shelf beak.",
+              points: [{ x: 4.9, y: -2.65, z: 1.7 }],
+            },
+          ],
           terraceStrength: 0.16,
           terraceBands: 9,
           light: "Medium-High",
           flow: "High",
           parMin: 130,
           parMax: 260,
-          notes: "Raised shelf rock, anchored to the back glass with a broad irregular top outline and open sand below. Version 20 uses the front/back-corrected shelf LiDAR OBJ top envelope for elevation reference.",
+          notes: "Raised shelf rock, anchored to the back glass with a broad irregular top outline and open sand below. Version 22 uses the shelf LiDAR heightfield as reference, then adds photo-guided Map 2.0 crown, ledge, channel, and underside refinements.",
         },
       ],
     };
@@ -615,6 +802,11 @@
       scanMeshFlipZ: Boolean(structure.scanMeshFlipZ ?? fallback.scanMeshFlipZ ?? false),
       scanMeshSwapXY: Boolean(structure.scanMeshSwapXY ?? fallback.scanMeshSwapXY ?? false),
       scanMeshAxisOrder: normalizeScanMeshAxisOrder(structure.scanMeshAxisOrder, fallback.scanMeshAxisOrder),
+      map2Refinements: normalizeMap2RefinementAnnotations(
+        Array.isArray(structure.map2Refinements) && structure.map2Refinements.length
+          ? structure.map2Refinements
+          : fallback.map2Refinements || [],
+      ),
       edgeSoftness: positiveNumber(structure.edgeSoftness, fallback.edgeSoftness || 0.65),
       edgeFloor: positiveNumber(structure.edgeFloor, fallback.edgeFloor || 0.4),
       frontTaperDepth: nonNegativeNumber(structure.frontTaperDepth, fallback.frontTaperDepth || 0),
@@ -1717,7 +1909,9 @@
       input.value = dimensions[key] ?? "";
     });
     $("mapCalibrationSummary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · ${state.map.structures.length} structures`;
-    $("mapQualityPill").textContent = state.map.modelVersion >= 21
+    $("mapQualityPill").textContent = state.map.modelVersion >= 22
+      ? "Photo tuned"
+      : state.map.modelVersion >= 21
       ? "Hybrid tuned"
       : state.map.modelVersion >= 20
       ? "LiDAR corrected"
@@ -1742,7 +1936,7 @@
     if (!$("map2Summary")) return;
     const dimensions = state.map.dimensions;
     $("map2Summary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · LiDAR shelf/right + legacy front rocks`;
-    $("map2QualityPill").textContent = "Hybrid remesh";
+    $("map2QualityPill").textContent = state.map.modelVersion >= 22 ? "Photo tuned remesh" : "Hybrid remesh";
     renderMap2FocusSelect();
     renderMap2RefinementControls();
     $$("[data-map2-view]").forEach((button) => {
@@ -2127,6 +2321,7 @@
       canvas,
       antialias: true,
       alpha: true,
+      preserveDrawingBuffer: true,
       powerPreference: "high-performance",
     });
     map2Renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -2404,7 +2599,10 @@
     const indices = [];
     const verticalScale = positiveNumber(structure.map2Mesh?.verticalScale, 1);
     const scaledHeight = structure.height * verticalScale;
-    const refinementAnnotations = getMap2StructureRefinementAnnotations(structure.id);
+    const refinementAnnotations = [
+      ...normalizeMap2RefinementAnnotations(structure.map2Refinements || []),
+      ...getMap2StructureRefinementAnnotations(structure.id),
+    ];
 
     const pushVertex = (x, y, z, shade) => {
       const vertexIndex = vertices.length / 3;
@@ -2424,8 +2622,10 @@
       const floor = structure.id === "center-shelf" ? 0.2 : 0.12;
       const edgeDrop = smoothstep(0.72, 1, radialT);
       const edgeShape = lerp(1, structure.id === "center-shelf" ? 0.32 : 0.18, edgeDrop);
+      const frontShape = getMap2FrontTaperShape(structure, bounds, y);
       const shelfLift = structure.id === "center-shelf" ? 0.1 : 0;
-      const baseHeight = scaledHeight * (floor + contrasted * (1 - floor + shelfLift)) * edgeShape;
+      const photoDetail = getMap2PhotoReliefDelta(structure, x, y, radialT, scaledHeight);
+      const baseHeight = scaledHeight * (floor + contrasted * (1 - floor + shelfLift)) * edgeShape * frontShape + photoDetail * frontShape;
       return applyMap2RefinementHeight(structure, refinementAnnotations, x, y, baseHeight, scaledHeight);
     };
 
@@ -2487,6 +2687,47 @@
     mesh.receiveShadow = true;
     mesh.renderOrder = 4 + index;
     return mesh;
+  }
+
+  function getMap2FrontTaperShape(structure, bounds, y) {
+    if (!["center-shelf", "right-rock"].includes(structure.id)) return 1;
+    const frontTaperDepth = nonNegativeNumber(structure.frontTaperDepth, 0);
+    if (!frontTaperDepth) return 1;
+    const frontTaper = smoothstep(bounds.minY, bounds.minY + frontTaperDepth, y);
+    const frontFloor = clamp(0.18, 1, structure.frontFloor || 1);
+    return frontFloor + (1 - frontFloor) * frontTaper;
+  }
+
+  function getMap2PhotoReliefDelta(structure, x, y, radialT, scaledHeight) {
+    if (!["center-shelf", "right-rock"].includes(structure.id)) return 0;
+    const heightScale = scaledHeight / Math.max(1, structure.height);
+    const edgeTaper = lerp(1, 0.42, smoothstep(0.84, 1, radialT));
+    const broadNoise = surfaceNoise(`${structure.id}-map2-broad-relief`, x * 1.15, y * 1.15) - 0.5;
+    const cragNoise = surfaceNoise(`${structure.id}-map2-crag-relief`, x * 3.8 + y * 0.4, y * 3.8 - x * 0.35) - 0.5;
+    const cragScale = structure.id === "center-shelf" ? 0.18 : 0.22;
+    let delta = (broadNoise * cragScale + cragNoise * cragScale * 0.48) * scaledHeight;
+
+    structure.heightPoints.forEach((point) => {
+      const distance = Math.hypot(x - point.x, y - point.y);
+      delta += point.h * 0.32 * heightScale * Math.exp(-(distance * distance) / (2 * point.r * point.r));
+    });
+
+    structure.ridges.forEach((ridge) => {
+      const distance = distanceToSegment([x, y], ridge.from, ridge.to);
+      delta += ridge.h * 0.34 * heightScale * Math.exp(-(distance * distance) / (2 * ridge.r * ridge.r));
+    });
+
+    structure.depressions.forEach((point) => {
+      const distance = Math.hypot(x - point.x, y - point.y);
+      delta -= point.h * 0.28 * heightScale * Math.exp(-(distance * distance) / (2 * point.r * point.r));
+    });
+
+    structure.troughs.forEach((trough) => {
+      const distance = distanceToSegment([x, y], trough.from, trough.to);
+      delta -= trough.h * 0.36 * heightScale * Math.exp(-(distance * distance) / (2 * trough.r * trough.r));
+    });
+
+    return delta * edgeTaper;
   }
 
   function addMap2RefinementAnnotations() {
@@ -2633,14 +2874,22 @@
       return vertexIndex;
     };
 
-    const bottomRing = perimeter.map((point) => addVertex(point[0], point[1], baseZ, dark));
+    const bottomRing = perimeter.map((point) => {
+      const bottomZ = structure.id === "center-shelf"
+        ? Math.max(baseZ, rockBottomAt(structure, point[0]))
+        : baseZ;
+      return addVertex(point[0], point[1], bottomZ, dark);
+    });
     for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
       const nextIndex = (pointIndex + 1) % perimeter.length;
       indices.push(outerRing[pointIndex], bottomRing[pointIndex], outerRing[nextIndex]);
       indices.push(outerRing[nextIndex], bottomRing[pointIndex], bottomRing[nextIndex]);
     }
 
-    const bottomCenter = addVertex(center[0], center[1], baseZ, bottom);
+    const bottomCenterZ = structure.id === "center-shelf"
+      ? Math.max(baseZ, rockBottomAt(structure, center[0]))
+      : baseZ;
+    const bottomCenter = addVertex(center[0], center[1], bottomCenterZ, bottom);
     for (let pointIndex = 0; pointIndex < perimeter.length; pointIndex += 1) {
       const nextIndex = (pointIndex + 1) % perimeter.length;
       indices.push(bottomCenter, bottomRing[nextIndex], bottomRing[pointIndex]);
@@ -4712,6 +4961,20 @@
                 source: structure.scanHeightMap.source,
               }
             : null,
+          map2Refinements: (structure.map2Refinements || []).map((annotation) => ({
+            id: annotation.id,
+            shape: annotation.shape,
+            action: annotation.action,
+            direction: annotation.direction,
+            strength: annotation.strength,
+            radiusInches: annotation.radius,
+            note: annotation.note || "",
+            localPoints: (annotation.points || []).map((point) => ({
+              x: Number(Number(point.x).toFixed(2)),
+              y: Number(Number(point.y).toFixed(2)),
+              z: Number(Number(point.z).toFixed(2)),
+            })),
+          })),
         },
         light: structure.light,
         flow: structure.flow,
