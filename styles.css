@@ -636,9 +636,32 @@ textarea:focus {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.map2-focus-row {
+.map2-view-options {
   display: grid;
-  grid-template-columns: minmax(180px, 320px);
+  gap: 10px;
+}
+
+.map2-overlay-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.map2-opacity-control {
+  display: grid;
+  grid-template-columns: auto minmax(86px, 1fr) 42px;
+  gap: 8px;
+  align-items: center;
+}
+
+.map2-opacity-control input {
+  min-height: 28px;
+}
+
+.map2-opacity-control span {
+  color: var(--muted-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: right;
 }
 
 .map2-nav-toolbar {
@@ -1111,6 +1134,16 @@ textarea:focus {
 
   .photo-library {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .map2-view-options {
+    grid-template-columns: minmax(180px, 320px) minmax(250px, 1fr);
+    align-items: end;
+  }
+
+  .map2-overlay-controls {
+    grid-template-columns: minmax(88px, auto) minmax(180px, 1fr);
+    align-items: end;
   }
 
   .reef-map-stage {

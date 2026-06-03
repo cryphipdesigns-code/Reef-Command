@@ -166,6 +166,8 @@
         map2RefinementStrength: "medium",
         map2RefinementRadius: 0.8,
         map2RefinementNote: "",
+        map2RefinementOverlayVisible: true,
+        map2RefinementOverlayOpacity: 0.35,
       },
     };
   }
@@ -1785,6 +1787,7 @@
     $("map2RefineStrength").value = getMap2RefinementStrength();
     $("map2RefineRadius").value = String(getMap2RefinementRadius());
     $("map2RefineNote").value = state.ui.map2RefinementNote || "";
+    renderMap2RefinementOverlayControls();
     $("map2RefineCountPill").textContent = `${annotations.length} ${annotations.length === 1 ? "note" : "notes"}`;
     $("map2RefineStatus").textContent = getMap2RefinementStatus();
     const canFinishArea = map2RefinementDraft?.shape === "area" && map2RefinementDraft.points.length >= 3;
@@ -1849,6 +1852,31 @@
 
   function getMap2RefinementRadius() {
     return positiveNumber(state.ui.map2RefinementRadius, 0.8);
+  }
+
+  function getMap2RefinementOverlayVisible() {
+    return state.ui.map2RefinementOverlayVisible !== false;
+  }
+
+  function getMap2RefinementOverlayOpacity() {
+    return clamp(0, 1, finiteNumber(state.ui.map2RefinementOverlayOpacity, 0.35));
+  }
+
+  function renderMap2RefinementOverlayControls() {
+    const visible = getMap2RefinementOverlayVisible();
+    const opacity = Math.round(getMap2RefinementOverlayOpacity() * 100);
+    const toggle = document.querySelector("[data-map2-refinement-overlay-toggle]");
+    const slider = $("map2RefinementOpacity");
+    const value = $("map2RefinementOpacityValue");
+    if (toggle) {
+      toggle.classList.toggle("active", visible);
+      toggle.setAttribute("aria-pressed", String(visible));
+    }
+    if (slider) {
+      slider.value = String(opacity);
+      slider.disabled = !visible;
+    }
+    if (value) value.textContent = `${opacity}%`;
   }
 
   function getMap2NavTool() {
@@ -2508,6 +2536,7 @@
       }, true);
     }
     map2Root.add(group);
+    syncMap2RefinementAnnotationOverlay();
   }
 
   function addMap2RefinementAnnotation(group, annotation, draft) {
@@ -2518,19 +2547,22 @@
       color,
       transparent: true,
       opacity: draft ? 0.95 : 0.88,
-      depthTest: false,
+      depthTest: draft ? false : true,
+      depthWrite: false,
     });
     const pointMaterial = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
       opacity: draft ? 0.95 : 0.9,
-      depthTest: false,
+      depthTest: draft ? false : true,
+      depthWrite: false,
     });
     const haloMaterial = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
       opacity: draft ? 0.12 : 0.09,
-      depthTest: false,
+      depthTest: draft ? false : true,
+      depthWrite: false,
       wireframe: true,
     });
 
@@ -2550,9 +2582,11 @@
         transparent: true,
         opacity: draft ? 0.18 : 0.12,
         side: THREE.DoubleSide,
-        depthTest: false,
+        depthTest: draft ? false : true,
+        depthWrite: false,
       }));
       fill.renderOrder = 41;
+      tagMap2RefinementOverlayObject(fill, draft);
       group.add(fill);
     }
 
@@ -2562,6 +2596,7 @@
         : points;
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(linePoints), lineMaterial);
       line.renderOrder = 42;
+      tagMap2RefinementOverlayObject(line, draft);
       group.add(line);
     }
 
@@ -2569,6 +2604,7 @@
       const marker = new THREE.Mesh(new THREE.SphereGeometry(draft ? 0.14 : 0.12, 14, 8), pointMaterial);
       marker.position.copy(point);
       marker.renderOrder = 43;
+      tagMap2RefinementOverlayObject(marker, draft);
       group.add(marker);
     });
 
@@ -2576,8 +2612,37 @@
       const halo = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.2, annotation.radius || 0.8), 18, 10), haloMaterial);
       halo.position.copy(points[0]);
       halo.renderOrder = 40;
+      tagMap2RefinementOverlayObject(halo, draft);
       group.add(halo);
     }
+  }
+
+  function tagMap2RefinementOverlayObject(object, draft) {
+    object.userData.map2RefinementDraft = draft;
+    const materials = Array.isArray(object.material) ? object.material : [object.material].filter(Boolean);
+    materials.forEach((material) => {
+      material.userData.map2RefinementBaseOpacity = material.opacity;
+      material.userData.map2RefinementDraft = draft;
+    });
+    return object;
+  }
+
+  function syncMap2RefinementAnnotationOverlay() {
+    if (!map2Root) return;
+    const group = map2Root.getObjectByName("map2-refinement-annotations");
+    if (!group) return;
+    const visible = getMap2RefinementOverlayVisible();
+    const opacityScale = getMap2RefinementOverlayOpacity();
+    group.traverse((child) => {
+      const draft = Boolean(child.userData?.map2RefinementDraft);
+      if (child !== group) child.visible = draft || visible;
+      const materials = Array.isArray(child.material) ? child.material : [child.material].filter(Boolean);
+      materials.forEach((material) => {
+        if (!Number.isFinite(material.userData?.map2RefinementBaseOpacity)) return;
+        material.opacity = material.userData.map2RefinementBaseOpacity * (draft ? 1 : opacityScale);
+        material.needsUpdate = true;
+      });
+    });
   }
 
   function getMap2RefinementWorldPoints(annotation) {
@@ -5735,6 +5800,15 @@
       return;
     }
 
+    if (event.target.closest("[data-map2-refinement-overlay-toggle]")) {
+      state.ui.map2RefinementOverlayVisible = !getMap2RefinementOverlayVisible();
+      saveLocalState();
+      renderMap2RefinementControls();
+      syncMap2RefinementAnnotationOverlay();
+      renderReefMap2();
+      return;
+    }
+
     const map2RefineShape = event.target.closest("[data-map2-refine-shape]");
     if (map2RefineShape) {
       state.ui.map2RefinementShape = MAP2_REFINEMENT_SHAPES.includes(map2RefineShape.dataset.map2RefineShape)
@@ -5916,6 +5990,14 @@
     deleteTimelineEntry(`${latest.kind}:${latest.id}`);
   }
 
+  function updateMap2RefinementOpacity(event) {
+    state.ui.map2RefinementOverlayOpacity = clamp(0, 1, finiteNumber(event.target.value, 35) / 100);
+    saveLocalState();
+    renderMap2RefinementOverlayControls();
+    syncMap2RefinementAnnotationOverlay();
+    renderReefMap2();
+  }
+
   function bindEvents() {
     document.addEventListener("click", handleDocumentClick);
     $$("[data-profile]").forEach((input) => {
@@ -5962,6 +6044,8 @@
       state.ui.map2RefinementNote = event.target.value;
       saveLocalState();
     });
+    $("map2RefinementOpacity")?.addEventListener("input", updateMap2RefinementOpacity);
+    $("map2RefinementOpacity")?.addEventListener("change", updateMap2RefinementOpacity);
     $("mapStockSelect").addEventListener("change", (event) => {
       state.ui.selectedMapStockId = event.target.value;
       saveLocalState();
