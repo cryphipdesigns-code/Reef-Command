@@ -17,10 +17,10 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <script src="./vendor/supabase.min.js?v=41"></script>
-    <script src="./vendor/lucide.min.js?v=41"></script>
+    <script src="./vendor/supabase.min.js?v=51"></script>
+    <script src="./vendor/lucide.min.js?v=51"></script>
     <script src="./vendor/three.min.js"></script>
-    <link rel="stylesheet" href="./styles.css?v=41" />
+    <link rel="stylesheet" href="./styles.css?v=51" />
   </head>
   <body>
     <div id="appShell">
@@ -45,45 +45,61 @@
             </div>
           </div>
 
-          <div class="metric-grid">
-            <article class="metric-card">
-              <span>Ammonia</span>
-              <strong id="metricAmmonia">--</strong>
-              <small id="metricAmmoniaMeta">No test yet</small>
-            </article>
-            <article class="metric-card">
-              <span>Nitrate</span>
-              <strong id="metricNitrate">--</strong>
-              <small id="metricNitrateMeta">No test yet</small>
-            </article>
-            <article class="metric-card">
-              <span>Water Change</span>
-              <strong id="metricWaterChange">--</strong>
-              <small id="metricWaterChangeMeta">No event yet</small>
-            </article>
-            <article class="metric-card">
-              <span>Livestock</span>
-              <strong id="metricLivestock">0</strong>
-              <small id="metricLivestockMeta">Active animals</small>
-            </article>
-          </div>
+          <section class="section-block home-attention">
+            <div class="section-heading">
+              <h2>Needs Attention</h2>
+              <span class="status-pill">Now</span>
+            </div>
+            <div id="riskStrip" class="risk-strip"></div>
+          </section>
 
-          <div id="riskStrip" class="risk-strip"></div>
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Quick Log</h2>
+            </div>
+            <div class="quick-actions">
+              <button class="action-button" type="button" data-open-log="test">
+                <i data-lucide="test-tube-2"></i>
+                Water Test
+              </button>
+              <button class="action-button" type="button" data-open-log="feeding">
+                <i data-lucide="fish"></i>
+                Feeding
+              </button>
+              <button class="action-button" type="button" data-open-log="water_change">
+                <i data-lucide="waves"></i>
+                Water Change
+              </button>
+            </div>
+          </section>
 
-          <div class="quick-actions">
-            <button class="action-button" type="button" data-open-log="test">
-              <i data-lucide="test-tube-2"></i>
-              Water Test
-            </button>
-            <button class="action-button" type="button" data-open-log="feeding">
-              <i data-lucide="fish"></i>
-              Feeding
-            </button>
-            <button class="action-button" type="button" data-open-log="water_change">
-              <i data-lucide="waves"></i>
-              Water Change
-            </button>
-          </div>
+          <section class="section-block">
+            <div class="section-heading">
+              <h2>Latest Readings</h2>
+            </div>
+            <div class="metric-grid">
+              <article class="metric-card">
+                <span>Ammonia</span>
+                <strong id="metricAmmonia">--</strong>
+                <small id="metricAmmoniaMeta">No test yet</small>
+              </article>
+              <article class="metric-card">
+                <span>Nitrate</span>
+                <strong id="metricNitrate">--</strong>
+                <small id="metricNitrateMeta">No test yet</small>
+              </article>
+              <article class="metric-card">
+                <span>Water Change</span>
+                <strong id="metricWaterChange">--</strong>
+                <small id="metricWaterChangeMeta">No event yet</small>
+              </article>
+              <article class="metric-card">
+                <span>Livestock</span>
+                <strong id="metricLivestock">0</strong>
+                <small id="metricLivestockMeta">Active animals</small>
+              </article>
+            </div>
+          </section>
 
           <section class="section-block">
             <div class="section-heading">
@@ -112,7 +128,6 @@
               <h2>Tank Details</h2>
               <span id="profileSavedStatus" class="status-pill">Saved</span>
             </div>
-
             <div class="field-grid">
               <label>
                 Tank Name
@@ -152,128 +167,280 @@
                   <option value="Nano reef">Nano reef</option>
                 </select>
               </label>
-              <label>
-                Filtration
-                <select data-profile="filtration">
-                  <option value="">Select</option>
-                  <option value="Sump">Sump</option>
-                  <option value="All-in-one chamber">All-in-one chamber</option>
-                  <option value="Canister">Canister</option>
-                  <option value="Hang-on-back">Hang-on-back</option>
-                  <option value="Other">Other</option>
-                </select>
-              </label>
-              <label>
-                Lighting Model
-                <input type="text" data-profile="lightingModel" />
-              </label>
               <label class="wide-field">
-                Lighting Summary
+                Tank Summary
                 <textarea
-                  data-profile="lightingSummary"
-                  rows="3"
-                  placeholder="Peak channels, ramp timing, PAR notes"
+                  data-profile="tankSummary"
+                  rows="4"
+                  placeholder="Design, aquascape, rockwork, flow concept, and stocking intent"
                 ></textarea>
               </label>
-              <label>
-                Lights On
-                <input type="time" data-profile="lightStart" />
-              </label>
-              <label>
-                Lights Off
-                <input type="time" data-profile="lightEnd" />
-              </label>
-              <label>
-                Target Salinity
-                <input type="text" data-profile="targetSalinity" />
-              </label>
-              <label>
-                Target Temp
-                <input type="text" data-profile="targetTemp" />
-              </label>
-              <label>
-                Salt Mix
-                <input type="text" data-profile="saltMix" />
-              </label>
-              <label>
-                Dosing
-                <input type="text" data-profile="dosing" />
-              </label>
-            </div>
-            <div class="photo-field">
-              <label>
-                Lighting Images
-                <input id="lightingPhotoInput" type="file" accept="image/*" multiple />
-              </label>
-              <div id="lightingPhotoPreview" class="photo-preview" hidden></div>
             </div>
 
-            <div class="toggle-row">
-              <label class="check-label">
-                <input type="checkbox" data-profile="proteinSkimmer" />
-                Protein skimmer
-              </label>
-              <label class="check-label">
-                <input type="checkbox" data-profile="refugium" />
-                Refugium
-              </label>
-              <label class="check-label">
-                <input type="checkbox" data-profile="autoTopOff" />
-                Auto top-off
-              </label>
-            </div>
+            <details class="profile-panel collapsible-panel">
+              <summary>
+                <div class="summary-text">
+                  <h2>Operating Targets</h2>
+                </div>
+                <i data-lucide="chevron-down"></i>
+              </summary>
+              <div class="field-grid">
+                <label>
+                  Target Salinity
+                  <input type="text" data-profile="targetSalinity" />
+                </label>
+                <label>
+                  Target Temp
+                  <input type="text" data-profile="targetTemp" />
+                </label>
+                <label>
+                  Salt Mix
+                  <input type="text" data-profile="saltMix" />
+                </label>
+                <label>
+                  Dosing
+                  <input type="text" data-profile="dosing" />
+                </label>
+                <label class="wide-field">
+                  Notes
+                  <textarea data-profile="notes" rows="4"></textarea>
+                </label>
+              </div>
+            </details>
 
-            <label>
-              Notes
-              <textarea data-profile="notes" rows="4"></textarea>
-            </label>
+            <details class="equipment-panel collapsible-panel">
+              <summary>
+                <div class="summary-text">
+                  <h2>Equipment</h2>
+                </div>
+                <i data-lucide="chevron-down"></i>
+              </summary>
+              <div class="equipment-list">
+                <div class="field-grid equipment-field-grid">
+                  <label>
+                    Filtration System
+                    <select data-profile="filtration">
+                      <option value="">Select</option>
+                      <option value="Sump">Sump</option>
+                      <option value="All-in-one chamber">All-in-one chamber</option>
+                      <option value="Canister">Canister</option>
+                      <option value="Hang-on-back">Hang-on-back</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+                  <label>
+                    Lighting Model
+                    <input type="text" data-profile="lightingModel" />
+                  </label>
+                  <label>
+                    Lights On
+                    <input type="time" data-profile="lightStart" />
+                  </label>
+                  <label>
+                    Lights Off
+                    <input type="time" data-profile="lightEnd" />
+                  </label>
+                  <label class="wide-field">
+                    Filtration Details
+                    <textarea
+                      data-profile="filtrationDetails"
+                      rows="2"
+                      placeholder="Canister/HOB/sump layout, media, flow path, chamber notes"
+                    ></textarea>
+                  </label>
+                  <label class="wide-field">
+                    Lighting Summary
+                    <textarea
+                      data-profile="lightingSummary"
+                      rows="3"
+                      placeholder="Peak channels, ramp timing, PAR notes"
+                    ></textarea>
+                  </label>
+                </div>
+
+                <details class="collapsible-field photo-field">
+                  <summary>
+                    <span>
+                      <i data-lucide="image"></i>
+                      Lighting Images
+                    </span>
+                    <i data-lucide="chevron-down"></i>
+                  </summary>
+                  <div class="collapsible-content">
+                    <label>
+                      Upload Images
+                      <input id="lightingPhotoInput" type="file" accept="image/*" multiple />
+                    </label>
+                    <div id="lightingPhotoPreview" class="photo-preview" hidden></div>
+                  </div>
+                </details>
+
+                <div class="equipment-row" data-equipment-row="proteinSkimmer">
+                  <label class="check-label equipment-check">
+                    <input type="checkbox" data-profile="proteinSkimmer" />
+                    Protein skimmer
+                  </label>
+                  <label data-equipment-date="proteinSkimmer">
+                    Added Date
+                    <input type="date" data-profile="proteinSkimmerAddedDate" />
+                  </label>
+                  <label class="check-label equipment-legacy" data-equipment-legacy="proteinSkimmer">
+                    <input type="checkbox" data-profile="proteinSkimmerLegacy" />
+                    Legacy / add date unknown
+                  </label>
+                </div>
+                <label class="wide-field equipment-details" data-equipment-details="proteinSkimmer">
+                  Protein Skimmer Details
+                  <textarea
+                    data-profile="proteinSkimmerDetails"
+                    rows="2"
+                    placeholder="Model, rating, cup/airline notes, cleaning cadence"
+                  ></textarea>
+                </label>
+                <div class="equipment-row" data-equipment-row="sump">
+                  <label class="check-label equipment-check">
+                    <input type="checkbox" data-profile="sump" />
+                    Sump
+                  </label>
+                  <label data-equipment-date="sump">
+                    Added Date
+                    <input type="date" data-profile="sumpAddedDate" />
+                  </label>
+                  <label class="check-label equipment-legacy" data-equipment-legacy="sump">
+                    <input type="checkbox" data-profile="sumpLegacy" />
+                    Legacy / add date unknown
+                  </label>
+                </div>
+                <label class="wide-field equipment-details" data-equipment-details="sump">
+                  Sump Details
+                  <textarea
+                    data-profile="sumpDetails"
+                    rows="2"
+                    placeholder="Elevated utility sump, siphon path, sand/rock, weir, livestock, and flow notes"
+                  ></textarea>
+                </label>
+                <div class="equipment-row" data-equipment-row="refugium">
+                  <label class="check-label equipment-check">
+                    <input type="checkbox" data-profile="refugium" />
+                    Refugium
+                  </label>
+                  <label data-equipment-date="refugium">
+                    Added Date
+                    <input type="date" data-profile="refugiumAddedDate" />
+                  </label>
+                  <label class="check-label equipment-legacy" data-equipment-legacy="refugium">
+                    <input type="checkbox" data-profile="refugiumLegacy" />
+                    Legacy / add date unknown
+                  </label>
+                </div>
+                <label class="wide-field equipment-details" data-equipment-details="refugium">
+                  Refugium Details
+                  <textarea
+                    data-profile="refugiumDetails"
+                    rows="2"
+                    placeholder="Macroalgae, pod habitat, reverse-lighting, and nutrient export notes"
+                  ></textarea>
+                </label>
+                <div class="equipment-row" data-equipment-row="autoTopOff">
+                  <label class="check-label equipment-check">
+                    <input type="checkbox" data-profile="autoTopOff" />
+                    Auto top-off
+                  </label>
+                  <label data-equipment-date="autoTopOff">
+                    Added Date
+                    <input type="date" data-profile="autoTopOffAddedDate" />
+                  </label>
+                  <label class="check-label equipment-legacy" data-equipment-legacy="autoTopOff">
+                    <input type="checkbox" data-profile="autoTopOffLegacy" />
+                    Legacy / add date unknown
+                  </label>
+                </div>
+                <label class="wide-field equipment-details" data-equipment-details="autoTopOff">
+                  Auto Top-Off Details
+                  <textarea
+                    data-profile="autoTopOffDetails"
+                    rows="2"
+                    placeholder="Reservoir, pump, sensors, kalk or RODI notes"
+                  ></textarea>
+                </label>
+                <div class="equipment-row" data-equipment-row="uvSterilizer">
+                  <label class="check-label equipment-check">
+                    <input type="checkbox" data-profile="uvSterilizer" />
+                    UV
+                  </label>
+                  <label data-equipment-date="uvSterilizer">
+                    Added Date
+                    <input type="date" data-profile="uvSterilizerAddedDate" />
+                  </label>
+                  <label class="check-label equipment-legacy" data-equipment-legacy="uvSterilizer">
+                    <input type="checkbox" data-profile="uvSterilizerLegacy" />
+                    Legacy / add date unknown
+                  </label>
+                </div>
+                <label class="wide-field equipment-details" data-equipment-details="uvSterilizer">
+                  UV Details
+                  <textarea
+                    data-profile="uvSterilizerDetails"
+                    rows="2"
+                    placeholder="Model, wattage, plumbing order, flow estimate, location"
+                  ></textarea>
+                </label>
+                <label class="wide-field equipment-schedule" data-equipment-schedule="uvSterilizer">
+                  UV Schedule
+                  <textarea
+                    data-profile="uvSchedule"
+                    rows="2"
+                    placeholder="24/7, overnight, or scheduled run window"
+                  ></textarea>
+                </label>
+                <div class="equipment-row" data-equipment-row="gfoReactor">
+                  <label class="check-label equipment-check">
+                    <input type="checkbox" data-profile="gfoReactor" />
+                    GFO reactor
+                  </label>
+                  <label data-equipment-date="gfoReactor">
+                    Added Date
+                    <input type="date" data-profile="gfoReactorAddedDate" />
+                  </label>
+                  <label class="check-label equipment-legacy" data-equipment-legacy="gfoReactor">
+                    <input type="checkbox" data-profile="gfoReactorLegacy" />
+                    Legacy / add date unknown
+                  </label>
+                </div>
+                <label class="wide-field equipment-details" data-equipment-details="gfoReactor">
+                  GFO Reactor Details
+                  <textarea
+                    data-profile="gfoReactorDetails"
+                    rows="2"
+                    placeholder="Reactor, media amount, flow, replacement trigger"
+                  ></textarea>
+                </label>
+                <div class="equipment-row" data-equipment-row="carbonReactor">
+                  <label class="check-label equipment-check">
+                    <input type="checkbox" data-profile="carbonReactor" />
+                    Carbon reactor
+                  </label>
+                  <label data-equipment-date="carbonReactor">
+                    Added Date
+                    <input type="date" data-profile="carbonReactorAddedDate" />
+                  </label>
+                  <label class="check-label equipment-legacy" data-equipment-legacy="carbonReactor">
+                    <input type="checkbox" data-profile="carbonReactorLegacy" />
+                    Legacy / add date unknown
+                  </label>
+                </div>
+                <label class="wide-field equipment-details" data-equipment-details="carbonReactor">
+                  Carbon Reactor Details
+                  <textarea
+                    data-profile="carbonReactorDetails"
+                    rows="2"
+                    placeholder="Reactor, media type, top/bottom carbon, amount, flow"
+                  ></textarea>
+                </label>
+              </div>
+            </details>
           </form>
 
-          <section class="section-block">
-            <div class="section-heading">
-              <h2>Placement Zones</h2>
-              <span class="status-pill">PAR ready</span>
-            </div>
-            <form id="zoneForm" class="compact-form">
-              <label>
-                Name
-                <input id="zoneName" type="text" placeholder="Mid rock" />
-              </label>
-              <label>
-                Light
-                <select id="zoneLight">
-                  <option value="Low">Low</option>
-                  <option value="Medium" selected>Medium</option>
-                  <option value="High">High</option>
-                </select>
-              </label>
-              <label>
-                Flow
-                <select id="zoneFlow">
-                  <option value="Low">Low</option>
-                  <option value="Medium" selected>Medium</option>
-                  <option value="High">High</option>
-                </select>
-              </label>
-              <label>
-                PAR Min
-                <input id="zoneParMin" type="number" min="0" step="1" />
-              </label>
-              <label>
-                PAR Max
-                <input id="zoneParMax" type="number" min="0" step="1" />
-              </label>
-              <label class="wide-field">
-                Notes
-                <input id="zoneNotes" type="text" />
-              </label>
-              <button class="primary-button" type="submit">
-                <i data-lucide="plus"></i>
-                Add Zone
-              </button>
-            </form>
-            <div id="zoneList" class="card-list"></div>
-          </section>
         </section>
 
         <section id="mapView" class="app-view" data-title="Map">
@@ -525,11 +692,15 @@
         </section>
 
         <section id="livestockView" class="app-view" data-title="Livestock">
-          <form id="livestockForm" class="form-surface">
-            <div class="section-heading">
-              <h2 id="livestockFormTitle">Add Stock</h2>
-              <span id="livestockCountPill" class="status-pill">0 active</span>
-            </div>
+          <details id="livestockFormShell" class="form-surface collapsible-form-shell">
+            <summary>
+              <div class="summary-text">
+                <h2 id="livestockFormTitle">Add Stock</h2>
+                <small id="livestockCountPill">0 active</small>
+              </div>
+              <i data-lucide="chevron-down"></i>
+            </summary>
+          <form id="livestockForm" class="embedded-form">
             <input id="livestockEditId" type="hidden" />
             <div class="field-grid">
               <label>
@@ -550,8 +721,28 @@
                 </select>
               </label>
               <label>
-                Quantity
+                Quantity Added
                 <input id="livestockQuantity" type="number" min="0" step="1" />
+              </label>
+              <label>
+                Current Count
+                <input id="livestockCurrentCount" type="number" min="0" step="1" />
+              </label>
+              <label>
+                Tracking Unit
+                <select id="livestockTrackingUnit">
+                  <option value="">Select</option>
+                  <option value="Specimen">Specimen</option>
+                  <option value="Colony">Colony</option>
+                  <option value="Frag">Frag</option>
+                  <option value="Head">Head</option>
+                  <option value="Polyp">Polyp</option>
+                  <option value="Mushroom">Mushroom</option>
+                  <option value="Mouth">Mouth</option>
+                  <option value="Branch">Branch</option>
+                  <option value="Patch">Patch</option>
+                  <option value="Other">Other</option>
+                </select>
               </label>
               <label id="livestockDateField">
                 <span id="livestockDateLabel">Date Added</span>
@@ -562,7 +753,7 @@
                 <select id="livestockZone"></select>
               </label>
               <label>
-                Health
+                Current Health
                 <select id="livestockHealth">
                   <option value="">Not tracked</option>
                   <option value="Thriving">Thriving</option>
@@ -573,7 +764,7 @@
                 </select>
               </label>
               <label>
-                Growth
+                Growth Trend
                 <select id="livestockGrowthTrend">
                   <option value="">Not tracked</option>
                   <option value="Growing">Growing</option>
@@ -584,12 +775,12 @@
                 </select>
               </label>
               <label class="wide-field">
-                Metric / Count
-                <input id="livestockGrowthMetric" type="text" placeholder="4 heads, larger, receding edge" />
+                Growth Notes
+                <input id="livestockGrowthNotes" type="text" placeholder="Original larger, baby mushroom, second head forming, receding edge" />
               </label>
               <label class="wide-field">
-                Notes
-                <input id="livestockNotes" type="text" />
+                Add Note
+                <input id="livestockNotes" type="text" placeholder="Saved with timestamp" />
               </label>
             </div>
             <div class="photo-field">
@@ -615,6 +806,7 @@
               </button>
             </div>
           </form>
+          </details>
 
           <div class="filter-bar" role="tablist" aria-label="Livestock filter">
             <button class="active" type="button" data-livestock-filter="active">
@@ -800,9 +992,11 @@
                 Type
                 <select id="maintenanceType">
                   <option value="RODI replaced">RODI replaced</option>
-                  <option value="Carbon replaced">Carbon replaced</option>
+                  <option value="Top Carbon replaced">Top Carbon replaced</option>
+                  <option value="Bottom Carbon replaced">Bottom Carbon replaced</option>
                   <option value="Purigen replaced">Purigen replaced</option>
                   <option value="GFO replaced">GFO replaced</option>
+                  <option value="UV bulb replaced">UV bulb replaced</option>
                   <option value="Filter floss changed">Filter floss changed</option>
                   <option value="Skimmer cleaned">Skimmer cleaned</option>
                   <option value="Pump cleaned">Pump cleaned</option>
@@ -895,23 +1089,43 @@
               <i data-lucide="sparkles"></i>
               Generate
             </button>
+            <details class="collapsible-field photo-field insight-photo-field">
+              <summary>
+                <span>
+                  <i data-lucide="image-plus"></i>
+                  Add Photo
+                </span>
+                <i data-lucide="chevron-down"></i>
+              </summary>
+              <div class="collapsible-content">
+                <label>
+                  Upload Photo
+                  <input id="insightPhotoInput" type="file" accept="image/*" multiple />
+                </label>
+                <div id="insightPhotoPreview" class="photo-preview" hidden></div>
+              </div>
+            </details>
           </section>
 
           <section class="section-block">
             <div class="section-heading">
-              <h2>Context Sent</h2>
-              <span id="contextCountPill" class="status-pill">0 logs</span>
-            </div>
-            <div id="contextSummary" class="context-summary"></div>
-          </section>
-
-          <section class="section-block">
-            <div class="section-heading">
-              <h2>Result</h2>
+              <h2>Responses</h2>
               <span id="insightSourcePill" class="status-pill">Local</span>
             </div>
             <div id="insightOutput" class="insight-output"></div>
           </section>
+
+          <details class="section-block insight-context-panel">
+            <summary class="section-heading">
+              <h2>Context Sent</h2>
+              <span class="summary-actions">
+                <span id="contextCountPill" class="status-pill">0 logs</span>
+                <i data-lucide="chevron-down"></i>
+              </span>
+            </summary>
+            <div id="contextSummary" class="context-summary"></div>
+          </details>
+
           <p id="backendStatus" class="backend-status visually-hidden">Local mode</p>
         </section>
       </main>
@@ -921,6 +1135,18 @@
           <i data-lucide="layout-dashboard"></i>
           <span>Home</span>
         </button>
+        <button type="button" data-view="logbook">
+          <i data-lucide="clipboard-list"></i>
+          <span>Logs</span>
+        </button>
+        <button type="button" data-view="livestock">
+          <i data-lucide="fish"></i>
+          <span>Stock</span>
+        </button>
+        <button type="button" data-view="insights">
+          <i data-lucide="sparkles"></i>
+          <span>Insights</span>
+        </button>
         <button type="button" data-view="tank">
           <i data-lucide="ship-wheel"></i>
           <span>Tank</span>
@@ -929,24 +1155,12 @@
           <i data-lucide="map"></i>
           <span>Map</span>
         </button>
-        <button type="button" data-view="livestock">
-          <i data-lucide="fish"></i>
-          <span>Stock</span>
-        </button>
-        <button type="button" data-view="logbook">
-          <i data-lucide="clipboard-list"></i>
-          <span>Logs</span>
-        </button>
-        <button type="button" data-view="insights">
-          <i data-lucide="sparkles"></i>
-          <span>Insights</span>
-        </button>
       </nav>
 
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </div>
 
-    <script src="./map-lidar-data.js?v=41"></script>
-    <script src="./app.js?v=41"></script>
+    <script src="./map-lidar-data.js?v=51"></script>
+    <script src="./app.js?v=51"></script>
   </body>
 </html>

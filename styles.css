@@ -208,7 +208,7 @@ h3 {
 }
 
 .tank-brief {
-  min-height: 138px;
+  min-height: 112px;
   display: grid;
   align-items: end;
   gap: 18px;
@@ -437,6 +437,160 @@ textarea:focus {
 .photo-field {
   display: grid;
   gap: 10px;
+}
+
+.collapsible-field {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.collapsible-field summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+  list-style: none;
+  cursor: pointer;
+}
+
+.collapsible-field summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-field summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.collapsible-field summary > svg:last-child {
+  flex: 0 0 auto;
+  transition: transform 0.18s ease;
+}
+
+.collapsible-field[open] summary > svg:last-child {
+  transform: rotate(180deg);
+}
+
+.collapsible-content {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.profile-panel,
+.equipment-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.collapsible-panel,
+.collapsible-form-shell,
+.insight-context-panel {
+  overflow: hidden;
+}
+
+.collapsible-panel > summary,
+.collapsible-form-shell > summary,
+.insight-context-panel > summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-strong);
+  list-style: none;
+  cursor: pointer;
+}
+
+.collapsible-panel > summary::-webkit-details-marker,
+.collapsible-form-shell > summary::-webkit-details-marker,
+.insight-context-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.summary-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.collapsible-panel > summary > svg,
+.collapsible-form-shell > summary > svg,
+.insight-context-panel > summary svg {
+  flex: 0 0 auto;
+  transition: transform 0.18s ease;
+}
+
+.collapsible-panel[open] > summary > svg,
+.collapsible-form-shell[open] > summary > svg,
+.insight-context-panel[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.embedded-form {
+  display: grid;
+  gap: 14px;
+}
+
+.collapsible-form-shell summary small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.equipment-field-grid {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.equipment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.equipment-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.equipment-check,
+.equipment-legacy {
+  background: var(--surface);
+}
+
+.equipment-schedule,
+.equipment-details {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
 }
 
 .photo-preview {
@@ -815,6 +969,31 @@ textarea:focus {
   font-size: 0.8rem;
 }
 
+.livestock-note-log {
+  display: grid;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.livestock-note-log strong {
+  color: var(--muted-strong);
+  font-size: 0.76rem;
+}
+
+.livestock-note-log p {
+  margin: 0;
+}
+
+.livestock-note-log span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .category-pill {
   padding: 5px 8px;
   color: var(--blue);
@@ -949,6 +1128,81 @@ textarea:focus {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+}
+
+.insight-run,
+.insight-debug {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.insight-run summary,
+.insight-debug summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+  list-style: none;
+  cursor: pointer;
+}
+
+.insight-run summary::-webkit-details-marker,
+.insight-debug summary::-webkit-details-marker {
+  display: none;
+}
+
+.insight-run summary span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.insight-run summary strong,
+.insight-run summary small {
+  overflow-wrap: anywhere;
+}
+
+.insight-run summary small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.insight-run summary > svg,
+.insight-debug summary > svg {
+  flex: 0 0 auto;
+  transition: transform 0.18s ease;
+}
+
+.insight-run[open] summary > svg,
+.insight-debug[open] summary > svg {
+  transform: rotate(180deg);
+}
+
+.insight-run-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 10px 10px;
+}
+
+.insight-debug pre {
+  max-height: 360px;
+  overflow: auto;
+  margin: 0 10px 10px;
+  padding: 10px;
+  color: var(--muted-strong);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .context-tile span {
@@ -1106,7 +1360,7 @@ textarea:focus {
   .tank-brief {
     grid-template-columns: 1fr auto;
     align-items: end;
-    min-height: 164px;
+    min-height: 132px;
     padding: 22px;
   }
 
@@ -1121,6 +1375,11 @@ textarea:focus {
   .field-grid,
   .settings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .equipment-row {
+    grid-template-columns: minmax(190px, 1.35fr) minmax(150px, 1fr) minmax(190px, 1.25fr);
+    align-items: end;
   }
 
   .compact-form {

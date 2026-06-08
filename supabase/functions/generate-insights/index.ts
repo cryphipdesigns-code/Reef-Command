@@ -8,6 +8,16 @@ type InsightRequest = {
   mode?: string;
   question?: string;
   state?: Record<string, unknown>;
+  evidence?: Record<string, EvidenceBundle>;
+};
+
+type EvidenceBundle = {
+  data_type?: string;
+  label?: string;
+  summary?: string;
+  count?: number;
+  available?: boolean;
+  content?: unknown;
 };
 
 const insightSchema = {
@@ -57,9 +67,16 @@ const insightSchema = {
               "livestock_photos",
               "map_reference_images",
               "par_map",
+              "tank_profile",
+              "equipment_details",
+              "map_model_detail",
+              "livestock_records",
               "water_tests",
               "feeding_logs",
               "maintenance_logs",
+              "water_change_logs",
+              "care_schedule",
+              "insight_prompt_photos",
               "other",
             ],
           },
@@ -96,6 +113,7 @@ Deno.serve(async (request) => {
   const mode = body.mode || "health";
   const question = body.question || "";
   const state = body.state || {};
+  const evidence = body.evidence || {};
   const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.4";
 
   const promptPayload = {
@@ -104,6 +122,86 @@ Deno.serve(async (request) => {
     context: state,
   };
 
+  let insight: unknown;
+  let progressiveTrace: Record<string, unknown> = {
+    phase: "index",
+    requested: [],
+    provided: [],
+  };
+  try {
+    insight = await requestStructuredInsight(openAiKey, model, promptPayload, buildInstructions("index"), 1400);
+    const requestedEvidence = getInsightDataRequests(insight);
+    const selectedEvidence = selectEvidenceBundles(requestedEvidence, evidence);
+    progressiveTrace = {
+      phase: selectedEvidence.length ? "followup" : "index",
+      requested: requestedEvidence,
+      provided: selectedEvidence.map((bundle) => ({
+        data_type: bundle.data_type,
+        label: bundle.label,
+        reason: bundle.reason,
+        priority: bundle.priority,
+      })),
+    };
+
+    if (selectedEvidence.length) {
+      const selectedImages = collectEvidenceImageInputs(selectedEvidence);
+      const textSelectedEvidence = stripImagePayloads(selectedEvidence);
+      insight = await requestStructuredInsight(
+        openAiKey,
+        model,
+        {
+          mode,
+          question,
+          context: state,
+          selected_evidence: textSelectedEvidence,
+          initial_insight: insight,
+        },
+        buildInstructions("followup"),
+        1700,
+        selectedImages,
+      );
+      progressiveTrace = {
+        ...progressiveTrace,
+        image_inputs_sent: selectedImages.length,
+      };
+    }
+  } catch (error) {
+    const status = typeof (error as { status?: unknown }).status === "number"
+      ? (error as { status: number }).status
+      : 500;
+    return jsonResponse(
+      {
+        error: "OpenAI request failed",
+        detail: error instanceof Error ? error.message : error,
+      },
+      status,
+    );
+  }
+
+  await recordInsightRun(request.headers.get("authorization"), {
+    mode,
+    question,
+    result: insight,
+  });
+
+  return jsonResponse({ insight, model, progressive: progressiveTrace });
+});
+
+async function requestStructuredInsight(
+  openAiKey: string,
+  model: string,
+  promptPayload: Record<string, unknown>,
+  instructions: string,
+  maxOutputTokens: number,
+  imageInputs: Array<Record<string, string>> = [],
+) {
+  const content = [
+    {
+      type: "input_text",
+      text: JSON.stringify(promptPayload, null, 2),
+    },
+    ...imageInputs,
+  ];
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -112,19 +210,14 @@ Deno.serve(async (request) => {
     },
     body: JSON.stringify({
       model,
-      instructions: buildInstructions(),
+      instructions,
       input: [
         {
           role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: JSON.stringify(promptPayload, null, 2),
-            },
-          ],
+          content,
         },
       ],
-      max_output_tokens: 1400,
+      max_output_tokens: maxOutputTokens,
       text: {
         format: {
           type: "json_schema",
@@ -138,21 +231,16 @@ Deno.serve(async (request) => {
 
   const responseJson = await response.json();
   if (!response.ok) {
-    return jsonResponse(
-      {
-        error: "OpenAI request failed",
-        detail: responseJson.error?.message || responseJson,
-      },
-      response.status,
-    );
+    const error = new Error(responseJson.error?.message || JSON.stringify(responseJson));
+    (error as { status?: number }).status = response.status;
+    throw error;
   }
 
   const outputText = extractOutputText(responseJson);
-  let insight: unknown;
   try {
-    insight = JSON.parse(outputText);
+    return JSON.parse(outputText);
   } catch {
-    insight = {
+    return {
       headline: "Insight generated",
       summary: outputText,
       priorities: [],
@@ -162,33 +250,151 @@ Deno.serve(async (request) => {
       data_requests: [],
     };
   }
+}
 
-  await recordInsightRun(request.headers.get("authorization"), {
-    mode,
-    question,
-    result: insight,
-  });
-
-  return jsonResponse({ insight, model });
-});
-
-function buildInstructions() {
-  return [
+function buildInstructions(phase: "index" | "followup") {
+  const base = [
     "You are Reef Command, a careful reef-aquarium analysis assistant.",
-    "Use the provided tank profile, livestock, placement zones, water tests, feeding, maintenance, and water-change logs.",
+    "Use the provided tank profile, equipment records, livestock, map placements, water tests, feeding, maintenance, and water-change logs.",
     "Pay close attention to timestamps. Relate parameter readings to light schedule phase, recent feeding, and recent water changes when that context is present.",
     "Treat mapModel, aquascape structures, livestock placements, PAR ranges, light levels, and flow levels as important placement context.",
     "When mapModel is present, use its coordinate system and structure notes to reason about coral placement, shading, high-light shelf areas, sand-bed areas, and flow exposure.",
-    "The phase-1 context may include rawDataInventory. This is a manifest of raw evidence the app can provide later, such as lighting screenshots, livestock photos, map references, PAR maps, and detailed logs.",
-    "Do not ask for raw data by default. If raw evidence would materially improve the answer, add a data_requests item that names the smallest useful evidence bundle and explains why.",
+    "The context may use a progressive disclosure format with contextStrategy, evidenceIndex, and rawDataInventory. evidenceIndex names evidence bundles the app can provide for a follow-up pass.",
+    "Treat logs as user-entered records, not a complete audit trail. Data present can be used as evidence. Data absent means not logged or unknown; do not infer that feeding, maintenance, dosing, or other care did not happen solely because no log exists.",
+    "When log absence matters, phrase it as not logged and question confidence before using it as reliable evidence.",
+    "Use careTasks and overdueCareTasks as schedule-by-log status. Phrase overdue items as overdue by logged cadence, not as proof they were not performed.",
+    "Do not ask for raw data by default. If evidence would materially improve the answer, add a data_requests item that names the smallest useful evidence bundle and explains why.",
     "For coral health questions, consider whether non-current livestock photos, lighting schedule images, PAR map/model data, or recent parameter logs would materially change confidence. If so, request them.",
+    "If the user attached current prompt photos, request insight_prompt_photos only when visual review would materially improve confidence, such as pests, nuisance algae, tissue recession, bleaching, lesions, or coral identification.",
     "For lighting-sensitive questions, request lighting_images only when the summarized lighting context is insufficient and raw lighting images are available.",
+    "For equipment-sensitive questions, use equipment details/specs when present. Request equipment_details only when the compact equipment summary is insufficient.",
+    "When the compact map summary is insufficient for placement reasoning, request map_model_detail or par_map rather than all app data.",
     "Prefer simple, incremental reefkeeping actions. Do not recommend abrupt parameter swings.",
     "Flag detectable ammonia or nitrite as high priority, while asking the user to verify unexpected test results.",
     "Do not invent facts, species requirements, product instructions, or missing measurements. Put missing inputs in missing_data.",
     "This is husbandry support, not veterinary diagnosis. For severe livestock distress, recommend confirmation from an experienced reef professional or veterinarian.",
     "Return concise structured JSON only.",
-  ].join("\n");
+  ];
+
+  if (phase === "followup") {
+    base.push(
+      "You are now receiving selected_evidence that fulfills one or more prior data_requests.",
+      "Use selected_evidence to refine the final answer. Keep only still-needed data_requests in the returned JSON.",
+    );
+  } else {
+    base.push(
+      "This is the index pass. If the compact context is sufficient, answer directly and leave data_requests empty.",
+      "If it is not sufficient, still provide the best provisional structured answer, and use data_requests for the smallest follow-up evidence bundles.",
+    );
+  }
+
+  return base.join("\n");
+}
+
+function getInsightDataRequests(insight: unknown) {
+  if (!insight || typeof insight !== "object") return [];
+  const requests = (insight as { data_requests?: unknown }).data_requests;
+  return Array.isArray(requests)
+    ? requests.filter((request): request is Record<string, unknown> => Boolean(request && typeof request === "object"))
+    : [];
+}
+
+function selectEvidenceBundles(
+  requests: Record<string, unknown>[],
+  evidence: Record<string, EvidenceBundle>,
+) {
+  const selected: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  for (const request of requests) {
+    const requestedType = String(request.data_type || "");
+    for (const key of evidenceKeysForRequest(requestedType)) {
+      if (seen.has(key)) continue;
+      const bundle = evidence[key];
+      if (!bundle || bundle.available === false) continue;
+      seen.add(key);
+      selected.push({
+        data_type: bundle.data_type || key,
+        label: bundle.label || key,
+        summary: bundle.summary || "",
+        reason: request.reason || "",
+        priority: request.priority || "medium",
+        content: bundle.content ?? bundle,
+      });
+      break;
+    }
+    if (selected.length >= 4) break;
+  }
+  return selected;
+}
+
+function evidenceKeysForRequest(dataType: string) {
+  const aliases: Record<string, string[]> = {
+    tank_profile: ["tank_profile"],
+    equipment_details: ["equipment_details", "tank_profile"],
+    map_model_detail: ["map_model_detail"],
+    par_map: ["par_map", "map_model_detail"],
+    livestock_records: ["livestock_records"],
+    livestock_photos: ["livestock_photos", "livestock_records"],
+    lighting_images: ["lighting_images", "tank_profile"],
+    insight_prompt_photos: ["insight_prompt_photos"],
+    water_tests: ["water_tests"],
+    feeding_logs: ["feeding_logs"],
+    maintenance_logs: ["maintenance_logs"],
+    water_change_logs: ["maintenance_logs"],
+    care_schedule: ["care_schedule"],
+    map_reference_images: ["map_model_detail"],
+  };
+  return aliases[dataType] || [];
+}
+
+function collectEvidenceImageInputs(selectedEvidence: Array<Record<string, unknown>>) {
+  const images: Array<Record<string, string>> = [];
+  const seen = new Set<string>();
+
+  const visit = (value: unknown) => {
+    if (images.length >= 4 || !value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+
+    const record = value as Record<string, unknown>;
+    const imageUrl = firstString(record.dataUrl, record.imageUrl, record.publicUrl);
+    if (imageUrl && !seen.has(imageUrl)) {
+      seen.add(imageUrl);
+      images.push({
+        type: "input_image",
+        image_url: imageUrl,
+        detail: "auto",
+      });
+    }
+
+    for (const child of Object.values(record)) visit(child);
+  };
+
+  visit(selectedEvidence);
+  return images;
+}
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
+}
+
+function stripImagePayloads(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripImagePayloads);
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entry]) => {
+      if (key === "dataUrl" && typeof entry === "string" && entry.startsWith("data:image/")) {
+        return [key, "[image bytes sent separately]"];
+      }
+      return [key, stripImagePayloads(entry)];
+    }),
+  );
 }
 
 function extractOutputText(data: Record<string, unknown>) {

@@ -26,6 +26,24 @@
     water_change: "waterChangeForm",
   };
 
+  const EQUIPMENT_FIELDS = [
+    { key: "proteinSkimmer", label: "Protein skimmer", dateKey: "proteinSkimmerAddedDate", legacyKey: "proteinSkimmerLegacy", detailsKey: "proteinSkimmerDetails" },
+    { key: "sump", label: "Sump", dateKey: "sumpAddedDate", legacyKey: "sumpLegacy", detailsKey: "sumpDetails" },
+    { key: "refugium", label: "Refugium", dateKey: "refugiumAddedDate", legacyKey: "refugiumLegacy", detailsKey: "refugiumDetails" },
+    { key: "autoTopOff", label: "Auto top-off", dateKey: "autoTopOffAddedDate", legacyKey: "autoTopOffLegacy", detailsKey: "autoTopOffDetails" },
+    { key: "uvSterilizer", label: "UV", dateKey: "uvSterilizerAddedDate", legacyKey: "uvSterilizerLegacy", detailsKey: "uvSterilizerDetails", scheduleKey: "uvSchedule" },
+    { key: "gfoReactor", label: "GFO reactor", dateKey: "gfoReactorAddedDate", legacyKey: "gfoReactorLegacy", detailsKey: "gfoReactorDetails" },
+    { key: "carbonReactor", label: "Carbon reactor", dateKey: "carbonReactorAddedDate", legacyKey: "carbonReactorLegacy", detailsKey: "carbonReactorDetails" },
+  ];
+
+  const CARE_TASKS = [
+    { key: "water_change", label: "Water change", source: "event_type", type: "water_change", intervalDays: 7, overdueLabel: "Water change overdue" },
+    { key: "water_test", label: "Water test", source: "water_test", intervalDays: 7, overdueLabel: "Water test overdue" },
+    { key: "top_carbon", label: "Top carbon", source: "maintenance_label", labelMatch: "Top Carbon replaced", intervalDays: 28, overdueLabel: "Top carbon overdue" },
+    { key: "bottom_carbon", label: "Bottom carbon", source: "maintenance_label", labelMatch: "Bottom Carbon replaced", intervalDays: 28, overdueLabel: "Bottom carbon overdue" },
+    { key: "uv_bulb", label: "UV bulb", source: "maintenance_label", labelMatch: "UV bulb replaced", intervalDays: null, overdueLabel: "UV bulb replacement due" },
+  ];
+
   let state = normalizeState(readJson(STORAGE_KEY) || getDefaultState());
   let backendConfig = readJson(BACKEND_KEY) || {};
   let supabaseClient = null;
@@ -37,6 +55,7 @@
   let isRemoteHydrating = false;
   let toastTimer = null;
   let pendingLivestockPhotos = [];
+  let pendingInsightPhotos = [];
   let editingLog = null;
   let map2Renderer = null;
   let map2Scene = null;
@@ -88,6 +107,7 @@
         startDate: "",
         tankStyle: "",
         filtration: "",
+        filtrationDetails: "",
         lightingModel: "",
         lightingSummary: "",
         lightingPhotos: [],
@@ -99,9 +119,36 @@
         targetTemp: "78 F",
         saltMix: "",
         dosing: "",
+        tankSummary: "",
         proteinSkimmer: false,
+        proteinSkimmerAddedDate: "",
+        proteinSkimmerLegacy: false,
+        proteinSkimmerDetails: "",
+        sump: false,
+        sumpAddedDate: "",
+        sumpLegacy: false,
+        sumpDetails: "",
         refugium: false,
+        refugiumAddedDate: "",
+        refugiumLegacy: false,
+        refugiumDetails: "",
         autoTopOff: false,
+        autoTopOffAddedDate: "",
+        autoTopOffLegacy: false,
+        autoTopOffDetails: "",
+        uvSterilizer: false,
+        uvSterilizerAddedDate: "",
+        uvSterilizerLegacy: false,
+        uvSterilizerDetails: "",
+        uvSchedule: "",
+        gfoReactor: false,
+        gfoReactorAddedDate: "",
+        gfoReactorLegacy: false,
+        gfoReactorDetails: "",
+        carbonReactor: false,
+        carbonReactorAddedDate: "",
+        carbonReactorLegacy: false,
+        carbonReactorDetails: "",
         notes: "",
       },
       zones: [
@@ -422,10 +469,11 @@
 
   function normalizeState(raw) {
     const base = getDefaultState();
+    const rawProfile = raw?.profile || {};
     const next = {
       ...base,
       ...raw,
-      profile: { ...base.profile, ...(raw.profile || {}) },
+      profile: { ...base.profile, ...rawProfile },
       ui: { ...base.ui, ...(raw.ui || {}) },
       zones: Array.isArray(raw.zones) ? raw.zones : base.zones,
       livestock: Array.isArray(raw.livestock) ? raw.livestock : [],
@@ -443,6 +491,8 @@
     next.profile.lightingPhotos = lightingPhotos;
     next.profile.lightingPhoto = lightingPhotos[0] || null;
     next.profile.lightingPhotoDataUrl = lightingPhotos.find((photo) => photo.dataUrl)?.dataUrl || "";
+    migrateLegacyRefugiumToSump(next.profile, rawProfile);
+    normalizeEquipmentProfile(next.profile, rawProfile, { migrateLegacy: true });
 
     next.zones = next.zones.map((zone) => ({
       id: zone.id || uid(),
@@ -461,6 +511,7 @@
       const isLegacy = hasLegacyFlag ? Boolean(item.isLegacy) : true;
       const species = item.species || item.name || "Unknown";
       const photos = normalizePhotoList(item);
+      const noteLog = normalizeLivestockNoteLog(item);
 
       return {
         id: item.id || uid(),
@@ -468,14 +519,17 @@
         name: species,
         category,
         quantity: item.quantity ?? "",
+        currentCount: item.currentCount ?? "",
+        trackingUnit: item.trackingUnit || "",
         addedDate: item.addedDate || "",
         isLegacy,
         status: casual ? "noticed" : item.status || "active",
         zoneId: item.zoneId || "",
-        notes: item.notes || "",
+        notes: "",
+        noteLog,
         health: item.health || "",
         growthTrend: item.growthTrend || "",
-        growthMetric: item.growthMetric || "",
+        growthNotes: item.growthNotes || item.growthMetric || "",
         photos,
         photoDataUrl: photos.find((photo) => photo.dataUrl)?.dataUrl || "",
         mapPosition: normalizeMapPosition(item.mapPosition),
@@ -515,6 +569,37 @@
     }));
 
     return next;
+  }
+
+  function migrateLegacyRefugiumToSump(profile, sourceProfile = {}) {
+    const hasSumpData = ["sump", "sumpAddedDate", "sumpLegacy", "sumpDetails"].some((key) =>
+      Object.prototype.hasOwnProperty.call(sourceProfile, key),
+    );
+    if (hasSumpData) return;
+    if (!sourceProfile.refugium && !sourceProfile.refugiumAddedDate && !sourceProfile.refugiumDetails) return;
+
+    profile.sump = Boolean(sourceProfile.refugium);
+    profile.sumpAddedDate = sourceProfile.refugiumAddedDate || "";
+    profile.sumpLegacy = Boolean(sourceProfile.refugiumLegacy);
+    profile.sumpDetails = sourceProfile.refugiumDetails || "";
+    profile.refugium = false;
+    profile.refugiumAddedDate = "";
+    profile.refugiumLegacy = false;
+    profile.refugiumDetails = "";
+  }
+
+  function normalizeEquipmentProfile(profile, sourceProfile = {}, options = {}) {
+    EQUIPMENT_FIELDS.forEach(({ key, dateKey, legacyKey, detailsKey }) => {
+      const active = Boolean(profile[key]);
+      const addedDate = String(profile[dateKey] || "");
+      const sourceHadLegacy = Object.prototype.hasOwnProperty.call(sourceProfile, legacyKey);
+      const migratedLegacy = Boolean(options.migrateLegacy && active && !sourceHadLegacy && !addedDate);
+      profile[key] = active;
+      profile[legacyKey] = active ? Boolean(migratedLegacy || profile[legacyKey]) : false;
+      profile[dateKey] = active && !profile[legacyKey] ? addedDate : "";
+      profile[detailsKey] = String(profile[detailsKey] || "");
+    });
+    profile.uvSchedule = String(profile.uvSchedule || "");
   }
 
   function normalizeMap(raw = {}, defaults = getDefaultMap()) {
@@ -906,6 +991,42 @@
     return normalizePhotoList(item);
   }
 
+  function normalizeLivestockNoteLog(item = {}) {
+    const entries = Array.isArray(item.noteLog)
+      ? item.noteLog
+          .map((note) => ({
+            id: note.id || uid(),
+            at: note.at || "",
+            text: String(note.text || "").trim(),
+            isLegacy: Boolean(note.isLegacy),
+          }))
+          .filter((note) => note.text)
+      : [];
+    const legacyNote = String(item.notes || "").trim();
+    if (legacyNote && !entries.some((note) => note.text === legacyNote)) {
+      entries.push({
+        id: uid(),
+        at: item.noteLoggedAt || "",
+        text: legacyNote,
+        isLegacy: true,
+      });
+    }
+    return entries.sort((a, b) => {
+      const aTime = new Date(a.at || 0).getTime();
+      const bTime = new Date(b.at || 0).getTime();
+      return bTime - aTime;
+    });
+  }
+
+  function createLivestockNoteEntry(text) {
+    return {
+      id: uid(),
+      at: new Date().toISOString(),
+      text: text.trim(),
+      isLegacy: false,
+    };
+  }
+
   function getLightingPhotos() {
     return normalizePhotoArray([
       ...(Array.isArray(state.profile.lightingPhotos) ? state.profile.lightingPhotos : []),
@@ -1039,13 +1160,17 @@
       "startDate",
       "tankStyle",
       "filtration",
+      "filtrationDetails",
       "lightingModel",
       "lightingSummary",
       "saltMix",
       "dosing",
+      "tankSummary",
+      "uvSchedule",
       "notes",
     ].filter((key) => String(profile[key] || "").trim()).length;
-    const equipmentFlags = ["proteinSkimmer", "refugium", "autoTopOff"].filter((key) => Boolean(profile[key])).length;
+    const equipmentFlags = EQUIPMENT_FIELDS.filter(({ key }) => Boolean(profile[key])).length;
+    const equipmentDetails = EQUIPMENT_FIELDS.filter(({ detailsKey }) => String(profile[detailsKey] || "").trim()).length;
     const lightingPhotos = Array.isArray(profile.lightingPhotos) ? profile.lightingPhotos.length : 0;
     const zoneDetails = Array.isArray(value?.zones)
       ? value.zones.filter((zone) => zone.parMin || zone.parMax || zone.notes).length
@@ -1057,6 +1182,7 @@
       insightRuns: Array.isArray(value?.insightRuns) ? value.insightRuns.length : 0,
       profileFields,
       equipmentFlags,
+      equipmentDetails,
       lightingPhotos,
       zoneDetails,
       parMarkers: Array.isArray(value?.map?.parMarkers) ? value.map.parMarkers.length : 0,
@@ -1068,6 +1194,7 @@
       score.insightRuns +
       score.profileFields +
       score.equipmentFlags +
+      score.equipmentDetails +
       score.lightingPhotos +
       score.zoneDetails;
     score.total = score.core + score.parMarkers;
@@ -1171,6 +1298,29 @@
     }
     if (item.isLegacy || !item.addedDate) return "Legacy / add date unknown";
     return `Added ${formatDate(item.addedDate)}`;
+  }
+
+  function formatEquipmentAdded(item) {
+    if (!item.active) return "Not installed";
+    if (item.isLegacy || !item.addedDate) return "Legacy / add date unknown";
+    return `Added ${formatDate(item.addedDate)}`;
+  }
+
+  function getEquipmentProfiles(profile = state.profile) {
+    return EQUIPMENT_FIELDS.map(({ key, label, dateKey, legacyKey, detailsKey, scheduleKey }) => ({
+      key,
+      label,
+      active: Boolean(profile[key]),
+      addedDate: profile[dateKey] || "",
+      isLegacy: Boolean(profile[key] && profile[legacyKey]),
+      details: profile[detailsKey] || "",
+      schedule: scheduleKey ? profile[scheduleKey] || "" : "",
+      status: formatEquipmentAdded({
+        active: Boolean(profile[key]),
+        addedDate: profile[dateKey] || "",
+        isLegacy: Boolean(profile[key] && profile[legacyKey]),
+      }),
+    }));
   }
 
   function formatQuantity(value) {
@@ -1298,6 +1448,16 @@
     return saved;
   }
 
+  async function prepareInsightPhotosForSave(runId, photos) {
+    const saved = [];
+    for (const photo of photos) {
+      const normalized = normalizePhotoRecord(photo);
+      if (!normalized) continue;
+      saved.push(supabaseClient ? await uploadPhotoRecord(normalized, "insights", runId) : normalized);
+    }
+    return saved;
+  }
+
   async function removeStoragePaths(paths) {
     const uniquePaths = [...new Set(paths.filter(Boolean))];
     if (!uniquePaths.length || !supabaseClient) return;
@@ -1348,7 +1508,11 @@
       return;
     }
 
-    const kind = previewId === "lightingPhotoPreview" ? "lighting" : "livestock";
+    const kind = previewId === "lightingPhotoPreview"
+      ? "lighting"
+      : previewId === "insightPhotoPreview"
+        ? "insight"
+        : "livestock";
     preview.hidden = false;
     if (kind === "lighting") {
       preview.innerHTML = `
@@ -1369,7 +1533,7 @@
         ${photos.map((photo, index) => `
           <article class="photo-preview-item">
             <img src="${escapeHtml(getPhotoSrc(photo))}" alt="${escapeHtml(`${altText} ${index + 1}`)}" />
-            <button class="mini-button danger" type="button" data-remove-photo="livestock" data-photo-index="${index}">Remove</button>
+            <button class="mini-button danger" type="button" data-remove-photo="${kind}" data-photo-index="${index}">Remove</button>
           </article>
         `).join("")}
       </div>
@@ -1398,6 +1562,18 @@
           renderInsightsContext();
         }
         showImageSaveResult(result.saved.length, result.failed.length, "lighting image");
+      } else if (target === "insight") {
+        const result = await processImageFiles(files, {
+          label: "insight photo",
+          maxDimension: 1200,
+          quality: 0.78,
+          savePhoto: (photo) => photo,
+        });
+        if (result.saved.length) {
+          pendingInsightPhotos = [...pendingInsightPhotos, ...result.saved];
+          renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
+        }
+        showImageSaveResult(result.saved.length, result.failed.length, "insight photo");
       } else {
         const result = await processImageFiles(files, {
           label: "photo",
@@ -1458,8 +1634,48 @@
       .sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))[0] || null;
   }
 
+  function getLatestMaintenanceByLabel(label) {
+    return [...state.events]
+      .filter((event) => event.type === "maintenance" && event.label === label)
+      .sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))[0] || null;
+  }
+
+  function getCareTaskLastDate(task) {
+    if (task.source === "water_test") return getLatestWaterTest()?.measuredAt || "";
+    if (task.source === "event_type") return getLatestEvent(task.type)?.happenedAt || "";
+    if (task.source === "maintenance_label") return getLatestMaintenanceByLabel(task.labelMatch)?.happenedAt || "";
+    return "";
+  }
+
+  function getCareTaskStatus(task) {
+    const lastAt = getCareTaskLastDate(task);
+    const lastAgeDays = daysSince(lastAt);
+    const intervalDays = Number(task.intervalDays);
+    const scheduled = Number.isFinite(intervalDays) && intervalDays > 0;
+    const dueInDays = scheduled && lastAgeDays !== null ? intervalDays - lastAgeDays : null;
+    const overdue = scheduled && (lastAgeDays === null || lastAgeDays > intervalDays);
+    const dueSoon = scheduled && !overdue && dueInDays !== null && dueInDays <= 1;
+    return {
+      key: task.key,
+      label: task.label,
+      lastAt,
+      lastAgeDays,
+      intervalDays: scheduled ? intervalDays : null,
+      dueInDays,
+      overdue,
+      dueSoon,
+      manualOnly: !scheduled,
+      status: overdue ? "overdue" : dueSoon ? "due_soon" : scheduled ? "current" : "manual",
+      overdueLabel: task.overdueLabel,
+    };
+  }
+
+  function getCareTaskStatuses() {
+    return CARE_TASKS.map(getCareTaskStatus);
+  }
+
   function describeTimeAfter(event, timestamp) {
-    if (!event || !timestamp) return "No prior event";
+    if (!event || !timestamp) return "No prior logged event";
     const diffHours = Math.max(0, (new Date(timestamp) - new Date(event.happenedAt)) / 3600000);
     if (diffHours < 1) return "within 1 hour";
     if (diffHours < 24) return `${Math.round(diffHours)} hours after`;
@@ -1575,8 +1791,11 @@
     const latestWaterChange = getLatestEvent("water_change");
     const activeLivestock = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "active");
     const activeQuantity = activeLivestock.reduce((total, item) => {
-      const quantity = Number(item.quantity);
-      return total + (Number.isFinite(quantity) && quantity > 0 ? quantity : 1);
+      const rawQuantity = item.currentCount !== "" && item.currentCount !== null && item.currentCount !== undefined
+        ? item.currentCount
+        : item.quantity;
+      const quantity = Number(rawQuantity);
+      return total + (Number.isFinite(quantity) && rawQuantity !== "" ? Math.max(0, quantity) : 1);
     }, 0);
     const phase = getLightPhase();
 
@@ -1606,13 +1825,9 @@
   function renderRiskStrip() {
     const risks = [];
     const latestTest = getLatestWaterTest();
-    const latestWaterChange = getLatestEvent("water_change");
+    const careStatuses = getCareTaskStatuses();
 
-    if (!latestTest) {
-      risks.push({ tone: "warning", label: "No water test logged" });
-    } else {
-      const testAge = daysSince(latestTest.measuredAt);
-      if (testAge > 7) risks.push({ tone: "warning", label: "Water test is over 7 days old" });
+    if (latestTest) {
       if (latestTest.ammonia !== null && latestTest.ammonia > 0.05) {
         risks.push({ tone: "danger", label: "Ammonia detected" });
       }
@@ -1624,11 +1839,12 @@
       }
     }
 
-    if (!latestWaterChange) {
-      risks.push({ tone: "warning", label: "No water change logged" });
-    } else if (daysSince(latestWaterChange.happenedAt) > 21) {
-      risks.push({ tone: "warning", label: "Water change over 21 days ago" });
-    }
+    careStatuses
+      .filter((task) => task.overdue)
+      .forEach((task) => risks.push({ tone: "warning", label: task.lastAt ? task.overdueLabel : `${task.label} not logged` }));
+    careStatuses
+      .filter((task) => task.dueSoon)
+      .forEach((task) => risks.push({ tone: "warning", label: `${task.label} due soon` }));
 
     if (!risks.length) risks.push({ tone: "good", label: "No obvious alerts" });
 
@@ -1664,6 +1880,7 @@
       }
     });
     renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
+    syncEquipmentDateControls();
   }
 
   function updateProfileFromForm() {
@@ -1671,6 +1888,8 @@
       const key = input.dataset.profile;
       state.profile[key] = input.type === "checkbox" ? input.checked : input.value;
     });
+    normalizeEquipmentProfile(state.profile, state.profile);
+    syncEquipmentDateControls();
     saveState();
     $("profileSavedStatus").textContent = "Saved";
     renderDashboard();
@@ -1678,31 +1897,65 @@
     renderInsightsContext();
   }
 
+  function syncEquipmentDateControls() {
+    EQUIPMENT_FIELDS.forEach(({ key, dateKey, legacyKey, detailsKey, scheduleKey }) => {
+      const activeInput = document.querySelector(`[data-profile="${key}"]`);
+      const dateField = document.querySelector(`[data-equipment-date="${key}"]`);
+      const dateInput = document.querySelector(`[data-profile="${dateKey}"]`);
+      const legacyField = document.querySelector(`[data-equipment-legacy="${key}"]`);
+      const legacyInput = document.querySelector(`[data-profile="${legacyKey}"]`);
+      const detailsField = document.querySelector(`[data-equipment-details="${key}"]`);
+      const detailsInput = document.querySelector(`[data-profile="${detailsKey}"]`);
+      const scheduleField = scheduleKey ? document.querySelector(`[data-equipment-schedule="${key}"]`) : null;
+      const scheduleInput = scheduleKey ? document.querySelector(`[data-profile="${scheduleKey}"]`) : null;
+      const active = Boolean(activeInput?.checked);
+      const legacy = Boolean(legacyInput?.checked);
+      const hideDate = !active || legacy;
+
+      if (legacyField) legacyField.hidden = !active;
+      if (legacyInput) {
+        legacyInput.disabled = !active;
+        if (!active) legacyInput.checked = false;
+      }
+      if (dateField) dateField.hidden = hideDate;
+      if (dateInput) {
+        dateInput.disabled = hideDate;
+        if (hideDate) dateInput.value = "";
+      }
+      if (detailsField) detailsField.hidden = !active;
+      if (detailsInput) detailsInput.disabled = !active;
+      if (scheduleField) scheduleField.hidden = !active;
+      if (scheduleInput) scheduleInput.disabled = !active;
+    });
+  }
+
   function renderZones() {
     const zoneList = $("zoneList");
-    zoneList.innerHTML = state.zones.length
-      ? state.zones.map((zone) => `
-        <article class="data-card">
-          <div class="data-card-header">
-            <div class="data-card-title">
-              <strong>${escapeHtml(zone.name)}</strong>
-              <p class="card-meta">${escapeHtml(zone.light)} light · ${escapeHtml(zone.flow)} flow${zone.parMin || zone.parMax ? ` · PAR ${escapeHtml(zone.parMin || "?")} - ${escapeHtml(zone.parMax || "?")}` : ""}</p>
+    if (zoneList) {
+      zoneList.innerHTML = state.zones.length
+        ? state.zones.map((zone) => `
+          <article class="data-card">
+            <div class="data-card-header">
+              <div class="data-card-title">
+                <strong>${escapeHtml(zone.name)}</strong>
+                <p class="card-meta">${escapeHtml(zone.light)} light · ${escapeHtml(zone.flow)} flow${zone.parMin || zone.parMax ? ` · PAR ${escapeHtml(zone.parMin || "?")} - ${escapeHtml(zone.parMax || "?")}` : ""}</p>
+              </div>
+              <span class="category-pill">Zone</span>
             </div>
-            <span class="category-pill">Zone</span>
-          </div>
-          ${zone.notes ? `<p class="card-meta">${escapeHtml(zone.notes)}</p>` : ""}
-          <div class="card-actions">
-            <button class="mini-button danger" type="button" data-zone-delete="${zone.id}">Delete</button>
-          </div>
-        </article>
-      `).join("")
-      : `<div class="empty-state">No placement zones.</div>`;
+            ${zone.notes ? `<p class="card-meta">${escapeHtml(zone.notes)}</p>` : ""}
+            <div class="card-actions">
+              <button class="mini-button danger" type="button" data-zone-delete="${zone.id}">Delete</button>
+            </div>
+          </article>
+        `).join("")
+        : `<div class="empty-state">No legacy placement records.</div>`;
+    }
 
     const options = [
       `<option value="">Unplaced</option>`,
       ...state.zones.map((zone) => `<option value="${zone.id}">${escapeHtml(zone.name)}</option>`),
     ].join("");
-    $("livestockZone").innerHTML = options;
+    if ($("livestockZone")) $("livestockZone").innerHTML = options;
   }
 
   function renderMapSettings() {
@@ -3437,7 +3690,7 @@
           category: item.category || "Other",
           zone: zone?.name || "",
           health: item.health || "",
-          growth: item.growthMetric || item.growthTrend || "",
+          growth: [item.growthTrend, item.growthNotes].filter(Boolean).join(" · "),
           structure,
           manual: Boolean(manualPosition),
           anchor: manualPosition ? getMarkerAnchor(manualPosition) : structure ? getPlacementAnchor(structure, item.id || `${index}`) : null,
@@ -4143,12 +4396,18 @@
 
   function renderLivestockCard(item) {
     const casual = isCasualStockCategory(item.category);
-    const quantity = formatQuantity(item.quantity);
+    const quantityAdded = formatQuantity(item.quantity);
+    const currentCount = formatQuantity(item.currentCount);
+    const countParts = [
+      item.trackingUnit ? `Unit ${item.trackingUnit}` : "",
+      quantityAdded ? `Qty added ${quantityAdded}` : "",
+      currentCount ? `Current ${currentCount}` : "",
+    ].filter(Boolean);
     const photos = getLivestockPhotos(item);
     const healthParts = [
       item.health ? `Health: ${item.health}` : "",
       item.growthTrend ? `Growth: ${item.growthTrend}` : "",
-      item.growthMetric ? `Metric: ${item.growthMetric}` : "",
+      item.growthNotes ? `Growth notes: ${item.growthNotes}` : "",
     ].filter(Boolean);
     const outcome = !casual && item.status !== "active"
       ? `<p class="card-meta">${escapeHtml(item.status)}${item.removedDate ? ` on ${escapeHtml(formatDate(item.removedDate))}` : ""}${item.outcomeReason ? ` · ${escapeHtml(item.outcomeReason)}` : ""}</p>`
@@ -4158,14 +4417,14 @@
         <div class="data-card-header">
           <div class="data-card-title">
             <strong>${escapeHtml(item.species)}</strong>
-            <p class="card-meta">${escapeHtml(item.category)}${quantity ? ` · Qty ${escapeHtml(quantity)}` : ""}</p>
+            <p class="card-meta">${escapeHtml([item.category, ...countParts].join(" · "))}</p>
           </div>
           <span class="category-pill">${escapeHtml(casual ? "noticed" : item.status)}</span>
         </div>
         <p class="card-meta">${escapeHtml(formatStockDate(item))} · ${escapeHtml(getZoneName(item.zoneId))}</p>
         ${healthParts.length ? `<p class="card-meta">${escapeHtml(healthParts.join(" · "))}</p>` : ""}
         ${renderStockPhotoGrid(item, photos)}
-        ${item.notes ? `<p class="card-meta">${escapeHtml(item.notes)}</p>` : ""}
+        ${renderLivestockNoteLog(item)}
         ${outcome}
         <div class="card-actions">
           <button class="mini-button" type="button" data-livestock-action="edit" data-id="${item.id}">Edit</button>
@@ -4178,6 +4437,23 @@
           <button class="mini-button danger" type="button" data-livestock-action="delete" data-id="${item.id}">Delete</button>
         </div>
       </article>
+    `;
+  }
+
+  function renderLivestockNoteLog(item) {
+    const notes = normalizeLivestockNoteLog(item);
+    if (!notes.length) return "";
+    return `
+      <div class="livestock-note-log">
+        <strong>Notes</strong>
+        ${notes.slice(0, 4).map((note) => `
+          <p class="card-meta">
+            <span>${escapeHtml(note.at ? formatDateTime(note.at) : "Legacy note")}</span>
+            ${escapeHtml(note.text)}
+          </p>
+        `).join("")}
+        ${notes.length > 4 ? `<p class="card-meta">${notes.length - 4} older note${notes.length - 4 === 1 ? "" : "s"}</p>` : ""}
+      </div>
     `;
   }
 
@@ -4316,7 +4592,10 @@
       return;
     }
     $("insightSourcePill").textContent = latest.source === "gpt" ? "GPT" : "Local";
-    $("insightOutput").innerHTML = renderInsightResult(latest.result);
+    $("insightOutput").innerHTML = state.insightRuns
+      .slice(0, 10)
+      .map((run, index) => renderInsightRun(run, index))
+      .join("");
   }
 
   function renderInsightCompact(result, source) {
@@ -4329,6 +4608,90 @@
         <p>${escapeHtml(result.summary || "No summary.")}</p>
       </article>
     `;
+  }
+
+  function renderInsightRun(run, index) {
+    const title = getInsightRunTitle(run);
+    return `
+      <details class="insight-run"${index === 0 ? " open" : ""}>
+        <summary>
+          <span>
+            <strong>${escapeHtml(title)}</strong>
+            <small>${escapeHtml([formatDateTime(run.createdAt), run.source === "gpt" ? "GPT" : "Local", run.mode].filter(Boolean).join(" · "))}</small>
+          </span>
+          <i data-lucide="chevron-down"></i>
+        </summary>
+        <div class="insight-run-body">
+          ${run.question ? `<article class="insight-card"><strong>Question</strong><p>${escapeHtml(run.question)}</p></article>` : ""}
+          ${renderInsightRunPhotos(run)}
+          ${renderInsightResult(run.result)}
+          ${index === 0 ? renderInsightFollowupForm() : ""}
+          ${renderInsightDebug(run)}
+        </div>
+      </details>
+    `;
+  }
+
+  function renderInsightRunPhotos(run) {
+    const photos = (Array.isArray(run?.photos) ? run.photos : [])
+      .map(normalizePhotoRecord)
+      .filter(Boolean);
+    if (!photos.length) return "";
+    return `
+      <article class="insight-card">
+        <strong>Attached Photos</strong>
+        <div class="stock-photo-grid" data-count="${Math.min(photos.length, 4)}">
+          ${photos.slice(0, 4).map((photo, index) => `
+            <img src="${escapeHtml(getPhotoSrc(photo))}" alt="${escapeHtml(`Insight photo ${index + 1}`)}" />
+          `).join("")}
+        </div>
+        ${photos.length > 4 ? `<p>${photos.length - 4} more photo${photos.length - 4 === 1 ? "" : "s"}</p>` : ""}
+      </article>
+    `;
+  }
+
+  function renderInsightFollowupForm() {
+    return `
+      <article class="insight-card insight-followup">
+        <strong>Follow Up</strong>
+        <label>
+          Detail / Question
+          <textarea
+            id="insightFollowup"
+            rows="3"
+            placeholder="Add a missing detail or ask a follow-up"
+          ></textarea>
+        </label>
+        <button id="insightFollowupButton" class="secondary-button" type="button" data-insight-followup>
+          <i data-lucide="message-square-plus"></i>
+          Send Follow-Up
+        </button>
+      </article>
+    `;
+  }
+
+  function getInsightRunTitle(run) {
+    const question = String(run?.question || "").trim();
+    if (question) return shortenText(run.parentInsightId ? `Follow-up: ${question}` : question, 72);
+    const summary = getInsightSummary(run?.result);
+    if (summary) return shortenText(summary, 72);
+    return shortenText(getInsightHeadline(run?.result), 72);
+  }
+
+  function shortenText(value, maxLength = 72) {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
+  }
+
+  function getInsightHeadline(result) {
+    if (typeof result === "string") return "Insight";
+    return result?.headline || "Tank summary";
+  }
+
+  function getInsightSummary(result) {
+    if (typeof result === "string") return result;
+    return result?.summary || "";
   }
 
   function renderInsightResult(result) {
@@ -4357,6 +4720,19 @@
       ${renderInsightList("Next Actions", nextActions)}
       ${renderInsightRequests(dataRequests)}
       ${renderInsightList("Missing Data", missingData)}
+    `;
+  }
+
+  function renderInsightDebug(run) {
+    if (!run.debug) return "";
+    return `
+      <details class="insight-debug">
+        <summary>
+          <span>Data Sent</span>
+          <i data-lucide="chevron-down"></i>
+        </summary>
+        <pre>${escapeHtml(JSON.stringify(run.debug, null, 2))}</pre>
+      </details>
     `;
   }
 
@@ -4390,6 +4766,308 @@
     `;
   }
 
+  function buildRemoteInsightPayload(mode, question, previousRun = null, attachedPhotos = []) {
+    const fullContext = buildInsightContext();
+    const evidence = buildInsightEvidenceBundles(fullContext, attachedPhotos);
+    const context = buildProgressiveInsightContext(fullContext, mode, question, evidence);
+    if (previousRun) {
+      context.conversationContext = summarizeInsightRunForFollowup(previousRun);
+    }
+    if (attachedPhotos.length) {
+      context.requestAttachments = {
+        photoCount: attachedPhotos.length,
+        evidenceBundle: "insight_prompt_photos",
+        indexPassPolicy: "Image inventory is visible in this pass; image bytes are sent only if requested as evidence.",
+      };
+    }
+    return {
+      context,
+      evidence,
+    };
+  }
+
+  function summarizeInsightRunForFollowup(run) {
+    const result = run?.result;
+    const priorities = result && typeof result === "object" && Array.isArray(result.priorities)
+      ? result.priorities.map((priority) => ({
+          label: priority.label || "",
+          severity: priority.severity || "",
+          why: priority.why || "",
+        }))
+      : [];
+    return {
+      id: run?.id || "",
+      createdAt: run?.createdAt || "",
+      mode: run?.mode || "",
+      originalQuestion: run?.question || "",
+      source: run?.source || "",
+      headline: getInsightHeadline(result),
+      summary: getInsightSummary(result),
+      priorities,
+      observations: result && typeof result === "object" && Array.isArray(result.observations) ? result.observations : [],
+      nextActions: result && typeof result === "object" && Array.isArray(result.next_actions) ? result.next_actions : [],
+      missingData: result && typeof result === "object" && Array.isArray(result.missing_data) ? result.missing_data : [],
+      dataRequests: result && typeof result === "object" && Array.isArray(result.data_requests) ? result.data_requests : [],
+    };
+  }
+
+  function buildInsightDebugPayload(payload, progressive = null, error = "") {
+    return {
+      generatedAt: new Date().toISOString(),
+      firstPassContextSentToGpt: payload.context,
+      evidenceAvailableToFunction: summarizeEvidenceBundlesForDebug(payload.evidence),
+      selectedEvidenceSentToGpt: progressive?.provided || [],
+      progressive,
+      error,
+    };
+  }
+
+  function summarizeEvidenceBundlesForDebug(evidence) {
+    return Object.fromEntries(Object.entries(evidence || {}).map(([key, bundle]) => [
+      key,
+      {
+        data_type: bundle.data_type,
+        label: bundle.label,
+        summary: bundle.summary,
+        count: bundle.count,
+        available: bundle.available,
+      },
+    ]));
+  }
+
+  function buildProgressiveInsightContext(fullContext, mode, question, evidence) {
+    const evidenceIndex = Object.values(evidence).map((bundle) => ({
+      data_type: bundle.data_type,
+      label: bundle.label,
+      summary: bundle.summary,
+      count: bundle.count,
+      available: bundle.available,
+    }));
+    return {
+      ...fullContext,
+      contextStrategy: {
+        phase: "index_plus_selected_evidence",
+        mode,
+        question,
+        approach: "Use this compact context first. Request the smallest useful evidence bundles only when they would materially change confidence or recommendations.",
+        maxFollowupPasses: 1,
+      },
+      evidenceIndex,
+      mapModel: summarizeInsightMapModel(fullContext.mapModel),
+      recentWaterTests: fullContext.recentWaterTests.slice(0, mode === "trends" ? 20 : 10),
+      recentEvents: selectInsightEventsForIndex(fullContext.recentEvents, mode),
+      rawDataInventory: {
+        ...fullContext.rawDataInventory,
+        evidenceBundles: evidenceIndex,
+      },
+    };
+  }
+
+  function summarizeInsightMapModel(mapModel) {
+    return {
+      dimensions: mapModel.dimensions,
+      coordinateSystem: mapModel.coordinateSystem,
+      calibration: mapModel.calibration,
+      structures: (mapModel.structures || []).map((structure) => ({
+        id: structure.id,
+        name: structure.name,
+        type: structure.type,
+        position: structure.position,
+        size: structure.size,
+        light: structure.light,
+        flow: structure.flow,
+        parRange: structure.parRange,
+        notes: structure.notes,
+      })),
+      parMarkers: mapModel.parMarkers,
+      refinementAnnotationCount: mapModel.refinementAnnotations?.length || 0,
+      livestockPlacements: mapModel.livestockPlacements,
+      layers: mapModel.layers,
+      geometryIncluded: false,
+      detailBundle: "map_model_detail",
+    };
+  }
+
+  function selectInsightEventsForIndex(events, mode) {
+    if (mode === "maintenance") {
+      return events
+        .filter((event) => event.type === "maintenance" || event.type === "water_change")
+        .slice(0, 30);
+    }
+    if (mode === "trends") {
+      return events
+        .filter((event) => event.type === "feeding" || event.type === "maintenance" || event.type === "water_change")
+        .slice(0, 30);
+    }
+    return events.slice(0, 20);
+  }
+
+  function buildInsightEvidenceBundles(fullContext, attachedPhotos = []) {
+    const sortedTests = [...state.waterTests]
+      .sort((a, b) => new Date(b.measuredAt) - new Date(a.measuredAt))
+      .slice(0, 90);
+    const sortedEvents = [...state.events]
+      .sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))
+      .slice(0, 120);
+    const feedingLogs = sortedEvents.filter((event) => event.type === "feeding");
+    const maintenanceLogs = sortedEvents.filter((event) => event.type === "maintenance");
+    const waterChangeLogs = sortedEvents.filter((event) => event.type === "water_change");
+    const activeEquipment = getEquipmentProfiles().filter((item) => item.active);
+    const lightingEvidence = getLightingPhotos().map((photo, index) =>
+      buildPhotoEvidenceRecord(photo, `lighting-${index}`, "Lighting schedule image"),
+    );
+    const livestockPhotoEvidence = state.livestock
+      .map((item) => ({
+        id: item.id,
+        species: item.species || item.name || "Unknown",
+        category: item.category || "Other",
+        status: item.status || "",
+        photos: getLivestockPhotos(item).map((photo, index) =>
+          buildPhotoEvidenceRecord(photo, `${item.id}-${index}`, `${item.species || "Stock"} photo ${index + 1}`),
+        ),
+      }))
+      .filter((item) => item.photos.length);
+    const insightPromptPhotoEvidence = attachedPhotos
+      .map((photo, index) => buildPhotoEvidenceRecord(photo, `insight-prompt-${index}`, `Prompt photo ${index + 1}`, { includeDataUrl: true }))
+      .filter((photo) => photo.imageUrl || photo.inlineImageAvailable);
+
+    return {
+      tank_profile: {
+        data_type: "tank_profile",
+        label: "Full tank profile",
+        summary: "Tank profile fields, summary notes, lighting summary, targets, and active equipment.",
+        count: 1,
+        available: true,
+        content: {
+          profile: fullContext.profile,
+          currentLightPhase: fullContext.currentLightPhase,
+        },
+      },
+      equipment_details: {
+        data_type: "equipment_details",
+        label: "Equipment details",
+        summary: `${activeEquipment.filter((item) => item.details).length}/${activeEquipment.length} active equipment records include details/specs.`,
+        count: activeEquipment.length,
+        available: activeEquipment.length > 0,
+        content: activeEquipment,
+      },
+      livestock_records: {
+        data_type: "livestock_records",
+        label: "Livestock records",
+        summary: `${fullContext.livestock.length} livestock records with health, growth, quantity, count, and placement fields.`,
+        count: fullContext.livestock.length,
+        available: fullContext.livestock.length > 0,
+        content: {
+          livestock: fullContext.livestock,
+          placements: fullContext.mapModel.livestockPlacements,
+        },
+      },
+      map_model_detail: {
+        data_type: "map_model_detail",
+        label: "Detailed map model",
+        summary: "Full aquascape structure geometry, PAR markers, refinement annotations, and stock placements.",
+        count: fullContext.mapModel.structures.length,
+        available: true,
+        content: fullContext.mapModel,
+      },
+      par_map: {
+        data_type: "par_map",
+        label: "PAR and flow context",
+        summary: `${fullContext.mapModel.parMarkers.length} PAR markers plus structure light, flow, and PAR ranges.`,
+        count: fullContext.mapModel.parMarkers.length,
+        available: fullContext.rawDataInventory.map.parMapAvailable,
+        content: {
+          parMarkers: fullContext.mapModel.parMarkers,
+          structures: fullContext.mapModel.structures.map((structure) => ({
+            id: structure.id,
+            name: structure.name,
+            light: structure.light,
+            flow: structure.flow,
+            parRange: structure.parRange,
+            notes: structure.notes,
+          })),
+          placements: fullContext.mapModel.livestockPlacements,
+        },
+      },
+      water_tests: {
+        data_type: "water_tests",
+        label: "Water test history",
+        summary: `${sortedTests.length} most recent water tests with timing context.`,
+        count: sortedTests.length,
+        available: sortedTests.length > 0,
+        content: sortedTests,
+      },
+      feeding_logs: {
+        data_type: "feeding_logs",
+        label: "Feeding logs",
+        summary: `${feedingLogs.length} recent feeding events.`,
+        count: feedingLogs.length,
+        available: feedingLogs.length > 0,
+        content: feedingLogs,
+      },
+      maintenance_logs: {
+        data_type: "maintenance_logs",
+        label: "Maintenance logs",
+        summary: `${maintenanceLogs.length} recent maintenance events and ${waterChangeLogs.length} water changes.`,
+        count: maintenanceLogs.length + waterChangeLogs.length,
+        available: maintenanceLogs.length > 0 || waterChangeLogs.length > 0,
+        content: {
+          maintenance: maintenanceLogs,
+          waterChanges: waterChangeLogs,
+        },
+      },
+      care_schedule: {
+        data_type: "care_schedule",
+        label: "Care schedule status",
+        summary: `${fullContext.overdueCareTasks.length} overdue scheduled care task${fullContext.overdueCareTasks.length === 1 ? "" : "s"}. Manual-only tasks are not treated as overdue.`,
+        count: fullContext.careTasks.length,
+        available: true,
+        content: fullContext.careTasks,
+      },
+      insight_prompt_photos: {
+        data_type: "insight_prompt_photos",
+        label: "Current prompt photos",
+        summary: `${insightPromptPhotoEvidence.length} photo${insightPromptPhotoEvidence.length === 1 ? "" : "s"} attached to the current insight request. Image bytes are available only if this bundle is requested.`,
+        count: insightPromptPhotoEvidence.length,
+        available: insightPromptPhotoEvidence.length > 0,
+        content: insightPromptPhotoEvidence,
+      },
+      lighting_images: {
+        data_type: "lighting_images",
+        label: "Lighting image inventory",
+        summary: `${lightingEvidence.length} lighting image records. Image bytes are not included in text-only insight requests.`,
+        count: lightingEvidence.length,
+        available: lightingEvidence.length > 0,
+        content: lightingEvidence,
+      },
+      livestock_photos: {
+        data_type: "livestock_photos",
+        label: "Livestock photo inventory",
+        summary: `${livestockPhotoEvidence.reduce((total, item) => total + item.photos.length, 0)} livestock photo records. Image bytes are not included in text-only insight requests.`,
+        count: livestockPhotoEvidence.reduce((total, item) => total + item.photos.length, 0),
+        available: livestockPhotoEvidence.length > 0,
+        content: livestockPhotoEvidence,
+      },
+    };
+  }
+
+  function buildPhotoEvidenceRecord(photo, id, label, options = {}) {
+    const normalized = normalizePhotoRecord(photo);
+    const publicUrl = normalized?.path ? getStoragePublicUrl(normalized.path) : "";
+    const dataUrl = options.includeDataUrl && normalized?.dataUrl ? normalized.dataUrl : "";
+    return {
+      id,
+      label,
+      storagePath: normalized?.path || "",
+      publicUrl,
+      dataUrl,
+      imageUrl: publicUrl || dataUrl,
+      inlineImageAvailable: Boolean(normalized?.dataUrl),
+      imageBytesAvailableToFunction: Boolean(dataUrl),
+      sentAsImage: false,
+    };
+  }
+
   function buildInsightContext() {
     const recentWaterTests = [...state.waterTests]
       .sort((a, b) => new Date(b.measuredAt) - new Date(a.measuredAt))
@@ -4402,6 +5080,9 @@
     const latestFeeding = getLatestEvent("feeding");
     const { lightingPhotoDataUrl, lightingPhoto, lightingPhotos, ...profile } = state.profile;
     const lightingImageCount = getLightingPhotos().length;
+    const equipment = getEquipmentProfiles();
+    const activeEquipment = equipment.filter((item) => item.active);
+    const careTasks = getCareTaskStatuses();
     const livestockPhotoInventory = [];
     const livestock = state.livestock.map((item) => {
       const { photoDataUrl, photos, ...safeItem } = item;
@@ -4532,6 +5213,7 @@
       generatedAt: new Date().toISOString(),
       profile: {
         ...profile,
+        equipment: activeEquipment,
         lightingImageCount,
         hasLightingScreenshot: lightingImageCount > 0,
         lightingContext: {
@@ -4553,6 +5235,8 @@
       latestWaterTest,
       latestWaterChange,
       latestFeeding,
+      careTasks,
+      overdueCareTasks: careTasks.filter((task) => task.overdue),
       currentLightPhase: getLightPhase().label,
       rawDataInventory: {
         lighting: {
@@ -4577,6 +5261,15 @@
           feedingCount: state.events.filter((event) => event.type === "feeding").length,
           maintenanceCount: state.events.filter((event) => event.type === "maintenance").length,
           waterChangeCount: state.events.filter((event) => event.type === "water_change").length,
+          scheduledCareTaskCount: careTasks.filter((task) => !task.manualOnly).length,
+          overdueCareTaskCount: careTasks.filter((task) => task.overdue).length,
+        },
+        equipment: {
+          activeCount: activeEquipment.length,
+          datedCount: activeEquipment.filter((item) => item.addedDate && !item.isLegacy).length,
+          legacyCount: activeEquipment.filter((item) => item.isLegacy).length,
+          detailsCount: activeEquipment.filter((item) => item.details).length,
+          uvScheduleAvailable: Boolean(equipment.find((item) => item.key === "uvSterilizer" && item.active)?.schedule),
         },
       },
       derived: latestWaterTest
@@ -4589,7 +5282,7 @@
     };
   }
 
-  function generateLocalInsight(mode, question) {
+  function generateLocalInsight(mode, question, previousRun = null) {
     const context = buildInsightContext();
     const priorities = [];
     const observations = [];
@@ -4597,11 +5290,18 @@
     const missingData = [];
     const dataRequests = [];
     const latest = context.latestWaterTest;
+    const overdueCareTasks = Array.isArray(context.overdueCareTasks) ? context.overdueCareTasks : [];
+
+    observations.push("Logged events are evidence of occurrence, but absent logs are unknown and should not be treated as proof that feeding, maintenance, or other care did not happen.");
+    if (previousRun) {
+      observations.push(`Follow-up to ${formatDateTime(previousRun.createdAt)} insight: ${getInsightHeadline(previousRun.result)}.`);
+    }
 
     if (!context.profile.displayVolume) missingData.push("Display volume");
     if (!context.profile.filtration) missingData.push("Filtration type");
     if (!context.profile.lightingModel) missingData.push("Lighting model");
     if (!context.profile.hasLightingScreenshot) missingData.push("Lighting screenshot or intensity schedule");
+    if (context.profile.uvSterilizer && !context.profile.uvSchedule) missingData.push("UV schedule");
     if (context.profile.lightingImageCount && !context.profile.lightingSummary) {
       missingData.push("Lighting summary from schedule images");
       dataRequests.push({
@@ -4612,8 +5312,22 @@
         priority: "medium",
       });
     }
-    if (!context.zones.length) missingData.push("Placement zones");
+    if (
+      context.activeLivestock.length &&
+      !context.mapModel.livestockPlacements.some((placement) => placement.coordinateInches)
+    ) {
+      missingData.push("Map stock placements");
+    }
     if (!latest) missingData.push("Recent water test");
+    overdueCareTasks.forEach((task) => {
+      priorities.push({
+        label: task.overdueLabel || `${task.label} overdue`,
+        severity: "warning",
+        why: task.lastAt
+          ? `${task.label} was last logged ${formatAge(task.lastAt)}; the planned cadence is every ${task.intervalDays} days.`
+          : `${task.label} has no logged completion yet. This means not logged, not necessarily not done.`,
+      });
+    });
 
     if (latest) {
       if (latest.ammonia !== null && latest.ammonia > 0.05) {
@@ -4640,8 +5354,8 @@
         nextActions.push("Compare nitrate against feeding volume and the timing of the most recent water change.");
       }
 
-      observations.push(`Latest test was taken ${context.derived.latestTestAfterWaterChange} the last water change.`);
-      observations.push(`Latest test was taken ${context.derived.latestTestAfterFeeding} the last feeding.`);
+      observations.push(`Latest test vs last logged water change: ${context.derived.latestTestAfterWaterChange}.`);
+      observations.push(`Latest test vs last logged feeding: ${context.derived.latestTestAfterFeeding}.`);
       observations.push(`Lighting phase at the latest test: ${context.derived.latestTestLightPhase}.`);
     }
 
@@ -4655,7 +5369,7 @@
     }
 
     if (mode === "maintenance") {
-      ["RODI replaced", "Carbon replaced", "Purigen replaced"].forEach((label) => {
+      ["RODI replaced", "Top Carbon replaced", "Bottom Carbon replaced", "Purigen replaced", "UV bulb replaced"].forEach((label) => {
         const event = [...state.events].filter((item) => item.label === label).sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))[0];
         observations.push(`${label}: ${event ? formatAge(event.happenedAt) : "not logged"}.`);
       });
@@ -4663,12 +5377,12 @@
     }
 
     if (mode === "livestock") {
-      const unplaced = context.activeLivestock.filter((item) => !item.zoneId);
+      const unplaced = context.activeLivestock.filter((item) => !item.zoneId && !item.mapPosition);
       if (unplaced.length) {
         priorities.push({
           label: "Unplaced livestock",
           severity: "warning",
-          why: `${unplaced.length} active livestock record${unplaced.length === 1 ? "" : "s"} do not have a placement zone.`,
+          why: `${unplaced.length} active livestock record${unplaced.length === 1 ? "" : "s"} do not have a Map placement.`,
         });
       }
       const photographed = context.rawDataInventory.livestockPhotos;
@@ -4681,7 +5395,7 @@
           priority: "low",
         });
       }
-      nextActions.push("Assign corals and sensitive inverts to zones so light and flow context can be included.");
+      nextActions.push("Place corals and sensitive inverts on the Map so light and flow context can be included.");
     }
 
     if (mode === "trends" && state.waterTests.length < 3) {
@@ -4694,7 +5408,7 @@
       priorities.push({
         label: "No urgent local alerts",
         severity: "good",
-        why: "The local rule check did not find detectable ammonia, detectable nitrite, or stale core logs.",
+        why: "The local rule check did not find detectable ammonia or nitrite in logged tests. Unlogged care is unknown, not assumed absent.",
       });
     }
     if (!nextActions.length) {
@@ -4715,59 +5429,132 @@
   async function generateInsight() {
     const mode = state.ui.insightMode || "health";
     const question = $("insightQuestion").value.trim();
-    const button = $("generateInsightButton");
-    button.disabled = true;
-    button.textContent = "Generating";
+    await runInsightRequest({
+      mode,
+      question,
+      button: $("generateInsightButton"),
+      loadingText: "Generating",
+      idleHtml: `<i data-lucide="sparkles"></i>Generate`,
+    });
+  }
+
+  async function generateFollowupInsight() {
+    const previousRun = state.insightRuns[0];
+    if (!previousRun) {
+      showToast("Generate an insight first.");
+      return;
+    }
+    const question = $("insightFollowup").value.trim();
+    if (!question) {
+      showToast("Add a follow-up detail or question.");
+      return;
+    }
+    await runInsightRequest({
+      mode: previousRun.mode || state.ui.insightMode || "health",
+      question,
+      previousRun,
+      button: $("insightFollowupButton"),
+      loadingText: "Sending",
+      idleHtml: `<i data-lucide="message-square-plus"></i>Send Follow-Up`,
+    });
+    $("insightFollowup").value = "";
+  }
+
+  function getPendingInsightPhotos() {
+    return pendingInsightPhotos.map(normalizePhotoRecord).filter(Boolean);
+  }
+
+  function clearPendingInsightPhotos() {
+    pendingInsightPhotos = [];
+    renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
+    const photoField = document.querySelector(".insight-photo-field");
+    if (photoField) photoField.open = false;
+  }
+
+  async function storeInsightRun({ mode, question, previousRun, source, result, debug }, attachedPhotos) {
+    const id = uid();
+    let photos = [];
+    try {
+      photos = await prepareInsightPhotosForSave(id, attachedPhotos);
+    } catch (error) {
+      console.warn("Could not store insight photos", error);
+      photos = attachedPhotos;
+    }
+
+    state.insightRuns.unshift({
+      id,
+      createdAt: new Date().toISOString(),
+      mode,
+      question,
+      parentInsightId: previousRun?.id || "",
+      source,
+      result,
+      debug,
+      photos,
+    });
+    state.insightRuns = state.insightRuns.slice(0, 20);
+    clearPendingInsightPhotos();
+    saveState();
+    renderInsightOutput();
+    renderHomeInsightBrief();
+  }
+
+  async function runInsightRequest({ mode, question, previousRun = null, button, loadingText, idleHtml }) {
+    if (button) {
+      button.disabled = true;
+      button.textContent = loadingText;
+    }
+    const attachedPhotos = getPendingInsightPhotos();
+    const payload = buildRemoteInsightPayload(mode, question, previousRun, attachedPhotos);
 
     try {
       let result;
       let source = "local";
+      let debug;
       if (supabaseClient) {
         const response = await supabaseClient.functions.invoke("generate-insights", {
           body: {
             mode,
             question,
-            state: buildInsightContext(),
+            state: payload.context,
+            evidence: payload.evidence,
           },
         });
         if (response.error) throw response.error;
         result = response.data?.insight || response.data?.text || response.data;
+        debug = buildInsightDebugPayload(payload, response.data?.progressive || null);
         source = "gpt";
       } else {
-        result = generateLocalInsight(mode, question);
+        result = generateLocalInsight(mode, question, previousRun);
+        debug = buildInsightDebugPayload(payload, { phase: "local", requested: [], provided: [] });
       }
 
-      state.insightRuns.unshift({
-        id: uid(),
-        createdAt: new Date().toISOString(),
+      await storeInsightRun({
         mode,
         question,
+        previousRun,
         source,
         result,
-      });
-      state.insightRuns = state.insightRuns.slice(0, 20);
-      saveState();
-      renderInsightOutput();
-      renderHomeInsightBrief();
+        debug,
+      }, attachedPhotos);
       showToast(source === "gpt" ? "GPT insight generated." : "Local insight generated.");
     } catch (error) {
       console.error(error);
-      const fallback = generateLocalInsight(mode, question);
-      state.insightRuns.unshift({
-        id: uid(),
-        createdAt: new Date().toISOString(),
+      const fallback = generateLocalInsight(mode, question, previousRun);
+      await storeInsightRun({
         mode,
         question,
+        previousRun,
         source: "local",
         result: fallback,
-      });
-      saveState();
-      renderInsightOutput();
-      renderHomeInsightBrief();
+        debug: buildInsightDebugPayload(payload, { phase: "fallback", requested: [], provided: [] }, error?.message || String(error || "")),
+      }, attachedPhotos);
       showToast("GPT unavailable. Local insight generated.");
     } finally {
-      button.disabled = false;
-      button.innerHTML = `<i data-lucide="sparkles"></i>Generate`;
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = idleHtml;
+      }
       refreshIcons();
     }
   }
@@ -5095,14 +5882,16 @@
       name: species,
       category,
       quantity: $("livestockQuantity").value,
+      currentCount: $("livestockCurrentCount").value,
+      trackingUnit: $("livestockTrackingUnit").value,
       addedDate,
       isLegacy: casual ? false : isLegacy,
       status: casual ? "noticed" : "active",
       zoneId: $("livestockZone").value,
-      notes: $("livestockNotes").value.trim(),
+      noteText: $("livestockNotes").value.trim(),
       health: $("livestockHealth").value,
       growthTrend: $("livestockGrowthTrend").value,
-      growthMetric: $("livestockGrowthMetric").value.trim(),
+      growthNotes: $("livestockGrowthNotes").value.trim(),
       photos: pendingLivestockPhotos,
       photoDataUrl: "",
     };
@@ -5117,6 +5906,7 @@
     $("livestockFormTitle").textContent = "Add Stock";
     $("livestockSubmitButton").innerHTML = `<i data-lucide="plus"></i>Add`;
     $("cancelLivestockEditButton").hidden = true;
+    if ($("livestockFormShell")) $("livestockFormShell").open = false;
     refreshIcons();
   }
 
@@ -5127,20 +5917,23 @@
     $("livestockSpecies").value = item.species || item.name || "";
     $("livestockCategory").value = item.category || "Other";
     $("livestockQuantity").value = item.quantity ?? "";
+    $("livestockCurrentCount").value = item.currentCount ?? "";
+    $("livestockTrackingUnit").value = item.trackingUnit || "";
     $("livestockAdded").value = item.addedDate || "";
     $("livestockLegacy").checked = Boolean(item.isLegacy);
     $("livestockZone").value = item.zoneId || "";
-    $("livestockNotes").value = item.notes || "";
+    $("livestockNotes").value = "";
     $("livestockHealth").value = item.health || "";
     $("livestockGrowthTrend").value = item.growthTrend || "";
-    $("livestockGrowthMetric").value = item.growthMetric || "";
+    $("livestockGrowthNotes").value = item.growthNotes || "";
     pendingLivestockPhotos = getLivestockPhotos(item);
     renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
     syncLivestockDateControls();
     $("livestockFormTitle").textContent = "Edit Stock";
     $("livestockSubmitButton").innerHTML = `<i data-lucide="save"></i>Save`;
     $("cancelLivestockEditButton").hidden = false;
-    $("livestockForm").scrollIntoView({ behavior: "smooth", block: "start" });
+    if ($("livestockFormShell")) $("livestockFormShell").open = true;
+    $("livestockFormShell")?.scrollIntoView({ behavior: "smooth", block: "start" });
     refreshIcons();
   }
 
@@ -5161,8 +5954,13 @@
     try {
       const photos = await preparePhotosForSave(id, formData.photos);
       const nextPaths = getPhotoStoragePaths(photos);
+      const noteLog = existing ? normalizeLivestockNoteLog(existing) : [];
+      if (formData.noteText) noteLog.unshift(createLivestockNoteEntry(formData.noteText));
+      const { noteText: _noteText, ...stockData } = formData;
       const payload = {
-        ...formData,
+        ...stockData,
+        notes: "",
+        noteLog,
         photos,
         photoDataUrl: photos.find((photo) => photo.dataUrl)?.dataUrl || "",
       };
@@ -5447,6 +6245,15 @@
         renderPhotoLibrary();
         renderInsightsContext();
         showToast("Lighting image removed.");
+      } else if (removePhoto.dataset.removePhoto === "insight") {
+        const photoIndex = Number(removePhoto.dataset.photoIndex);
+        if (Number.isInteger(photoIndex)) {
+          pendingInsightPhotos = pendingInsightPhotos.filter((_photo, index) => index !== photoIndex);
+        } else {
+          pendingInsightPhotos = [];
+        }
+        renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
+        showToast("Insight photo removed.");
       } else {
         const photoIndex = Number(removePhoto.dataset.photoIndex);
         if (Number.isInteger(photoIndex)) {
@@ -5664,6 +6471,12 @@
       return;
     }
 
+    const insightFollowup = event.target.closest("[data-insight-followup]");
+    if (insightFollowup) {
+      await generateFollowupInsight();
+      return;
+    }
+
     const editEntry = event.target.closest("[data-edit-entry]");
     if (editEntry) {
       startLogEdit(editEntry.dataset.editEntry);
@@ -5795,7 +6608,8 @@
       saveLocalState();
     });
     $("lightingPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "lighting"));
-    $("zoneForm").addEventListener("submit", addZone);
+    $("insightPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "insight"));
+    $("zoneForm")?.addEventListener("submit", addZone);
     $("livestockForm").addEventListener("submit", addLivestock);
     $("livestockCategory").addEventListener("change", syncLivestockDateControls);
     $("livestockLegacy").addEventListener("change", syncLivestockDateControls);
@@ -5835,6 +6649,7 @@
     bindEvents();
     seedLogDates();
     initInsightMode();
+    renderAll();
     await initBackend();
     renderAll();
   }
