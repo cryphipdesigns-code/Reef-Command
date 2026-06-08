@@ -1938,7 +1938,7 @@
             <div class="data-card-header">
               <div class="data-card-title">
                 <strong>${escapeHtml(zone.name)}</strong>
-                <p class="card-meta">${escapeHtml(zone.light)} light · ${escapeHtml(zone.flow)} flow${zone.parMin || zone.parMax ? ` · PAR ${escapeHtml(zone.parMin || "?")} - ${escapeHtml(zone.parMax || "?")}` : ""}</p>
+                <p class="card-meta">${escapeHtml(zone.light)} light${zone.parMin || zone.parMax ? ` · PAR ${escapeHtml(zone.parMin || "?")} - ${escapeHtml(zone.parMax || "?")}` : ""}</p>
               </div>
               <span class="category-pill">Zone</span>
             </div>
@@ -2203,7 +2203,7 @@
           <div class="data-card-header">
             <div class="data-card-title">
               <strong>${escapeHtml(structure.name)}</strong>
-              <p class="card-meta">${escapeHtml(structure.light)} light · ${escapeHtml(structure.flow)} flow · ${escapeHtml(formatStructureSize(structure))}</p>
+              <p class="card-meta">${escapeHtml(structure.light)} light · ${escapeHtml(formatStructureSize(structure))}</p>
             </div>
             <span class="category-pill">${escapeHtml(structure.type)}</span>
           </div>
@@ -4786,6 +4786,11 @@
     };
   }
 
+  function omitMapFlowLayer(layers = {}) {
+    const { flow: _flow, ...rest } = layers || {};
+    return rest;
+  }
+
   function summarizeInsightRunForFollowup(run) {
     const result = run?.result;
     const priorities = result && typeof result === "object" && Array.isArray(result.priorities)
@@ -4875,14 +4880,13 @@
         position: structure.position,
         size: structure.size,
         light: structure.light,
-        flow: structure.flow,
         parRange: structure.parRange,
         notes: structure.notes,
       })),
       parMarkers: mapModel.parMarkers,
       refinementAnnotationCount: mapModel.refinementAnnotations?.length || 0,
       livestockPlacements: mapModel.livestockPlacements,
-      layers: mapModel.layers,
+      layers: omitMapFlowLayer(mapModel.layers),
       geometryIncluded: false,
       detailBundle: "map_model_detail",
     };
@@ -4972,8 +4976,8 @@
       },
       par_map: {
         data_type: "par_map",
-        label: "PAR and flow context",
-        summary: `${fullContext.mapModel.parMarkers.length} PAR markers plus structure light, flow, and PAR ranges.`,
+        label: "PAR and light context",
+        summary: `${fullContext.mapModel.parMarkers.length} PAR markers plus structure light and PAR ranges.`,
         count: fullContext.mapModel.parMarkers.length,
         available: fullContext.rawDataInventory.map.parMapAvailable,
         content: {
@@ -4982,7 +4986,6 @@
             id: structure.id,
             name: structure.name,
             light: structure.light,
-            flow: structure.flow,
             parRange: structure.parRange,
             notes: structure.notes,
           })),
@@ -5199,14 +5202,13 @@
             : null,
         },
         light: structure.light,
-        flow: structure.flow,
         parRange: { min: structure.parMin, max: structure.parMax },
         notes: structure.notes,
       })),
       parMarkers,
       refinementAnnotations,
       livestockPlacements: mapPlacements,
-      layers: state.map.layers,
+      layers: omitMapFlowLayer(state.map.layers),
     };
 
     return {
@@ -5226,7 +5228,7 @@
           sourceImageCount: lightingImageCount,
         },
       },
-      zones: state.zones,
+      zones: state.zones.map(({ flow: _flow, ...zone }) => zone),
       mapModel,
       livestock,
       activeLivestock: livestock.filter((item) => isLifecycleStock(item) && item.status === "active"),
@@ -5395,7 +5397,7 @@
           priority: "low",
         });
       }
-      nextActions.push("Place corals and sensitive inverts on the Map so light and flow context can be included.");
+      nextActions.push("Place corals and sensitive inverts on the Map so light and PAR context can be included.");
     }
 
     if (mode === "trends" && state.waterTests.length < 3) {
