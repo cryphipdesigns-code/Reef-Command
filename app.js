@@ -56,6 +56,7 @@
   let toastTimer = null;
   let pendingLivestockPhotos = [];
   let pendingInsightPhotos = [];
+  let pendingInsightFollowupPhotos = [];
   let editingLog = null;
   let map2Renderer = null;
   let map2Scene = null;
@@ -1512,7 +1513,9 @@
       ? "lighting"
       : previewId === "insightPhotoPreview"
         ? "insight"
-        : "livestock";
+        : previewId === "insightFollowupPhotoPreview"
+          ? "insight-followup"
+          : "livestock";
     preview.hidden = false;
     if (kind === "lighting") {
       preview.innerHTML = `
@@ -1562,7 +1565,7 @@
           renderInsightsContext();
         }
         showImageSaveResult(result.saved.length, result.failed.length, "lighting image");
-      } else if (target === "insight") {
+      } else if (target === "insight" || target === "insight-followup") {
         const result = await processImageFiles(files, {
           label: "insight photo",
           maxDimension: 1200,
@@ -1570,8 +1573,13 @@
           savePhoto: (photo) => photo,
         });
         if (result.saved.length) {
-          pendingInsightPhotos = [...pendingInsightPhotos, ...result.saved];
-          renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
+          if (target === "insight-followup") {
+            pendingInsightFollowupPhotos = [...pendingInsightFollowupPhotos, ...result.saved];
+            renderPhotoPreview("insightFollowupPhotoPreview", pendingInsightFollowupPhotos, "Follow-up insight photo");
+          } else {
+            pendingInsightPhotos = [...pendingInsightPhotos, ...result.saved];
+            renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
+          }
         }
         showImageSaveResult(result.saved.length, result.failed.length, "insight photo");
       } else {
@@ -4666,6 +4674,22 @@
           <i data-lucide="message-square-plus"></i>
           Send Follow-Up
         </button>
+        <details class="collapsible-field photo-field insight-followup-photo-field">
+          <summary>
+            <span>
+              <i data-lucide="image-plus"></i>
+              Add Photo
+            </span>
+            <i data-lucide="chevron-down"></i>
+          </summary>
+          <div class="collapsible-content">
+            <label>
+              Upload Photo
+              <input id="insightFollowupPhotoInput" type="file" accept="image/*" multiple />
+            </label>
+            <div id="insightFollowupPhotoPreview" class="photo-preview" hidden></div>
+          </div>
+        </details>
       </article>
     `;
   }
@@ -5434,6 +5458,8 @@
     await runInsightRequest({
       mode,
       question,
+      attachedPhotos: getPendingInsightPhotos(),
+      clearAttachedPhotos: clearPendingInsightPhotos,
       button: $("generateInsightButton"),
       loadingText: "Generating",
       idleHtml: `<i data-lucide="sparkles"></i>Generate`,
@@ -5447,14 +5473,17 @@
       return;
     }
     const question = $("insightFollowup").value.trim();
-    if (!question) {
-      showToast("Add a follow-up detail or question.");
+    const attachedPhotos = getPendingInsightFollowupPhotos();
+    if (!question && !attachedPhotos.length) {
+      showToast("Add a follow-up detail, question, or photo.");
       return;
     }
     await runInsightRequest({
       mode: previousRun.mode || state.ui.insightMode || "health",
       question,
       previousRun,
+      attachedPhotos,
+      clearAttachedPhotos: clearPendingInsightFollowupPhotos,
       button: $("insightFollowupButton"),
       loadingText: "Sending",
       idleHtml: `<i data-lucide="message-square-plus"></i>Send Follow-Up`,
@@ -5466,6 +5495,10 @@
     return pendingInsightPhotos.map(normalizePhotoRecord).filter(Boolean);
   }
 
+  function getPendingInsightFollowupPhotos() {
+    return pendingInsightFollowupPhotos.map(normalizePhotoRecord).filter(Boolean);
+  }
+
   function clearPendingInsightPhotos() {
     pendingInsightPhotos = [];
     renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
@@ -5473,7 +5506,14 @@
     if (photoField) photoField.open = false;
   }
 
-  async function storeInsightRun({ mode, question, previousRun, source, result, debug }, attachedPhotos) {
+  function clearPendingInsightFollowupPhotos() {
+    pendingInsightFollowupPhotos = [];
+    renderPhotoPreview("insightFollowupPhotoPreview", pendingInsightFollowupPhotos, "Follow-up insight photo");
+    const photoField = document.querySelector(".insight-followup-photo-field");
+    if (photoField) photoField.open = false;
+  }
+
+  async function storeInsightRun({ mode, question, previousRun, source, result, debug }, attachedPhotos, clearAttachedPhotos) {
     const id = uid();
     let photos = [];
     try {
@@ -5495,18 +5535,17 @@
       photos,
     });
     state.insightRuns = state.insightRuns.slice(0, 20);
-    clearPendingInsightPhotos();
+    if (clearAttachedPhotos) clearAttachedPhotos();
     saveState();
     renderInsightOutput();
     renderHomeInsightBrief();
   }
 
-  async function runInsightRequest({ mode, question, previousRun = null, button, loadingText, idleHtml }) {
+  async function runInsightRequest({ mode, question, previousRun = null, attachedPhotos = [], clearAttachedPhotos = null, button, loadingText, idleHtml }) {
     if (button) {
       button.disabled = true;
       button.textContent = loadingText;
     }
-    const attachedPhotos = getPendingInsightPhotos();
     const payload = buildRemoteInsightPayload(mode, question, previousRun, attachedPhotos);
 
     try {
@@ -5538,7 +5577,7 @@
         source,
         result,
         debug,
-      }, attachedPhotos);
+      }, attachedPhotos, clearAttachedPhotos);
       showToast(source === "gpt" ? "GPT insight generated." : "Local insight generated.");
     } catch (error) {
       console.error(error);
@@ -5550,7 +5589,7 @@
         source: "local",
         result: fallback,
         debug: buildInsightDebugPayload(payload, { phase: "fallback", requested: [], provided: [] }, error?.message || String(error || "")),
-      }, attachedPhotos);
+      }, attachedPhotos, clearAttachedPhotos);
       showToast("GPT unavailable. Local insight generated.");
     } finally {
       if (button) {
@@ -6256,6 +6295,15 @@
         }
         renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
         showToast("Insight photo removed.");
+      } else if (removePhoto.dataset.removePhoto === "insight-followup") {
+        const photoIndex = Number(removePhoto.dataset.photoIndex);
+        if (Number.isInteger(photoIndex)) {
+          pendingInsightFollowupPhotos = pendingInsightFollowupPhotos.filter((_photo, index) => index !== photoIndex);
+        } else {
+          pendingInsightFollowupPhotos = [];
+        }
+        renderPhotoPreview("insightFollowupPhotoPreview", pendingInsightFollowupPhotos, "Follow-up insight photo");
+        showToast("Follow-up photo removed.");
       } else {
         const photoIndex = Number(removePhoto.dataset.photoIndex);
         if (Number.isInteger(photoIndex)) {
@@ -6557,8 +6605,15 @@
     renderReefMap2();
   }
 
+  async function handleDocumentChange(event) {
+    if (event.target?.id === "insightFollowupPhotoInput") {
+      await handlePhotoInput(event, "insight-followup");
+    }
+  }
+
   function bindEvents() {
     document.addEventListener("click", handleDocumentClick);
+    document.addEventListener("change", handleDocumentChange);
     $$("[data-profile]").forEach((input) => {
       input.addEventListener("input", updateProfileFromForm);
       input.addEventListener("change", updateProfileFromForm);
