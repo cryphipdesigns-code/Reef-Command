@@ -307,7 +307,7 @@ function selectEvidenceBundles(
   const seen = new Set<string>();
   for (const request of requests) {
     const requestedType = String(request.data_type || "");
-    for (const key of evidenceKeysForRequest(requestedType)) {
+    for (const key of evidenceKeysForRequest(requestedType, request, evidence)) {
       if (seen.has(key)) continue;
       const bundle = evidence[key];
       if (!bundle || bundle.available === false) continue;
@@ -327,7 +327,14 @@ function selectEvidenceBundles(
   return selected;
 }
 
-function evidenceKeysForRequest(dataType: string) {
+function evidenceKeysForRequest(
+  dataType: string,
+  request: Record<string, unknown> = {},
+  evidence: Record<string, EvidenceBundle> = {},
+) {
+  const promptPhotoKeys = shouldPrioritizePromptPhotos(dataType, request, evidence)
+    ? ["insight_prompt_photos"]
+    : [];
   const aliases: Record<string, string[]> = {
     tank_profile: ["tank_profile"],
     equipment_details: ["equipment_details", "tank_profile"],
@@ -344,7 +351,33 @@ function evidenceKeysForRequest(dataType: string) {
     care_schedule: ["care_schedule"],
     map_reference_images: ["map_model_detail"],
   };
-  return aliases[dataType] || [];
+  return [...promptPhotoKeys, ...(aliases[dataType] || [])];
+}
+
+function shouldPrioritizePromptPhotos(
+  dataType: string,
+  request: Record<string, unknown>,
+  evidence: Record<string, EvidenceBundle>,
+) {
+  const promptPhotos = evidence.insight_prompt_photos;
+  if (!promptPhotos || promptPhotos.available === false || !promptPhotos.count) return false;
+  if (dataType === "insight_prompt_photos") return false;
+  if (!["livestock_photos", "lighting_images", "other"].includes(dataType)) return false;
+
+  const requestText = [
+    request.label,
+    request.reason,
+    request.target_id,
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  return (
+    requestText.includes("current") ||
+    requestText.includes("prompt") ||
+    requestText.includes("attached") ||
+    requestText.includes("image bytes") ||
+    requestText.includes("photo") ||
+    requestText.includes("picture")
+  );
 }
 
 function collectEvidenceImageInputs(selectedEvidence: Array<Record<string, unknown>>) {
