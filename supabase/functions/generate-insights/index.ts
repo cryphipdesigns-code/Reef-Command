@@ -129,12 +129,22 @@ Deno.serve(async (request) => {
     provided: [],
   };
   try {
-    insight = await requestStructuredInsight(openAiKey, model, promptPayload, buildInstructions("index"), 1400);
+    const promptImageInputs = collectPromptPhotoImageInputs(evidence);
+    insight = await requestStructuredInsight(
+      openAiKey,
+      model,
+      promptPayload,
+      buildInstructions("index"),
+      1400,
+      promptImageInputs,
+    );
     const requestedEvidence = getInsightDataRequests(insight);
-    const selectedEvidence = selectEvidenceBundles(requestedEvidence, evidence);
+    const firstPassImageKeys = promptImageInputs.length ? new Set(["insight_prompt_photos"]) : new Set<string>();
+    const selectedEvidence = selectEvidenceBundles(requestedEvidence, evidence, firstPassImageKeys);
     progressiveTrace = {
       phase: selectedEvidence.length ? "followup" : "index",
       requested: requestedEvidence,
+      first_pass_image_inputs_sent: promptImageInputs.length,
       provided: selectedEvidence.map((bundle) => ({
         data_type: bundle.data_type,
         label: bundle.label,
@@ -265,7 +275,7 @@ function buildInstructions(phase: "index" | "followup") {
     "Use careTasks and overdueCareTasks as schedule-by-log status. Phrase overdue items as overdue by logged cadence, not as proof they were not performed.",
     "Do not ask for raw data by default. If evidence would materially improve the answer, add a data_requests item that names the smallest useful evidence bundle and explains why.",
     "For coral health questions, consider whether non-current livestock photos, lighting schedule images, PAR map/model data, or recent parameter logs would materially change confidence. If so, request them.",
-    "If the user attached current prompt photos, request insight_prompt_photos only when visual review would materially improve confidence, such as pests, nuisance algae, tissue recession, bleaching, lesions, or coral identification.",
+    "If the user attached current prompt photos, those images are included in this index pass. Use them directly when relevant, and do not say their image bytes are unavailable.",
     "For lighting-sensitive questions, request lighting_images only when the summarized lighting context is insufficient and raw lighting images are available.",
     "For equipment-sensitive questions, use equipment details/specs when present. Request equipment_details only when the compact equipment summary is insufficient.",
     "When the compact map summary is insufficient for placement reasoning, request map_model_detail or par_map rather than all app data.",
@@ -302,13 +312,14 @@ function getInsightDataRequests(insight: unknown) {
 function selectEvidenceBundles(
   requests: Record<string, unknown>[],
   evidence: Record<string, EvidenceBundle>,
+  skipKeys = new Set<string>(),
 ) {
   const selected: Array<Record<string, unknown>> = [];
   const seen = new Set<string>();
   for (const request of requests) {
     const requestedType = String(request.data_type || "");
     for (const key of evidenceKeysForRequest(requestedType, request, evidence)) {
-      if (seen.has(key)) continue;
+      if (seen.has(key) || skipKeys.has(key)) continue;
       const bundle = evidence[key];
       if (!bundle || bundle.available === false) continue;
       seen.add(key);
@@ -407,6 +418,18 @@ function collectEvidenceImageInputs(selectedEvidence: Array<Record<string, unkno
 
   visit(selectedEvidence);
   return images;
+}
+
+function collectPromptPhotoImageInputs(evidence: Record<string, EvidenceBundle>) {
+  const promptPhotos = evidence.insight_prompt_photos;
+  if (!promptPhotos || promptPhotos.available === false || !promptPhotos.count) return [];
+  return collectEvidenceImageInputs([
+    {
+      data_type: promptPhotos.data_type || "insight_prompt_photos",
+      label: promptPhotos.label || "Current prompt photos",
+      content: promptPhotos.content ?? promptPhotos,
+    },
+  ]);
 }
 
 function firstString(...values: unknown[]) {

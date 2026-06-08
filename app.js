@@ -4777,7 +4777,7 @@
       context.requestAttachments = {
         photoCount: attachedPhotos.length,
         evidenceBundle: "insight_prompt_photos",
-        indexPassPolicy: "Image inventory is visible in this pass; image bytes are sent only if requested as evidence.",
+        indexPassPolicy: "Prompt-attached image bytes are sent with the first GPT pass. Stored app photos are still request-gated.",
       };
     }
     return {
@@ -5027,7 +5027,7 @@
       insight_prompt_photos: {
         data_type: "insight_prompt_photos",
         label: "Current prompt photos",
-        summary: `${insightPromptPhotoEvidence.length} photo${insightPromptPhotoEvidence.length === 1 ? "" : "s"} attached to the current insight request. Image bytes are available only if this bundle is requested.`,
+        summary: `${insightPromptPhotoEvidence.length} photo${insightPromptPhotoEvidence.length === 1 ? "" : "s"} attached to the current insight request. Prompt-attached image bytes are sent with the first GPT pass.`,
         count: insightPromptPhotoEvidence.length,
         available: insightPromptPhotoEvidence.length > 0,
         content: insightPromptPhotoEvidence,
