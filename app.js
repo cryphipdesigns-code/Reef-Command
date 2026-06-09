@@ -55,6 +55,7 @@
   let isRemoteHydrating = false;
   let toastTimer = null;
   let pendingLivestockPhotos = [];
+  let editingLivestockId = "";
   let pendingInsightPhotos = [];
   let pendingInsightFollowupPhotos = [];
   let editingLog = null;
@@ -483,6 +484,7 @@
       insightRuns: Array.isArray(raw.insightRuns) ? raw.insightRuns : [],
       map: normalizeMap(raw.map, base.map),
     };
+    next.ui.livestockFilter = normalizeLivestockFilter(next.ui.livestockFilter);
 
     const lightingPhotos = normalizePhotoArray([
       ...(Array.isArray(next.profile.lightingPhotos) ? next.profile.lightingPhotos : []),
@@ -1289,6 +1291,12 @@
     return category === "Microfauna" || category === "Noticed pest";
   }
 
+  function normalizeLivestockFilter(filter) {
+    const normalized = filter === "inactive" ? "deceased" : filter;
+    const filters = ["active", "all", "Coral", "Fish", "inverts", "Microfauna", "Noticed pest", "deceased"];
+    return filters.includes(normalized) ? normalized : "active";
+  }
+
   function isLifecycleStock(item) {
     return !isCasualStockCategory(item.category);
   }
@@ -1591,7 +1599,7 @@
         });
         if (result.saved.length) {
           pendingLivestockPhotos = [...pendingLivestockPhotos, ...result.saved];
-          renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
+          renderActiveLivestockPhotoPreview();
         }
         showImageSaveResult(result.saved.length, result.failed.length, "photo");
       }
@@ -4383,27 +4391,38 @@
 
   function renderLivestock() {
     const activeCount = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "active").length;
+    const deceasedCount = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "deceased").length;
     const casualCount = state.livestock.filter((item) => isCasualStockCategory(item.category)).length;
-    $("livestockCountPill").textContent = `${activeCount} active · ${casualCount} noticed`;
+    $("livestockCountPill").textContent = `${activeCount} active · ${casualCount} noticed${deceasedCount ? ` · ${deceasedCount} deceased` : ""}`;
+    state.ui.livestockFilter = normalizeLivestockFilter(state.ui.livestockFilter);
+    const formShell = $("livestockFormShell");
+    if (formShell) formShell.hidden = Boolean(editingLivestockId);
     $$("[data-livestock-filter]").forEach((button) => {
       button.classList.toggle("active", button.dataset.livestockFilter === state.ui.livestockFilter);
     });
 
     const filter = state.ui.livestockFilter;
-    const items = state.livestock.filter((item) => {
-      if (filter === "all") return true;
-      if (filter === "active") return isLifecycleStock(item) && item.status === "active";
-      if (filter === "inactive") return isLifecycleStock(item) && item.status !== "active";
-      return item.category === filter;
-    });
+    const items = state.livestock.filter((item) => isLivestockVisibleForFilter(item, filter));
 
     $("livestockList").innerHTML = items.length
       ? items.map(renderLivestockCard).join("")
       : `<div class="empty-state">No livestock records.</div>`;
+    renderActiveLivestockPhotoPreview();
+    refreshIcons();
+  }
+
+  function isLivestockVisibleForFilter(item, filter) {
+    if (filter === "deceased") return isLifecycleStock(item) && item.status === "deceased";
+    if (item.status === "deceased") return false;
+    if (filter === "all") return true;
+    if (filter === "active") return isLifecycleStock(item) && item.status === "active";
+    if (filter === "inverts") return item.category === "Invert" || item.category === "Cleanup crew";
+    return item.category === filter;
   }
 
   function renderLivestockCard(item) {
     const casual = isCasualStockCategory(item.category);
+    const editing = editingLivestockId === item.id;
     const quantityAdded = formatQuantity(item.quantity);
     const currentCount = formatQuantity(item.currentCount);
     const countParts = [
@@ -4421,7 +4440,7 @@
       ? `<p class="card-meta">${escapeHtml(item.status)}${item.removedDate ? ` on ${escapeHtml(formatDate(item.removedDate))}` : ""}${item.outcomeReason ? ` · ${escapeHtml(item.outcomeReason)}` : ""}</p>`
       : "";
     return `
-      <article class="data-card">
+      <article class="data-card livestock-card${editing ? " is-editing" : ""}" data-livestock-card="${escapeHtml(item.id)}">
         <div class="data-card-header">
           <div class="data-card-title">
             <strong>${escapeHtml(item.species)}</strong>
@@ -4429,23 +4448,170 @@
           </div>
           <span class="category-pill">${escapeHtml(casual ? "noticed" : item.status)}</span>
         </div>
-        <p class="card-meta">${escapeHtml(formatStockDate(item))} · ${escapeHtml(getZoneName(item.zoneId))}</p>
-        ${healthParts.length ? `<p class="card-meta">${escapeHtml(healthParts.join(" · "))}</p>` : ""}
-        ${renderStockPhotoGrid(item, photos)}
-        ${renderLivestockNoteLog(item)}
-        ${outcome}
-        <div class="card-actions">
-          <button class="mini-button" type="button" data-livestock-action="edit" data-id="${item.id}">Edit</button>
-          ${!casual && item.status === "active" ? `
-            <button class="mini-button danger" type="button" data-livestock-action="deceased" data-id="${item.id}">Deceased</button>
-            <button class="mini-button" type="button" data-livestock-action="moved" data-id="${item.id}">Moved</button>
-          ` : !casual ? `
-            <button class="mini-button good" type="button" data-livestock-action="restore" data-id="${item.id}">Restore</button>
-          ` : ""}
-          <button class="mini-button danger" type="button" data-livestock-action="delete" data-id="${item.id}">Delete</button>
-        </div>
+        ${editing ? renderLivestockInlineEditForm(item) : `
+          <p class="card-meta">${escapeHtml(formatStockDate(item))} · ${escapeHtml(getZoneName(item.zoneId))}</p>
+          ${healthParts.length ? `<p class="card-meta">${escapeHtml(healthParts.join(" · "))}</p>` : ""}
+          ${renderStockPhotoGrid(item, photos)}
+          ${renderLivestockNoteLog(item)}
+          ${outcome}
+          <div class="card-actions">
+            <button class="mini-button" type="button" data-livestock-action="edit" data-id="${escapeHtml(item.id)}">Edit</button>
+            ${!casual && item.status === "active" ? `
+              <button class="mini-button danger" type="button" data-livestock-action="deceased" data-id="${escapeHtml(item.id)}">Deceased</button>
+              <button class="mini-button" type="button" data-livestock-action="moved" data-id="${escapeHtml(item.id)}">Moved</button>
+            ` : !casual ? `
+              <button class="mini-button good" type="button" data-livestock-action="restore" data-id="${escapeHtml(item.id)}">Restore</button>
+            ` : ""}
+            <button class="mini-button danger" type="button" data-livestock-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
+          </div>
+        `}
       </article>
     `;
+  }
+
+  function renderLivestockInlineEditForm(item) {
+    const casual = isCasualStockCategory(item.category);
+    const hideDate = !casual && item.isLegacy;
+    return `
+      <form class="embedded-form livestock-inline-form" data-livestock-inline-form data-id="${escapeHtml(item.id)}">
+        <div class="field-grid">
+          <label>
+            Species / Item
+            <input name="species" type="text" value="${escapeHtml(item.species || item.name || "")}" required />
+          </label>
+          <label>
+            Category
+            <select name="category">
+              ${renderLivestockSelectOptions([
+                ["Fish", "Fish"],
+                ["Coral", "Coral"],
+                ["Invert", "Invert"],
+                ["Cleanup crew", "Cleanup crew"],
+                ["Microfauna", "Microfauna"],
+                ["Noticed pest", "Noticed pest"],
+                ["Macroalgae", "Macroalgae"],
+                ["Other", "Other"],
+              ], item.category || "Other")}
+            </select>
+          </label>
+          <label>
+            Quantity Added
+            <input name="quantity" type="number" min="0" step="1" value="${escapeHtml(item.quantity ?? "")}" />
+          </label>
+          <label>
+            Current Count
+            <input name="currentCount" type="number" min="0" step="1" value="${escapeHtml(item.currentCount ?? "")}" />
+          </label>
+          <label>
+            Tracking Unit
+            <select name="trackingUnit">
+              ${renderLivestockSelectOptions([
+                ["", "Select"],
+                ["Specimen", "Specimen"],
+                ["Colony", "Colony"],
+                ["Frag", "Frag"],
+                ["Head", "Head"],
+                ["Polyp", "Polyp"],
+                ["Mushroom", "Mushroom"],
+                ["Mouth", "Mouth"],
+                ["Branch", "Branch"],
+                ["Patch", "Patch"],
+                ["Other", "Other"],
+              ], item.trackingUnit || "")}
+            </select>
+          </label>
+          <label data-inline-livestock-date-field ${hideDate ? "hidden" : ""}>
+            <span data-inline-livestock-date-label>${casual ? "First Noticed" : "Date Added"}</span>
+            <input name="addedDate" type="date" value="${escapeHtml(item.addedDate || "")}" ${hideDate ? "disabled" : ""} />
+          </label>
+          <label>
+            Placement
+            <select name="zoneId">
+              ${renderLivestockZoneOptions(item.zoneId || "")}
+            </select>
+          </label>
+          <label>
+            Current Health
+            <select name="health">
+              ${renderLivestockSelectOptions([
+                ["", "Not tracked"],
+                ["Thriving", "Thriving"],
+                ["Stable", "Stable"],
+                ["Struggling", "Struggling"],
+                ["Declining", "Declining"],
+                ["Unknown", "Unknown"],
+              ], item.health || "")}
+            </select>
+          </label>
+          <label>
+            Growth Trend
+            <select name="growthTrend">
+              ${renderLivestockSelectOptions([
+                ["", "Not tracked"],
+                ["Growing", "Growing"],
+                ["Stable", "Stable"],
+                ["Receding", "Receding"],
+                ["Melting", "Melting"],
+                ["Unknown", "Unknown"],
+              ], item.growthTrend || "")}
+            </select>
+          </label>
+          <label class="wide-field">
+            Growth Notes
+            <input name="growthNotes" type="text" value="${escapeHtml(item.growthNotes || "")}" placeholder="Original larger, baby mushroom, second head forming, receding edge" />
+          </label>
+          <label class="wide-field">
+            Add Note
+            <input name="noteText" type="text" placeholder="Saved with timestamp" />
+          </label>
+        </div>
+        <div class="photo-field">
+          <label>
+            Photos
+            <input id="livestockInlinePhotoInput" type="file" accept="image/*" multiple />
+          </label>
+          <div id="livestockInlinePhotoPreview" class="photo-preview" hidden></div>
+        </div>
+        <div class="toggle-row" data-inline-livestock-legacy-row ${casual ? "hidden" : ""}>
+          <label class="check-label">
+            <input name="isLegacy" type="checkbox" ${item.isLegacy ? "checked" : ""} ${casual ? "disabled" : ""} />
+            Legacy / add date unknown
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="primary-button" type="submit">
+            <i data-lucide="save"></i>
+            Save
+          </button>
+          <button class="secondary-button" type="button" data-livestock-action="cancel-edit" data-id="${escapeHtml(item.id)}">
+            Cancel
+          </button>
+        </div>
+      </form>
+    `;
+  }
+
+  function renderLivestockSelectOptions(options, selectedValue) {
+    return options.map(([value, label]) => `
+      <option value="${escapeHtml(value)}"${String(value) === String(selectedValue) ? " selected" : ""}>${escapeHtml(label)}</option>
+    `).join("");
+  }
+
+  function renderLivestockZoneOptions(selectedValue) {
+    return [
+      ["", "Unplaced"],
+      ...state.zones.map((zone) => [zone.id, zone.name]),
+    ].map(([value, label]) => `
+      <option value="${escapeHtml(value)}"${String(value) === String(selectedValue) ? " selected" : ""}>${escapeHtml(label)}</option>
+    `).join("");
+  }
+
+  function getLivestockPhotoPreviewId() {
+    return editingLivestockId ? "livestockInlinePhotoPreview" : "livestockPhotoPreview";
+  }
+
+  function renderActiveLivestockPhotoPreview() {
+    renderPhotoPreview(getLivestockPhotoPreviewId(), pendingLivestockPhotos, "Stock photo");
   }
 
   function renderLivestockNoteLog(item) {
@@ -5938,58 +6104,127 @@
     };
   }
 
+  function getInlineLivestockFormData(form) {
+    const field = (name) => form.elements[name]?.value ?? "";
+    const species = field("species").trim();
+    const category = field("category");
+    const addedDate = form.elements.addedDate?.disabled ? "" : field("addedDate");
+    const casual = isCasualStockCategory(category);
+    const isLegacy = Boolean(form.elements.isLegacy?.checked) || (!addedDate && !casual);
+
+    return {
+      species,
+      name: species,
+      category,
+      quantity: field("quantity"),
+      currentCount: field("currentCount"),
+      trackingUnit: field("trackingUnit"),
+      addedDate,
+      isLegacy: casual ? false : isLegacy,
+      status: casual ? "noticed" : "active",
+      zoneId: field("zoneId"),
+      noteText: field("noteText").trim(),
+      health: field("health"),
+      growthTrend: field("growthTrend"),
+      growthNotes: field("growthNotes").trim(),
+      photos: pendingLivestockPhotos,
+      photoDataUrl: "",
+    };
+  }
+
+  function syncInlineLivestockDateControls(form) {
+    if (!form) return;
+    const category = form.elements.category?.value || "";
+    const casual = isCasualStockCategory(category);
+    const dateField = form.querySelector("[data-inline-livestock-date-field]");
+    const dateLabel = form.querySelector("[data-inline-livestock-date-label]");
+    const dateInput = form.elements.addedDate;
+    const legacy = form.elements.isLegacy;
+    const legacyRow = form.querySelector("[data-inline-livestock-legacy-row]");
+
+    if (dateLabel) dateLabel.textContent = casual ? "First Noticed" : "Date Added";
+    if (legacyRow) legacyRow.hidden = casual;
+    if (legacy) {
+      legacy.disabled = casual;
+      if (casual) legacy.checked = false;
+    }
+
+    const hideDate = !casual && Boolean(legacy?.checked);
+    if (dateField) dateField.hidden = hideDate;
+    if (dateInput) {
+      dateInput.disabled = hideDate;
+      if (hideDate) dateInput.value = "";
+    }
+  }
+
   function resetLivestockForm() {
     $("livestockForm").reset();
     $("livestockEditId").value = "";
+    editingLivestockId = "";
     pendingLivestockPhotos = [];
     renderPhotoPreview("livestockPhotoPreview", "", "Stock photo");
     syncLivestockDateControls();
     $("livestockFormTitle").textContent = "Add Stock";
     $("livestockSubmitButton").innerHTML = `<i data-lucide="plus"></i>Add`;
     $("cancelLivestockEditButton").hidden = true;
-    if ($("livestockFormShell")) $("livestockFormShell").open = false;
+    if ($("livestockFormShell")) {
+      $("livestockFormShell").hidden = false;
+      $("livestockFormShell").open = false;
+    }
     refreshIcons();
   }
 
   function startLivestockEdit(id) {
     const item = state.livestock.find((entry) => entry.id === id);
     if (!item) return;
-    $("livestockEditId").value = item.id;
-    $("livestockSpecies").value = item.species || item.name || "";
-    $("livestockCategory").value = item.category || "Other";
-    $("livestockQuantity").value = item.quantity ?? "";
-    $("livestockCurrentCount").value = item.currentCount ?? "";
-    $("livestockTrackingUnit").value = item.trackingUnit || "";
-    $("livestockAdded").value = item.addedDate || "";
-    $("livestockLegacy").checked = Boolean(item.isLegacy);
-    $("livestockZone").value = item.zoneId || "";
-    $("livestockNotes").value = "";
-    $("livestockHealth").value = item.health || "";
-    $("livestockGrowthTrend").value = item.growthTrend || "";
-    $("livestockGrowthNotes").value = item.growthNotes || "";
+    editingLivestockId = item.id;
+    $("livestockEditId").value = "";
     pendingLivestockPhotos = getLivestockPhotos(item);
-    renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
-    syncLivestockDateControls();
-    $("livestockFormTitle").textContent = "Edit Stock";
-    $("livestockSubmitButton").innerHTML = `<i data-lucide="save"></i>Save`;
-    $("cancelLivestockEditButton").hidden = false;
-    if ($("livestockFormShell")) $("livestockFormShell").open = true;
-    $("livestockFormShell")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    refreshIcons();
+    if ($("livestockFormShell")) $("livestockFormShell").open = false;
+    renderLivestock();
+    requestAnimationFrame(() => {
+      [...document.querySelectorAll("[data-livestock-card]")]
+        .find((card) => card.dataset.livestockCard === item.id)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
   }
 
   async function addLivestock(event) {
     event.preventDefault();
+    if (editingLivestockId) {
+      showToast("Save or cancel the open livestock edit first.");
+      return;
+    }
     const formData = getLivestockFormData();
     if (!formData.species) return;
     const submitButton = $("livestockSubmitButton");
-    submitButton.disabled = true;
-    submitButton.innerHTML = `<i data-lucide="loader-circle"></i>Saving`;
-    refreshIcons();
-
     const editId = $("livestockEditId").value;
     const existing = editId ? state.livestock.find((item) => item.id === editId) : null;
+    await saveLivestockRecord(formData, existing, submitButton);
+  }
+
+  async function saveInlineLivestockEdit(form) {
+    const existing = state.livestock.find((item) => item.id === form.dataset.id);
+    if (!existing) {
+      resetLivestockForm();
+      renderLivestock();
+      return;
+    }
+    const formData = getInlineLivestockFormData(form);
+    if (!formData.species) return;
+    await saveLivestockRecord(formData, existing, form.querySelector('button[type="submit"]'));
+  }
+
+  async function saveLivestockRecord(formData, existing, submitButton) {
+    const idleHtml = submitButton?.innerHTML || "";
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.innerHTML = `<i data-lucide="loader-circle"></i>Saving`;
+    }
+    refreshIcons();
+
     const id = existing?.id || uid();
+    const updatedExisting = Boolean(existing);
     const previousPaths = existing ? getPhotoStoragePaths(getLivestockPhotos(existing)) : [];
 
     try {
@@ -6031,12 +6266,15 @@
       renderReefMap2({ rebuild: true });
       renderDashboard();
       renderInsightsContext();
-      showToast(existing ? "Stock updated." : "Stock added.");
+      showToast(updatedExisting ? "Stock updated." : "Stock added.");
     } catch (error) {
       console.error(error);
       showToast("Photo upload failed. Try again.");
     } finally {
-      submitButton.disabled = false;
+      if (submitButton && document.body.contains(submitButton)) {
+        submitButton.disabled = false;
+        if (idleHtml) submitButton.innerHTML = idleHtml;
+      }
       refreshIcons();
     }
   }
@@ -6311,7 +6549,7 @@
         } else {
           pendingLivestockPhotos = [];
         }
-        renderPhotoPreview("livestockPhotoPreview", pendingLivestockPhotos, "Stock photo");
+        renderActiveLivestockPhotoPreview();
         showToast("Photo removed.");
       }
       return;
@@ -6349,6 +6587,7 @@
 
     const livestockFilter = event.target.closest("[data-livestock-filter]");
     if (livestockFilter) {
+      if (editingLivestockId) resetLivestockForm();
       state.ui.livestockFilter = livestockFilter.dataset.livestockFilter;
       saveLocalState();
       renderLivestock();
@@ -6546,9 +6785,20 @@
       startLivestockEdit(id);
       return;
     }
+    if (action === "cancel-edit") {
+      resetLivestockForm();
+      renderLivestock();
+      return;
+    }
+    let toastMessage = "Livestock updated.";
     if (action === "delete") {
+      const label = item.species || item.name || "this livestock record";
+      const confirmed = window.confirm(`Delete ${label}? This permanently removes the record and its photos.`);
+      if (!confirmed) return;
       await removeStoragePaths(getPhotoStoragePaths(getLivestockPhotos(item)));
       state.livestock = state.livestock.filter((entry) => entry.id !== id);
+      if (editingLivestockId === id) resetLivestockForm();
+      toastMessage = "Livestock deleted.";
     } else if (action === "restore") {
       item.status = "active";
       item.removedDate = "";
@@ -6570,7 +6820,7 @@
     renderReefMap2({ rebuild: true });
     renderDashboard();
     renderInsightsContext();
-    showToast("Livestock updated.");
+    showToast(toastMessage);
   }
 
   function deleteTimelineEntry(key) {
@@ -6606,14 +6856,31 @@
   }
 
   async function handleDocumentChange(event) {
+    if (event.target?.id === "livestockInlinePhotoInput") {
+      await handlePhotoInput(event, "livestock");
+      return;
+    }
     if (event.target?.id === "insightFollowupPhotoInput") {
       await handlePhotoInput(event, "insight-followup");
+      return;
+    }
+    const inlineLivestockForm = event.target.closest("[data-livestock-inline-form]");
+    if (inlineLivestockForm && (event.target.name === "category" || event.target.name === "isLegacy")) {
+      syncInlineLivestockDateControls(inlineLivestockForm);
+    }
+  }
+
+  async function handleDocumentSubmit(event) {
+    if (event.target.matches("[data-livestock-inline-form]")) {
+      event.preventDefault();
+      await saveInlineLivestockEdit(event.target);
     }
   }
 
   function bindEvents() {
     document.addEventListener("click", handleDocumentClick);
     document.addEventListener("change", handleDocumentChange);
+    document.addEventListener("submit", handleDocumentSubmit);
     $$("[data-profile]").forEach((input) => {
       input.addEventListener("input", updateProfileFromForm);
       input.addEventListener("change", updateProfileFromForm);
