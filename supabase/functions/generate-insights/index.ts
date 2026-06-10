@@ -155,6 +155,7 @@ Deno.serve(async (request) => {
 
     if (selectedEvidence.length) {
       const selectedImages = collectEvidenceImageInputs(selectedEvidence);
+      const followupImages = mergeImageInputs(promptImageInputs, selectedImages);
       const textSelectedEvidence = stripImagePayloads(selectedEvidence);
       insight = await requestStructuredInsight(
         openAiKey,
@@ -168,11 +169,13 @@ Deno.serve(async (request) => {
         },
         buildInstructions("followup"),
         1700,
-        selectedImages,
+        followupImages,
       );
       progressiveTrace = {
         ...progressiveTrace,
-        image_inputs_sent: selectedImages.length,
+        image_inputs_sent: followupImages.length,
+        selected_image_inputs_sent: selectedImages.length,
+        prompt_image_inputs_reused_in_followup: promptImageInputs.length,
       };
     }
   } catch (error) {
@@ -289,6 +292,8 @@ function buildInstructions(phase: "index" | "followup") {
   if (phase === "followup") {
     base.push(
       "You are now receiving selected_evidence that fulfills one or more prior data_requests.",
+      "Prompt-attached images may be re-sent in this follow-up pass. Treat those as current prompt photos already reviewed, not as missing.",
+      "If the attached prompt photos are not diagnostic enough, say exactly what is insufficient, such as less-blue lighting, closer lesion detail, or a different angle.",
       "Use selected_evidence to refine the final answer. Keep only still-needed data_requests in the returned JSON.",
     );
   } else {
@@ -417,6 +422,21 @@ function collectEvidenceImageInputs(selectedEvidence: Array<Record<string, unkno
   };
 
   visit(selectedEvidence);
+  return images;
+}
+
+function mergeImageInputs(...groups: Array<Array<Record<string, string>>>) {
+  const images: Array<Record<string, string>> = [];
+  const seen = new Set<string>();
+  for (const group of groups) {
+    for (const image of group) {
+      const key = image.image_url || JSON.stringify(image);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      images.push(image);
+      if (images.length >= 6) return images;
+    }
+  }
   return images;
 }
 
