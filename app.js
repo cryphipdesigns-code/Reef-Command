@@ -58,6 +58,7 @@
   let editingLivestockId = "";
   let pendingInsightPhotos = [];
   let pendingInsightFollowupPhotos = [];
+  let pendingInsightFollowupRunId = "";
   let editingLog = null;
   let map2Renderer = null;
   let map2Scene = null;
@@ -1505,9 +1506,10 @@
     }
   }
 
-  function renderPhotoPreview(previewId, photoValue, altText) {
-    const preview = $(previewId);
+  function renderPhotoPreview(previewRef, photoValue, altText) {
+    const preview = typeof previewRef === "string" ? $(previewRef) : previewRef;
     if (!preview) return;
+    const previewId = preview.id || "";
     const photos = (Array.isArray(photoValue) ? photoValue : photoValue ? [photoValue] : [])
       .map(normalizePhotoRecord)
       .filter(Boolean);
@@ -1517,13 +1519,14 @@
       return;
     }
 
-    const kind = previewId === "lightingPhotoPreview"
+    const kind = preview.dataset.photoKind || (previewId === "lightingPhotoPreview"
       ? "lighting"
       : previewId === "insightPhotoPreview"
         ? "insight"
         : previewId === "insightFollowupPhotoPreview"
           ? "insight-followup"
-          : "livestock";
+          : "livestock");
+    const runId = preview.dataset.insightRunId || "";
     preview.hidden = false;
     if (kind === "lighting") {
       preview.innerHTML = `
@@ -1544,7 +1547,7 @@
         ${photos.map((photo, index) => `
           <article class="photo-preview-item">
             <img src="${escapeHtml(getPhotoSrc(photo))}" alt="${escapeHtml(`${altText} ${index + 1}`)}" />
-            <button class="mini-button danger" type="button" data-remove-photo="${kind}" data-photo-index="${index}">Remove</button>
+            <button class="mini-button danger" type="button" data-remove-photo="${kind}" data-photo-index="${index}"${runId ? ` data-insight-run-id="${escapeHtml(runId)}"` : ""}>Remove</button>
           </article>
         `).join("")}
       </div>
@@ -1582,8 +1585,13 @@
         });
         if (result.saved.length) {
           if (target === "insight-followup") {
+            const runId = input.dataset.insightFollowupPhoto || "";
+            if (runId && pendingInsightFollowupRunId && pendingInsightFollowupRunId !== runId) {
+              clearPendingInsightFollowupPhotos(pendingInsightFollowupRunId);
+            }
+            pendingInsightFollowupRunId = runId;
             pendingInsightFollowupPhotos = [...pendingInsightFollowupPhotos, ...result.saved];
-            renderPhotoPreview("insightFollowupPhotoPreview", pendingInsightFollowupPhotos, "Follow-up insight photo");
+            renderPhotoPreview(getInsightFollowupPhotoPreview(runId), pendingInsightFollowupPhotos, "Follow-up insight photo");
           } else {
             pendingInsightPhotos = [...pendingInsightPhotos, ...result.saved];
             renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
@@ -4799,7 +4807,7 @@
           ${run.question ? `<article class="insight-card"><strong>Question</strong><p>${escapeHtml(run.question)}</p></article>` : ""}
           ${renderInsightRunPhotos(run)}
           ${renderInsightResult(run.result)}
-          ${index === 0 ? renderInsightFollowupForm() : ""}
+          ${renderInsightFollowupForm(run)}
           ${renderInsightDebug(run)}
         </div>
       </details>
@@ -4824,23 +4832,24 @@
     `;
   }
 
-  function renderInsightFollowupForm() {
+  function renderInsightFollowupForm(run) {
+    const runId = run?.id || "";
     return `
-      <article class="insight-card insight-followup">
+      <article class="insight-card insight-followup" data-insight-followup-form="${escapeHtml(runId)}">
         <strong>Follow Up</strong>
         <label>
           Detail / Question
           <textarea
-            id="insightFollowup"
+            data-insight-followup-text
             rows="3"
             placeholder="Add a missing detail or ask a follow-up"
           ></textarea>
         </label>
-        <button id="insightFollowupButton" class="secondary-button" type="button" data-insight-followup>
+        <button class="secondary-button" type="button" data-insight-followup="${escapeHtml(runId)}">
           <i data-lucide="message-square-plus"></i>
           Send Follow-Up
         </button>
-        <details class="collapsible-field photo-field insight-followup-photo-field">
+        <details class="collapsible-field photo-field insight-followup-photo-field" data-insight-followup-photo-field="${escapeHtml(runId)}">
           <summary>
             <span>
               <i data-lucide="image-plus"></i>
@@ -4851,9 +4860,9 @@
           <div class="collapsible-content">
             <label>
               Upload Photo
-              <input id="insightFollowupPhotoInput" type="file" accept="image/*" multiple />
+              <input data-insight-followup-photo="${escapeHtml(runId)}" type="file" accept="image/*" multiple />
             </label>
-            <div id="insightFollowupPhotoPreview" class="photo-preview" hidden></div>
+            <div class="photo-preview" data-photo-kind="insight-followup" data-insight-followup-photo-preview="${escapeHtml(runId)}" data-insight-run-id="${escapeHtml(runId)}" hidden></div>
           </div>
         </details>
       </article>
@@ -5632,14 +5641,16 @@
     });
   }
 
-  async function generateFollowupInsight() {
-    const previousRun = state.insightRuns[0];
+  async function generateFollowupInsight(runId = "", trigger = null) {
+    const previousRun = state.insightRuns.find((run) => run.id === runId) || state.insightRuns[0];
     if (!previousRun) {
       showToast("Generate an insight first.");
       return;
     }
-    const question = $("insightFollowup").value.trim();
-    const attachedPhotos = getPendingInsightFollowupPhotos();
+    const form = trigger?.closest?.("[data-insight-followup-form]") || getInsightFollowupForm(previousRun.id);
+    const textarea = form?.querySelector("[data-insight-followup-text]");
+    const question = (textarea?.value || "").trim();
+    const attachedPhotos = getPendingInsightFollowupPhotos(previousRun.id);
     if (!question && !attachedPhotos.length) {
       showToast("Add a follow-up detail, question, or photo.");
       return;
@@ -5649,19 +5660,20 @@
       question,
       previousRun,
       attachedPhotos,
-      clearAttachedPhotos: clearPendingInsightFollowupPhotos,
-      button: $("insightFollowupButton"),
+      clearAttachedPhotos: () => clearPendingInsightFollowupPhotos(previousRun.id),
+      button: trigger,
       loadingText: "Sending",
       idleHtml: `<i data-lucide="message-square-plus"></i>Send Follow-Up`,
     });
-    $("insightFollowup").value = "";
+    if (textarea) textarea.value = "";
   }
 
   function getPendingInsightPhotos() {
     return pendingInsightPhotos.map(normalizePhotoRecord).filter(Boolean);
   }
 
-  function getPendingInsightFollowupPhotos() {
+  function getPendingInsightFollowupPhotos(runId = "") {
+    if (runId && pendingInsightFollowupRunId && pendingInsightFollowupRunId !== runId) return [];
     return pendingInsightFollowupPhotos.map(normalizePhotoRecord).filter(Boolean);
   }
 
@@ -5672,11 +5684,29 @@
     if (photoField) photoField.open = false;
   }
 
-  function clearPendingInsightFollowupPhotos() {
+  function clearPendingInsightFollowupPhotos(runId = "") {
+    if (runId && pendingInsightFollowupRunId && pendingInsightFollowupRunId !== runId) return;
     pendingInsightFollowupPhotos = [];
-    renderPhotoPreview("insightFollowupPhotoPreview", pendingInsightFollowupPhotos, "Follow-up insight photo");
-    const photoField = document.querySelector(".insight-followup-photo-field");
+    const targetRunId = runId || pendingInsightFollowupRunId;
+    pendingInsightFollowupRunId = "";
+    renderPhotoPreview(getInsightFollowupPhotoPreview(targetRunId), pendingInsightFollowupPhotos, "Follow-up insight photo");
+    const photoField = getInsightFollowupPhotoField(targetRunId);
     if (photoField) photoField.open = false;
+  }
+
+  function getInsightFollowupForm(runId) {
+    return [...document.querySelectorAll("[data-insight-followup-form]")]
+      .find((form) => form.dataset.insightFollowupForm === runId) || null;
+  }
+
+  function getInsightFollowupPhotoPreview(runId) {
+    return [...document.querySelectorAll("[data-insight-followup-photo-preview]")]
+      .find((preview) => preview.dataset.insightFollowupPhotoPreview === runId) || null;
+  }
+
+  function getInsightFollowupPhotoField(runId) {
+    return [...document.querySelectorAll("[data-insight-followup-photo-field]")]
+      .find((field) => field.dataset.insightFollowupPhotoField === runId) || null;
   }
 
   async function storeInsightRun({ mode, question, previousRun, source, result, debug }, attachedPhotos, clearAttachedPhotos) {
@@ -6534,13 +6564,15 @@
         renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
         showToast("Insight photo removed.");
       } else if (removePhoto.dataset.removePhoto === "insight-followup") {
+        const runId = removePhoto.dataset.insightRunId || "";
+        if (runId && pendingInsightFollowupRunId && pendingInsightFollowupRunId !== runId) return;
         const photoIndex = Number(removePhoto.dataset.photoIndex);
         if (Number.isInteger(photoIndex)) {
           pendingInsightFollowupPhotos = pendingInsightFollowupPhotos.filter((_photo, index) => index !== photoIndex);
         } else {
           pendingInsightFollowupPhotos = [];
         }
-        renderPhotoPreview("insightFollowupPhotoPreview", pendingInsightFollowupPhotos, "Follow-up insight photo");
+        renderPhotoPreview(getInsightFollowupPhotoPreview(runId), pendingInsightFollowupPhotos, "Follow-up insight photo");
         showToast("Follow-up photo removed.");
       } else {
         const photoIndex = Number(removePhoto.dataset.photoIndex);
@@ -6762,7 +6794,7 @@
 
     const insightFollowup = event.target.closest("[data-insight-followup]");
     if (insightFollowup) {
-      await generateFollowupInsight();
+      await generateFollowupInsight(insightFollowup.dataset.insightFollowup, insightFollowup);
       return;
     }
 
@@ -6860,7 +6892,7 @@
       await handlePhotoInput(event, "livestock");
       return;
     }
-    if (event.target?.id === "insightFollowupPhotoInput") {
+    if (event.target?.matches?.("[data-insight-followup-photo]")) {
       await handlePhotoInput(event, "insight-followup");
       return;
     }
