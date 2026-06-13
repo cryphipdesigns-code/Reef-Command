@@ -9,6 +9,7 @@
   const MAP2_REFINEMENT_ACTIONS = ["raise", "depress", "flatten", "cut-back", "smooth", "ridge"];
   const MAP2_REFINEMENT_DIRECTIONS = ["surface", "top-bottom", "left-right", "front-back"];
   const MAP2_REFINEMENT_STRENGTHS = ["light", "medium", "strong"];
+  const MAP2_RIGHT_ROCK_OPTION5_REFINEMENT_BASE = "right-rock-option5";
 
   const viewMap = {
     home: "homeView",
@@ -219,7 +220,7 @@
         sandDepth: 1.3,
         waterline: 16.4,
         scaleReference: "3 inch sticky-note cards plus 2 inch in-tank ruler for right rock",
-        calibrationNotes: "Five-rock silhouette-locked mesh from traced front, top, and side references. Version 21 tunes Map 2.0 with mirrored LiDAR shelf/right rocks, a shorter shelf height, and legacy front sandbed rocks.",
+        calibrationNotes: "Five-rock mesh. Right rock and shelf use LiDAR heightmaps with silhouette constraint; left rock uses Option 5 silhouette-refined geometry; front rocks use legacy profile geometry.",
       },
       view: "front",
       layers: {
@@ -268,7 +269,7 @@
           flow: "Medium",
           parMin: 45,
           parMax: 120,
-          notes: "Back-glass-touching left rock. Larger continuous mass from the traced top and front outlines, with sand gap at the front-right edge.",
+          notes: "Back-glass-touching left rock. Option 5 silhouette-refined base geometry with broad PAR-relevant mass, ready for manual geometry-note refinement.",
         },
         {
           id: "front-left-rock",
@@ -413,7 +414,7 @@
           flow: "Medium-High",
           parMin: 55,
           parMax: 135,
-          notes: "Back-glass-touching right rock. Version 20 uses the front/back-corrected LiDAR OBJ top envelope as the primary geometry reference, blended with the traced footprint and side/front profiles.",
+          notes: "Back-glass-touching right rock. LiDAR heightmap drives surface topology (swap-corrected 41×41 grid, 88% weight), silhouette profiles constrain the envelope.",
         },
         {
           id: "center-shelf",
@@ -834,6 +835,7 @@
               direction: MAP2_REFINEMENT_DIRECTIONS.includes(annotation.direction) ? annotation.direction : "surface",
               strength: MAP2_REFINEMENT_STRENGTHS.includes(annotation.strength) ? annotation.strength : "medium",
               radius: positiveNumber(annotation.radius, 0.8),
+              geometryBase: typeof annotation.geometryBase === "string" ? annotation.geometryBase : "",
               note: annotation.note || "",
               points,
             };
@@ -1997,8 +1999,8 @@
   function renderMap2Settings() {
     if (!$("map2Summary")) return;
     const dimensions = state.map.dimensions;
-    $("map2Summary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · LiDAR shelf/right + legacy front rocks`;
-    $("map2QualityPill").textContent = "Hybrid remesh";
+    $("map2Summary").textContent = `${formatValue(dimensions.width, "in")} x ${formatValue(dimensions.depth, "in")} x ${formatValue(dimensions.height, "in")} · LiDAR right rock + LiDAR shelf`;
+    $("map2QualityPill").textContent = "LiDAR right rock";
     renderMap2FocusSelect();
     renderMap2RefinementControls();
     $$("[data-map2-view]").forEach((button) => {
@@ -2031,7 +2033,7 @@
 
   function renderMap2RefinementControls() {
     if (!$("map2RefineStatus")) return;
-    const annotations = state.map.refinementAnnotations || [];
+    const annotations = getMap2RefinementAnnotationsForCurrentGeometry();
     const shape = getMap2RefinementShape();
     $$("[data-map2-refine-shape]").forEach((button) => {
       button.classList.toggle("active", button.dataset.map2RefineShape === shape);
@@ -2489,10 +2491,10 @@
   function getMap2Structures() {
     const meshForStructure = {
       "center-shelf": { key: "shelf", mirrorX: true, mirrorY: false, verticalScale: 0.8 },
-      "left-rock": { key: "rightRock", mirrorX: true, mirrorY: false },
+      "left-rock": { mode: "option5" },
       "front-left-rock": { mode: "legacy" },
       "front-right-rock": { mode: "legacy" },
-      "right-rock": { key: "rightRock", mirrorX: true, mirrorY: false },
+      "right-rock": { key: "rightRock", mirrorX: false, mirrorY: false },
     };
     return state.map.structures
       .filter((structure) => meshForStructure[structure.id])
@@ -2505,6 +2507,9 @@
   function createMap2Rock(structure, index) {
     if (structure.map2Mesh?.mode === "legacy") {
       return createMap2LegacyRock(structure, index);
+    }
+    if (structure.map2Mesh?.mode === "option5") {
+      return createMap2Option5Rock(structure, index);
     }
     return createMap2LidarRock(structure, index);
   }
@@ -2519,9 +2524,203 @@
     return mesh;
   }
 
+  function createMap2Option5Rock(structure, index) {
+    const refinementAnnotations = getMap2StructureRefinementAnnotations(structure.id);
+    const option5Footprint = getMap2DisplayedBaseFootprint(structure);
+    const footprint = getMap2RefinedFootprint(structure, option5Footprint, refinementAnnotations);
+    const bounds = getPointBounds(footprint);
+    const maxDimension = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+    const perimeterLength = getPerimeterLength(footprint);
+    const useExternalRightRockDensity = structure.id === "right-rock";
+    const sampleCount = useExternalRightRockDensity ? 76 : Math.round(clamp(76, 132, perimeterLength / 0.16));
+    const ringCount = useExternalRightRockDensity ? 30 : Math.round(clamp(28, 44, maxDimension / 0.24));
+    const perimeter = sampleFootprintPerimeter(footprint, sampleCount);
+    const center = polygonCentroid(footprint);
+    const vertices = [];
+    const colors = [];
+    const indices = [];
+
+    const pushVertex = (x, y, z, shade) => {
+      const vertexIndex = vertices.length / 3;
+      vertices.push(structure.x + x, structure.y + y, structure.z + z);
+      colors.push(shade.r, shade.g, shade.b);
+      return vertexIndex;
+    };
+
+    const heightAt = (x, y) => {
+      const baseHeight = getMap2Option5Height(structure, footprint, x, y);
+      return applyMap2RefinementHeight(structure, refinementAnnotations, x, y, baseHeight, structure.height);
+    };
+
+    const centerZ = heightAt(center[0], center[1]);
+    const centerIndex = pushVertex(center[0], center[1], centerZ, rockVertexColor(structure, center[0], center[1], centerZ, index));
+    const rings = [];
+
+    for (let ringIndex = 1; ringIndex <= ringCount; ringIndex += 1) {
+      const radialT = ringIndex / ringCount;
+      const ring = [];
+      perimeter.forEach((point, pointIndex) => {
+        const x = lerp(center[0], point[0], radialT);
+        const y = lerp(center[1], point[1], radialT);
+        const z = heightAt(x, y);
+        ring.push(pushVertex(x, y, z, rockVertexColor(structure, x, y, z, index + pointIndex)));
+      });
+      rings.push(ring);
+    }
+
+    for (let pointIndex = 0; pointIndex < sampleCount; pointIndex += 1) {
+      const nextIndex = (pointIndex + 1) % sampleCount;
+      indices.push(centerIndex, rings[0][pointIndex], rings[0][nextIndex]);
+    }
+
+    for (let ringIndex = 1; ringIndex < rings.length; ringIndex += 1) {
+      const innerRing = rings[ringIndex - 1];
+      const outerRing = rings[ringIndex];
+      for (let pointIndex = 0; pointIndex < sampleCount; pointIndex += 1) {
+        const nextIndex = (pointIndex + 1) % sampleCount;
+        const innerA = innerRing[pointIndex];
+        const innerB = innerRing[nextIndex];
+        const outerA = outerRing[pointIndex];
+        const outerB = outerRing[nextIndex];
+        indices.push(innerA, outerA, innerB, innerB, outerA, outerB);
+      }
+    }
+
+    addMap2FootprintSkirt(structure, footprint, perimeter, rings[rings.length - 1], vertices, colors, indices);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+
+    const mesh = new THREE.Mesh(geometry, createRockMeshMaterial());
+    mesh.name = `${structure.id}-map2-option5`;
+    mesh.userData.map2StructureId = structure.id;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 4 + index;
+    return mesh;
+  }
+
+  function getMap2Option5BaseFootprint(structure) {
+    if (structure.id === "right-rock" && Array.isArray(structure.footprint) && structure.footprint.length >= 3) {
+      return structure.footprint;
+    }
+    return getRockFootprint(structure);
+  }
+
+  function getMap2DisplayedBaseFootprint(structure) {
+    if (structure.map2Mesh?.mode === "option5") {
+      return getMap2Option5Footprint(structure, getMap2Option5BaseFootprint(structure));
+    }
+    return getRockFootprint(structure);
+  }
+
+  function getMap2Option5Footprint(structure, footprint) {
+    if (structure.id !== "left-rock" && structure.id !== "right-rock") return footprint;
+    return footprint.map(([x, y]) => {
+      let nextX = x;
+      let nextY = y;
+      if (structure.id === "left-rock") {
+        const frontRightCut = map2Option5Gaussian(x, y, 2.4, -3.0, 1.9);
+        const backLeftLift = map2Option5Gaussian(x, y, -2.1, 3.0, 1.8);
+        nextX -= 0.42 * frontRightCut;
+        nextY += 0.34 * frontRightCut + 0.18 * backLeftLift;
+      } else {
+        const frontProngCut = map2Option5Gaussian(x, y, 1.4, -4.6, 1.8);
+        const leftShoulderWiden = map2Option5Gaussian(x, y, -3.5, 1.2, 1.9);
+        nextX -= 0.35 * leftShoulderWiden;
+        nextY += 0.42 * frontProngCut;
+      }
+      return [nextX, nextY];
+    });
+  }
+
+  function getMap2Option5Height(structure, footprint, x, y) {
+    let height = getMap2Option5SilhouetteHeight(structure, footprint, x, y);
+    if (structure.id === "left-rock") {
+      // Primary summit back-left of center (matches sideProfile peak at y≈3.15, frontProfile peak at x≈-0.45)
+      height += 0.58 * map2Option5Gaussian(x, y, -0.85, 1.05, 1.25);
+      // Secondary shoulder right-back — creates a twin-ridge silhouette from the front
+      height += 0.34 * map2Option5Gaussian(x, y, 0.75, 2.15, 0.88);
+      // Diagonal structural ridge front-left → back-right (mirrors structure.ridges entry)
+      height += 0.35 * map2Option5LineGaussian(x, y, [-2.8, -1.15], [2.0, 1.55], 0.74);
+      // Diffuse back-glass mass along the rear edge
+      height += 0.22 * map2Option5LineGaussian(x, y, [-3.4, 3.8], [2.2, 4.5], 1.05);
+      // Front-right gap — cleans up separation toward the shelf and front rocks
+      height -= 0.48 * map2Option5Gaussian(x, y, 2.35, -2.05, 0.92);
+      // Left-flank taper toward the tank side wall
+      height -= 0.16 * map2Option5Gaussian(x, y, -3.6, 0.45, 1.05);
+      // Narrow plateau near the summit
+      const plateau = map2Option5Gaussian(x, y, -0.45, 1.35, 0.95);
+      height = lerp(height, Math.min(structure.height, 4.65), 0.18 * plateau);
+    } else if (structure.id === "right-rock") {
+      height += 0.72 * map2Option5Gaussian(x, y, 1.25, 0.25, 1.15);
+      height += 0.42 * map2Option5LineGaussian(x, y, [-2.8, 2.45], [0.75, 3.15], 0.58);
+      height -= 0.55 * map2Option5Gaussian(x, y, -0.1, -0.6, 0.9);
+      height -= 0.32 * map2Option5LineGaussian(x, y, [0.2, -2.7], [2.6, -3.75], 0.52);
+      const plateau = map2Option5Gaussian(x, y, 1.25, 0.4, 1.05);
+      height = lerp(height, Math.min(structure.height, 4.9), 0.2 * plateau);
+    }
+
+    const edgeDistance = distanceToPolygonEdge([x, y], footprint);
+    const edgeShape = 0.13 + 0.87 * smoothstep(0, 0.72, edgeDistance);
+    return clamp(0.06, structure.height, height * edgeShape);
+  }
+
+  function getMap2Option5SilhouetteHeight(structure, footprint, x, y) {
+    const frontLimit = profileValueAt(structure.frontProfile, x, structure.height);
+    const sideLimit = Array.isArray(structure.sideProfile) && structure.sideProfile.length >= 2
+      ? profileValueAt(structure.sideProfile, y, structure.height)
+      : structure.height;
+    const silhouetteLimit = Math.min(structure.height, Math.max(0.16, Math.min(frontLimit, Math.max(sideLimit, frontLimit * 0.78))));
+    const edgeDistance = distanceToPolygonEdge([x, y], footprint);
+    const edgeTaper = smoothstep(0, structure.edgeSoftness || 0.9, edgeDistance);
+    const edgeFloor = clamp(0.12, 0.99, structure.edgeFloor || 0.24);
+    const footprintBounds = getPointBounds(footprint);
+    const frontTaperDepth = nonNegativeNumber(structure.frontTaperDepth, 0);
+    const frontTaper = frontTaperDepth
+      ? smoothstep(footprintBounds.minY, footprintBounds.minY + frontTaperDepth, y)
+      : 1;
+    const frontFloor = clamp(0.08, 1, structure.frontFloor || 0.24);
+    const frontShape = frontFloor + (1 - frontFloor) * frontTaper;
+    const broadVariation =
+      0.96 +
+      Math.sin((x - footprintBounds.minX) * 0.8) * 0.035 +
+      Math.cos(y * 0.9) * 0.025;
+    return clamp(0.06, structure.height, silhouetteLimit * (edgeFloor + (1 - edgeFloor) * edgeTaper) * frontShape * broadVariation);
+  }
+
+  function map2Option5Gaussian(x, y, centerX, centerY, radius) {
+    const dx = x - centerX;
+    const dy = y - centerY;
+    return Math.exp(-(dx * dx + dy * dy) / (2 * radius * radius));
+  }
+
+  function map2Option5LineGaussian(x, y, start, end, radius) {
+    const distance = distanceToSegment([x, y], start, end);
+    return Math.exp(-(distance * distance) / (2 * radius * radius));
+  }
+
   function getMap2StructureRefinementAnnotations(structureId) {
-    return normalizeMap2RefinementAnnotations(state.map.refinementAnnotations || [])
+    return getMap2RefinementAnnotationsForCurrentGeometry()
       .filter((annotation) => annotation.structureId === structureId);
+  }
+
+  function getMap2RefinementAnnotationsForCurrentGeometry() {
+    return normalizeMap2RefinementAnnotations(state.map.refinementAnnotations || [])
+      .filter(shouldApplyMap2RefinementAnnotation);
+  }
+
+  function shouldApplyMap2RefinementAnnotation(annotation) {
+    if (annotation.structureId !== "right-rock") return true;
+    return annotation.geometryBase === MAP2_RIGHT_ROCK_OPTION5_REFINEMENT_BASE;
+  }
+
+  function getMap2RefinementGeometryBase(structureId) {
+    return structureId === "right-rock" ? MAP2_RIGHT_ROCK_OPTION5_REFINEMENT_BASE : "";
   }
 
   function getMap2RefinedFootprint(structure, footprint, annotations) {
@@ -2747,16 +2946,26 @@
     const mapHeightAt = (x, y, radialT) => {
       const rawU = (x - bounds.minX) / width;
       const rawV = (y - bounds.minY) / depth;
-      const u = structure.map2Mesh.mirrorX ? 1 - rawU : rawU;
-      const v = structure.map2Mesh.mirrorY ? 1 - rawV : rawV;
+      const swapAxes = heightMap.transform?.swap;
+      const mappedU = swapAxes ? rawV : rawU;
+      const mappedV = swapAxes ? rawU : rawV;
+      const u = structure.map2Mesh.mirrorX ? 1 - mappedU : mappedU;
+      const v = structure.map2Mesh.mirrorY ? 1 - mappedV : mappedV;
       const scanHeight = sampleLidarHeightMap(heightMap, u, v);
-      const contrast = structure.id === "center-shelf" ? 1.22 : 1.34;
+      const isShelf = structure.id === "center-shelf";
+      const contrast = structure.scanHeightContrast ?? (isShelf ? 1.22 : 1.34);
+      const floor = structure.scanHeightFloor ?? (isShelf ? 0.2 : 0.12);
       const contrasted = clamp(0, 1, (scanHeight - 0.5) * contrast + 0.5);
-      const floor = structure.id === "center-shelf" ? 0.2 : 0.12;
       const edgeDrop = smoothstep(0.72, 1, radialT);
-      const edgeShape = lerp(1, structure.id === "center-shelf" ? 0.32 : 0.18, edgeDrop);
-      const shelfLift = structure.id === "center-shelf" ? 0.1 : 0;
-      const baseHeight = scaledHeight * (floor + contrasted * (1 - floor + shelfLift)) * edgeShape;
+      const edgeShape = lerp(1, isShelf ? 0.32 : 0.18, edgeDrop);
+      const shelfLift = isShelf ? 0.1 : 0;
+      const lidarHeight = scaledHeight * (floor + contrasted * (1 - floor + shelfLift)) * edgeShape;
+      const strength = structure.scanHeightStrength;
+      let baseHeight = lidarHeight;
+      if (Number.isFinite(strength) && strength < 1) {
+        const silhouetteLimit = getMap2Option5SilhouetteHeight(structure, footprint, x, y);
+        baseHeight = Math.min(lerp(silhouetteLimit, lidarHeight, strength), silhouetteLimit * 1.05);
+      }
       return applyMap2RefinementHeight(structure, refinementAnnotations, x, y, baseHeight, scaledHeight);
     };
 
@@ -2825,7 +3034,7 @@
     const group = new THREE.Group();
     group.name = "map2-refinement-annotations";
     group.renderOrder = 40;
-    (state.map.refinementAnnotations || []).forEach((annotation) => {
+    getMap2RefinementAnnotationsForCurrentGeometry().forEach((annotation) => {
       addMap2RefinementAnnotation(group, annotation, false);
     });
     if (map2RefinementDraft?.points?.length) {
@@ -4226,7 +4435,7 @@
     let best = null;
     candidateStructures.forEach((structure) => {
       const annotations = getMap2StructureRefinementAnnotations(structure.id);
-      const footprint = getMap2RefinedFootprint(structure, getRockFootprint(structure), annotations);
+      const footprint = getMap2RefinedFootprint(structure, getMap2DisplayedBaseFootprint(structure), annotations);
       const localPoint = [worldPoint.x - structure.x, worldPoint.y - structure.y];
       const edge = getClosestPointOnPolygonEdge(localPoint, footprint);
       if (!edge || edge.distance > tolerance || (best && edge.distance >= best.distance)) return;
@@ -4256,6 +4465,7 @@
       direction: getMap2RefinementDirection(),
       strength: getMap2RefinementStrength(),
       radius: getMap2RefinementRadius(),
+      geometryBase: getMap2RefinementGeometryBase(structure.id),
       note: state.ui.map2RefinementNote || "",
       points: points.map(serializeMap2RefinementPoint),
     };
@@ -5336,7 +5546,7 @@
         z: Number(Number(marker.z).toFixed(2)),
       },
     }));
-    const refinementAnnotations = (state.map.refinementAnnotations || []).map((annotation) => ({
+    const refinementAnnotations = getMap2RefinementAnnotationsForCurrentGeometry().map((annotation) => ({
       id: annotation.id,
       structureId: annotation.structureId || "",
       structureName: annotation.structureId ? getMapStructureName(annotation.structureId) : annotation.structureName || "",
@@ -5345,6 +5555,7 @@
       direction: annotation.direction,
       strength: annotation.strength,
       radiusInches: annotation.radius,
+      geometryBase: annotation.geometryBase || "",
       note: annotation.note || "",
       pointCount: annotation.points?.length || 0,
       localPoints: (annotation.points || []).map((point) => ({
@@ -5365,45 +5576,49 @@
         referenceImageCount: 28,
         rawReferenceImagesStoredInApp: false,
       },
-      structures: state.map.structures.map((structure) => ({
-        id: structure.id,
-        name: structure.name,
-        type: structure.type,
-        position: { x: structure.x, y: structure.y, z: structure.z },
-        size: { width: structure.width, depth: structure.depth, height: structure.height },
-        geometry: {
-          footprint: structure.footprint,
-          bottomProfile: structure.bottomProfile,
-          frontProfile: structure.frontProfile,
-          sideProfile: structure.sideProfile,
-          heightPoints: structure.heightPoints,
-          ridges: structure.ridges,
-          depressions: structure.depressions,
-          troughs: structure.troughs,
-          edgeSoftness: structure.edgeSoftness,
-          edgeFloor: structure.edgeFloor,
-          reliefMin: structure.reliefMin,
-          reliefMax: structure.reliefMax,
-          meshResolution: structure.meshResolution,
-          surfaceNoise: structure.surfaceNoise,
-          cragStrength: structure.cragStrength,
-          scanHeightStrength: structure.scanHeightStrength,
-          scanHeightContrast: structure.scanHeightContrast,
-          scanHeightInvert: structure.scanHeightInvert,
-          terraceStrength: structure.terraceStrength,
-          terraceBands: structure.terraceBands,
-          scanHeightMap: structure.scanHeightMap
-            ? {
-                rows: structure.scanHeightMap.rows,
-                columns: structure.scanHeightMap.columns,
-                source: structure.scanHeightMap.source,
-              }
-            : null,
-        },
-        light: structure.light,
-        parRange: { min: structure.parMin, max: structure.parMax },
-        notes: structure.notes,
-      })),
+      structures: state.map.structures.map((structure) => {
+        const option5SideRock = structure.id === "left-rock" || structure.id === "right-rock";
+        return {
+          id: structure.id,
+          name: structure.name,
+          type: structure.type,
+          position: { x: structure.x, y: structure.y, z: structure.z },
+          size: { width: structure.width, depth: structure.depth, height: structure.height },
+          geometry: {
+            method: option5SideRock ? "option-5-silhouette-refined-map2-base" : undefined,
+            footprint: structure.footprint,
+            bottomProfile: structure.bottomProfile,
+            frontProfile: structure.frontProfile,
+            sideProfile: structure.sideProfile,
+            heightPoints: structure.heightPoints,
+            ridges: structure.ridges,
+            depressions: structure.depressions,
+            troughs: structure.troughs,
+            edgeSoftness: structure.edgeSoftness,
+            edgeFloor: structure.edgeFloor,
+            reliefMin: structure.reliefMin,
+            reliefMax: structure.reliefMax,
+            meshResolution: structure.meshResolution,
+            surfaceNoise: structure.surfaceNoise,
+            cragStrength: structure.cragStrength,
+            scanHeightStrength: option5SideRock ? undefined : structure.scanHeightStrength,
+            scanHeightContrast: option5SideRock ? undefined : structure.scanHeightContrast,
+            scanHeightInvert: option5SideRock ? undefined : structure.scanHeightInvert,
+            terraceStrength: structure.terraceStrength,
+            terraceBands: structure.terraceBands,
+            scanHeightMap: !option5SideRock && structure.scanHeightMap
+              ? {
+                  rows: structure.scanHeightMap.rows,
+                  columns: structure.scanHeightMap.columns,
+                  source: structure.scanHeightMap.source,
+                }
+              : null,
+          },
+          light: structure.light,
+          parRange: { min: structure.parMin, max: structure.parMax },
+          notes: structure.notes,
+        };
+      }),
       parMarkers,
       refinementAnnotations,
       livestockPlacements: mapPlacements,
