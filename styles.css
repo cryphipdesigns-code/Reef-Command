@@ -568,26 +568,54 @@ textarea:focus {
   font-weight: 800;
 }
 
-.equipment-field-grid {
-  padding: 10px;
+.equipment-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-soft);
 }
 
+.equipment-card-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.equipment-card-header h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.equipment-card-header p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.equipment-field-grid,
+.equipment-subfields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
 .equipment-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .equipment-row {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-soft);
 }
 
 .equipment-check,
@@ -597,10 +625,7 @@ textarea:focus {
 
 .equipment-schedule,
 .equipment-details {
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-soft);
+  padding-top: 2px;
 }
 
 .photo-preview {
@@ -1408,6 +1433,14 @@ textarea:focus {
   .equipment-row {
     grid-template-columns: minmax(190px, 1.35fr) minmax(150px, 1fr) minmax(190px, 1.25fr);
     align-items: end;
+  }
+
+  .equipment-subfields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .equipment-subfields .wide-field {
+    grid-column: auto;
   }
 
   .compact-form {
