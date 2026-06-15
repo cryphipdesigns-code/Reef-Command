@@ -936,6 +936,7 @@
     if (textarea) textarea.value = "";
   }
 
+  async function storeInsightRun({ mode, question, previousRun, source, result, debug }, attachedPhotos, clearAttachedPhotos) {
     const id = RC.uid();
     let photos = [];
     try {
