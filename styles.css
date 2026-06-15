@@ -1436,6 +1436,84 @@ textarea:focus {
   }
 }
 
+/* Parameter trend charts */
+.param-trends-panel > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.param-trends-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.param-trends-panel > summary .section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.param-trends-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.param-chart {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.param-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-1);
+}
+
+.param-chart-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+
+.param-chart-latest {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.param-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.chart-axis {
+  stroke: var(--border-subtle);
+  stroke-width: 1;
+}
+
+.chart-line {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-dot {
+  fill: var(--accent);
+}
+
+.chart-axis-label {
+  font-size: 9px;
+  fill: var(--text-3, var(--text-2));
+  font-family: inherit;
+}
+
 @media (min-width: 980px) {
   #appShell {
     padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
