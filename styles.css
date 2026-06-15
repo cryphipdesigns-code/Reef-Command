@@ -400,6 +400,7 @@ select,
 textarea {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   min-height: 44px;
   padding: 10px 11px;
   color: var(--text);
@@ -407,6 +408,15 @@ textarea {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   outline: none;
+}
+
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 textarea {
@@ -534,14 +544,14 @@ textarea:focus {
   min-width: 0;
 }
 
-.collapsible-panel > summary > svg,
+.collapsible-panel > summary svg,
 .collapsible-form-shell > summary > svg,
 .insight-context-panel > summary svg {
   flex: 0 0 auto;
   transition: transform 0.18s ease;
 }
 
-.collapsible-panel[open] > summary > svg,
+.collapsible-panel[open] > summary svg,
 .collapsible-form-shell[open] > summary > svg,
 .insight-context-panel[open] > summary svg {
   transform: rotate(180deg);

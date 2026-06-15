@@ -17,9 +17,9 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <script src="./vendor/supabase.min.js?v=57"></script>
-    <script src="./vendor/lucide.min.js?v=57"></script>
-    <link rel="stylesheet" href="./styles.css?v=57" />
+    <script src="./vendor/supabase.min.js?v=58"></script>
+    <script src="./vendor/lucide.min.js?v=58"></script>
+    <link rel="stylesheet" href="./styles.css?v=58" />
   </head>
   <body>
     <div id="appShell">
@@ -123,58 +123,65 @@
 
         <section id="tankView" class="app-view" data-title="Tank">
           <form id="tankProfileForm" class="form-surface">
-            <div class="section-heading">
-              <h2>Tank Details</h2>
-              <span id="profileSavedStatus" class="status-pill">Saved</span>
-            </div>
-            <div class="field-grid">
-              <label>
-                Tank Name
-                <input type="text" data-profile="tankName" autocomplete="off" />
-              </label>
-              <label>
-                Display Volume
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  data-profile="displayVolume"
-                />
-              </label>
-              <label>
-                Total Volume
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  data-profile="totalVolume"
-                />
-              </label>
-              <label>
-                Start Date
-                <input type="date" data-profile="startDate" />
-              </label>
-              <label>
-                Tank Style
-                <select data-profile="tankStyle">
-                  <option value="">Select</option>
-                  <option value="Mixed reef">Mixed reef</option>
-                  <option value="Fish only">Fish only</option>
-                  <option value="Soft coral">Soft coral</option>
-                  <option value="LPS focused">LPS focused</option>
-                  <option value="SPS focused">SPS focused</option>
-                  <option value="Nano reef">Nano reef</option>
-                </select>
-              </label>
-              <label class="wide-field">
-                Tank Summary
-                <textarea
-                  data-profile="tankSummary"
-                  rows="4"
-                  placeholder="Design, aquascape, rockwork, flow concept, and stocking intent"
-                ></textarea>
-              </label>
-            </div>
+            <details class="profile-panel collapsible-panel">
+              <summary>
+                <div class="summary-text">
+                  <h2>Tank Details</h2>
+                </div>
+                <span class="summary-actions">
+                  <span id="profileSavedStatus" class="status-pill">Saved</span>
+                  <i data-lucide="chevron-down"></i>
+                </span>
+              </summary>
+              <div class="field-grid">
+                <label>
+                  Tank Name
+                  <input type="text" data-profile="tankName" autocomplete="off" />
+                </label>
+                <label>
+                  Display Volume
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    data-profile="displayVolume"
+                  />
+                </label>
+                <label>
+                  Total Volume
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    data-profile="totalVolume"
+                  />
+                </label>
+                <label>
+                  Start Date
+                  <input type="date" data-profile="startDate" />
+                </label>
+                <label>
+                  Tank Style
+                  <select data-profile="tankStyle">
+                    <option value="">Select</option>
+                    <option value="Mixed reef">Mixed reef</option>
+                    <option value="Fish only">Fish only</option>
+                    <option value="Soft coral">Soft coral</option>
+                    <option value="LPS focused">LPS focused</option>
+                    <option value="SPS focused">SPS focused</option>
+                    <option value="Nano reef">Nano reef</option>
+                  </select>
+                </label>
+                <label class="wide-field">
+                  Tank Summary
+                  <textarea
+                    data-profile="tankSummary"
+                    rows="4"
+                    placeholder="Design, aquascape, rockwork, flow concept, and stocking intent"
+                  ></textarea>
+                </label>
+              </div>
+            </details>
 
             <details class="profile-panel collapsible-panel">
               <summary>
@@ -360,6 +367,36 @@
                     data-profile="autoTopOffDetails"
                     rows="2"
                     placeholder="Reservoir, pump, sensors, kalk or RODI notes"
+                  ></textarea>
+                </label>
+                <div class="equipment-row" data-equipment-row="autoFeeder">
+                  <label class="check-label equipment-check">
+                    <input type="checkbox" data-profile="autoFeeder" />
+                    Auto feeder
+                  </label>
+                  <label data-equipment-date="autoFeeder">
+                    Added Date
+                    <input type="date" data-profile="autoFeederAddedDate" />
+                  </label>
+                  <label class="check-label equipment-legacy" data-equipment-legacy="autoFeeder">
+                    <input type="checkbox" data-profile="autoFeederLegacy" />
+                    Legacy / add date unknown
+                  </label>
+                </div>
+                <label class="wide-field equipment-details" data-equipment-details="autoFeeder">
+                  Auto Feeder Details
+                  <textarea
+                    data-profile="autoFeederDetails"
+                    rows="2"
+                    placeholder="Model, food type, drum/slot setup, calibration notes"
+                  ></textarea>
+                </label>
+                <label class="wide-field equipment-schedule" data-equipment-schedule="autoFeeder">
+                  Feeding Schedule
+                  <textarea
+                    data-profile="autoFeederSchedule"
+                    rows="2"
+                    placeholder="Times, portions, days, and pause/manual feeding notes"
                   ></textarea>
                 </label>
                 <div class="equipment-row" data-equipment-row="uvSterilizer">
@@ -1168,9 +1205,9 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </div>
 
-    <script src="./map-lidar-data.js?v=57"></script>
-    <script src="./app.js?v=57"></script>
-    <script src="./js/map.js?v=57"></script>
-    <script src="./js/insights.js?v=57"></script>
+    <script src="./map-lidar-data.js?v=58"></script>
+    <script src="./app.js?v=58"></script>
+    <script src="./js/map.js?v=58"></script>
+    <script src="./js/insights.js?v=58"></script>
   </body>
 </html>

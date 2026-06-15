@@ -32,6 +32,7 @@
     { key: "sump", label: "Sump", dateKey: "sumpAddedDate", legacyKey: "sumpLegacy", detailsKey: "sumpDetails" },
     { key: "refugium", label: "Refugium", dateKey: "refugiumAddedDate", legacyKey: "refugiumLegacy", detailsKey: "refugiumDetails" },
     { key: "autoTopOff", label: "Auto top-off", dateKey: "autoTopOffAddedDate", legacyKey: "autoTopOffLegacy", detailsKey: "autoTopOffDetails" },
+    { key: "autoFeeder", label: "Auto feeder", dateKey: "autoFeederAddedDate", legacyKey: "autoFeederLegacy", detailsKey: "autoFeederDetails", scheduleKey: "autoFeederSchedule" },
     { key: "uvSterilizer", label: "UV", dateKey: "uvSterilizerAddedDate", legacyKey: "uvSterilizerLegacy", detailsKey: "uvSterilizerDetails", scheduleKey: "uvSchedule" },
     { key: "gfoReactor", label: "GFO reactor", dateKey: "gfoReactorAddedDate", legacyKey: "gfoReactorLegacy", detailsKey: "gfoReactorDetails" },
     { key: "carbonReactor", label: "Carbon reactor", dateKey: "carbonReactorAddedDate", legacyKey: "carbonReactorLegacy", detailsKey: "carbonReactorDetails" },
@@ -122,6 +123,11 @@
         autoTopOffAddedDate: "",
         autoTopOffLegacy: false,
         autoTopOffDetails: "",
+        autoFeeder: false,
+        autoFeederAddedDate: "",
+        autoFeederLegacy: false,
+        autoFeederDetails: "",
+        autoFeederSchedule: "",
         uvSterilizer: false,
         uvSterilizerAddedDate: "",
         uvSterilizerLegacy: false,
@@ -586,6 +592,7 @@
       profile[dateKey] = active && !profile[legacyKey] ? addedDate : "";
       profile[detailsKey] = String(profile[detailsKey] || "");
     });
+    profile.autoFeederSchedule = String(profile.autoFeederSchedule || "");
     profile.uvSchedule = String(profile.uvSchedule || "");
   }
 
