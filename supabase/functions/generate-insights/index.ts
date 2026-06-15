@@ -12,11 +12,14 @@ type InsightRequest = {
 };
 
 type EvidenceBundle = {
+  path?: string;
+  parentPath?: string;
   data_type?: string;
   label?: string;
   summary?: string;
   count?: number;
   available?: boolean;
+  terminal?: boolean;
   content?: unknown;
 };
 
@@ -57,31 +60,11 @@ const insightSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["label", "data_type", "reason", "target_id", "priority"],
+        required: ["label", "path", "reason", "priority"],
         properties: {
           label: { type: "string" },
-          data_type: {
-            type: "string",
-            enum: [
-              "lighting_images",
-              "livestock_photos",
-              "map_reference_images",
-              "par_map",
-              "tank_profile",
-              "equipment_details",
-              "map_model_detail",
-              "livestock_records",
-              "water_tests",
-              "feeding_logs",
-              "maintenance_logs",
-              "water_change_logs",
-              "care_schedule",
-              "insight_prompt_photos",
-              "other",
-            ],
-          },
+          path: { type: "string" },
           reason: { type: "string" },
-          target_id: { type: "string" },
           priority: { type: "string", enum: ["low", "medium", "high"] },
         },
       },
@@ -110,7 +93,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  const mode = body.mode || "health";
+  const mode = body.mode || "chat";
   const question = body.question || "";
   const state = body.state || {};
   const evidence = body.evidence || {};
@@ -139,13 +122,14 @@ Deno.serve(async (request) => {
       promptImageInputs,
     );
     const requestedEvidence = getInsightDataRequests(insight);
-    const firstPassImageKeys = promptImageInputs.length ? new Set(["insight_prompt_photos"]) : new Set<string>();
+    const firstPassImageKeys = promptImageInputs.length ? new Set(["current_request.attachments.prompt_photos"]) : new Set<string>();
     const selectedEvidence = selectEvidenceBundles(requestedEvidence, evidence, firstPassImageKeys);
     progressiveTrace = {
       phase: selectedEvidence.length ? "followup" : "index",
       requested: requestedEvidence,
       first_pass_image_inputs_sent: promptImageInputs.length,
       provided: selectedEvidence.map((bundle) => ({
+        path: bundle.path,
         data_type: bundle.data_type,
         label: bundle.label,
         reason: bundle.reason,
@@ -268,20 +252,20 @@ async function requestStructuredInsight(
 function buildInstructions(phase: "index" | "followup") {
   const base = [
     "You are Reef Command, a careful reef-aquarium analysis assistant.",
-    "Use the provided tank profile, equipment records, livestock, map placements, water tests, feeding, maintenance, and water-change logs.",
+    "Treat every request as a general reefkeeping chat inquiry. There are no user-selected categories.",
+    "The app provides a compactSnapshot plus a canonical contextTree. The tree is an inverted family tree of available evidence paths.",
+    "Canonical ownership matters: photos live under the object they describe, livestock placement lives under livestock records and map placement references, care logs live under care_logs, and equipment configuration/schedules live under equipment records.",
+    "Use compactSnapshot and contextTree first. They are intentionally small to reduce token use.",
+    "When more context would materially change confidence or recommendations, request exact path values copied from contextTree in data_requests.",
+    "Request the smallest useful path. Prefer a leaf or narrow child branch over a broad parent branch. Do not request everything.",
+    "Limit data_requests to at most four paths and give a concrete reason for each.",
+    "If compact context is sufficient, answer directly and leave data_requests empty.",
     "Pay close attention to timestamps. Relate parameter readings to light schedule phase, recent feeding, and recent water changes when that context is present.",
-    "Treat mapModel, aquascape structures, livestock placements, PAR ranges, and light levels as important placement context.",
-    "When mapModel is present, use its coordinate system and structure notes to reason about coral placement, shading, high-light shelf areas, and sand-bed areas.",
-    "The context may use a progressive disclosure format with contextStrategy, evidenceIndex, and rawDataInventory. evidenceIndex names evidence bundles the app can provide for a follow-up pass.",
+    "Treat map, aquascape structures, livestock placements, PAR ranges, and light levels as important placement context when relevant.",
     "Treat logs as user-entered records, not a complete audit trail. Data present can be used as evidence. Data absent means not logged or unknown; do not infer that feeding, maintenance, dosing, or other care did not happen solely because no log exists.",
     "When log absence matters, phrase it as not logged and question confidence before using it as reliable evidence.",
     "Use careTasks and overdueCareTasks as schedule-by-log status. Phrase overdue items as overdue by logged cadence, not as proof they were not performed.",
-    "Do not ask for raw data by default. If evidence would materially improve the answer, add a data_requests item that names the smallest useful evidence bundle and explains why.",
-    "For coral health questions, consider whether non-current livestock photos, lighting schedule images, PAR map/model data, or recent parameter logs would materially change confidence. If so, request them.",
     "If the user attached current prompt photos, those images are included in this index pass. Use them directly when relevant, and do not say their image bytes are unavailable.",
-    "For lighting-sensitive questions, request lighting_images only when the summarized lighting context is insufficient and raw lighting images are available.",
-    "For equipment-sensitive questions, use equipment details/specs when present. Request equipment_details only when the compact equipment summary is insufficient.",
-    "When the compact map summary is insufficient for placement reasoning, request map_model_detail or par_map rather than all app data.",
     "Prefer simple, incremental reefkeeping actions. Do not recommend abrupt parameter swings.",
     "Flag detectable ammonia or nitrite as high priority, while asking the user to verify unexpected test results.",
     "Do not invent facts, species requirements, product instructions, or missing measurements. Put missing inputs in missing_data.",
@@ -291,15 +275,15 @@ function buildInstructions(phase: "index" | "followup") {
 
   if (phase === "followup") {
     base.push(
-      "You are now receiving selected_evidence that fulfills one or more prior data_requests.",
+      "You are now receiving selected_evidence objects whose content fulfills one or more prior path-based data_requests.",
       "Prompt-attached images may be re-sent in this follow-up pass. Treat those as current prompt photos already reviewed, not as missing.",
       "If the attached prompt photos are not diagnostic enough, say exactly what is insufficient, such as less-blue lighting, closer lesion detail, or a different angle.",
       "Use selected_evidence to refine the final answer. Keep only still-needed data_requests in the returned JSON.",
     );
   } else {
     base.push(
-      "This is the index pass. If the compact context is sufficient, answer directly and leave data_requests empty.",
-      "If it is not sufficient, still provide the best provisional structured answer, and use data_requests for the smallest follow-up evidence bundles.",
+      "This is the index pass. If the compact snapshot and tree are sufficient, answer directly and leave data_requests empty.",
+      "If they are not sufficient, still provide the best provisional structured answer and request only the smallest useful follow-up paths.",
     );
   }
 
@@ -322,13 +306,14 @@ function selectEvidenceBundles(
   const selected: Array<Record<string, unknown>> = [];
   const seen = new Set<string>();
   for (const request of requests) {
-    const requestedType = String(request.data_type || "");
-    for (const key of evidenceKeysForRequest(requestedType, request, evidence)) {
+    for (const key of evidenceKeysForRequest(request, evidence)) {
       if (seen.has(key) || skipKeys.has(key)) continue;
       const bundle = evidence[key];
       if (!bundle || bundle.available === false) continue;
       seen.add(key);
       selected.push({
+        path: bundle.path || key,
+        parentPath: bundle.parentPath || "",
         data_type: bundle.data_type || key,
         label: bundle.label || key,
         summary: bundle.summary || "",
@@ -344,44 +329,64 @@ function selectEvidenceBundles(
 }
 
 function evidenceKeysForRequest(
-  dataType: string,
   request: Record<string, unknown> = {},
   evidence: Record<string, EvidenceBundle> = {},
 ) {
-  const promptPhotoKeys = shouldPrioritizePromptPhotos(dataType, request, evidence)
-    ? ["insight_prompt_photos"]
+  const requestedPath = normalizePathString(request.path);
+  const promptPhotoKeys = shouldPrioritizePromptPhotos(request, evidence)
+    ? ["current_request.attachments.prompt_photos"]
     : [];
+  const pathKeys = evidenceKeysForPath(requestedPath, evidence);
+  if (pathKeys.length) return [...promptPhotoKeys, ...pathKeys];
+
+  const dataType = String(request.data_type || "");
   const aliases: Record<string, string[]> = {
-    tank_profile: ["tank_profile"],
-    equipment_details: ["equipment_details", "tank_profile"],
-    map_model_detail: ["map_model_detail"],
-    par_map: ["par_map", "map_model_detail"],
-    livestock_records: ["livestock_records"],
-    livestock_photos: ["livestock_photos", "livestock_records"],
-    lighting_images: ["lighting_images", "tank_profile"],
-    insight_prompt_photos: ["insight_prompt_photos"],
-    water_tests: ["water_tests"],
-    feeding_logs: ["feeding_logs"],
-    maintenance_logs: ["maintenance_logs"],
-    water_change_logs: ["maintenance_logs"],
-    care_schedule: ["care_schedule"],
-    map_reference_images: ["map_model_detail"],
+    tank_profile: ["tank.profile", "tank.operating_targets"],
+    equipment_details: ["equipment.records", "tank.profile"],
+    map_model_detail: ["map.geometry_detail"],
+    par_map: ["map.par_markers", "map.structures"],
+    livestock_records: ["livestock.records.index"],
+    livestock_photos: ["livestock.records"],
+    lighting_images: ["lighting.images"],
+    insight_prompt_photos: ["current_request.attachments.prompt_photos"],
+    water_tests: ["parameters.full_test_records"],
+    feeding_logs: ["care_logs.feeding.recent_events"],
+    maintenance_logs: ["care_logs.maintenance.recent_events"],
+    water_change_logs: ["care_logs.water_changes.recent_events"],
+    care_schedule: ["care_logs.care_tasks.schedule_status"],
+    map_reference_images: ["map.geometry_detail"],
   };
   return [...promptPhotoKeys, ...(aliases[dataType] || [])];
 }
 
+function evidenceKeysForPath(path: string, evidence: Record<string, EvidenceBundle>) {
+  if (!path) return [];
+  if (evidence[path]) return [path];
+  const prefix = `${path}.`;
+  return Object.keys(evidence)
+    .filter((key) => key.startsWith(prefix))
+    .sort((a, b) => a.length - b.length)
+    .slice(0, 4);
+}
+
+function normalizePathString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function shouldPrioritizePromptPhotos(
-  dataType: string,
   request: Record<string, unknown>,
   evidence: Record<string, EvidenceBundle>,
 ) {
-  const promptPhotos = evidence.insight_prompt_photos;
+  const promptPhotos = evidence["current_request.attachments.prompt_photos"];
   if (!promptPhotos || promptPhotos.available === false || !promptPhotos.count) return false;
+  const dataType = String(request.data_type || "");
+  const requestedPath = normalizePathString(request.path);
+  if (requestedPath === "current_request.attachments.prompt_photos") return false;
   if (dataType === "insight_prompt_photos") return false;
-  if (!["livestock_photos", "lighting_images", "other"].includes(dataType)) return false;
 
   const requestText = [
     request.label,
+    request.path,
     request.reason,
     request.target_id,
   ].filter(Boolean).join(" ").toLowerCase();
@@ -441,10 +446,11 @@ function mergeImageInputs(...groups: Array<Array<Record<string, string>>>) {
 }
 
 function collectPromptPhotoImageInputs(evidence: Record<string, EvidenceBundle>) {
-  const promptPhotos = evidence.insight_prompt_photos;
+  const promptPhotos = evidence["current_request.attachments.prompt_photos"];
   if (!promptPhotos || promptPhotos.available === false || !promptPhotos.count) return [];
   return collectEvidenceImageInputs([
     {
+      path: promptPhotos.path || "current_request.attachments.prompt_photos",
       data_type: promptPhotos.data_type || "insight_prompt_photos",
       label: promptPhotos.label || "Current prompt photos",
       content: promptPhotos.content ?? promptPhotos,

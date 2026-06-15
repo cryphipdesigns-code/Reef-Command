@@ -181,7 +181,7 @@
         activeView: "home",
         logMode: "test",
         livestockFilter: "active",
-        insightMode: "health",
+        insightMode: "chat",
         mapTool: "navigate",
         selectedMapStockId: "",
         map2FocusStructureId: "tank",
@@ -3254,17 +3254,6 @@
       return;
     }
 
-    const insightMode = event.target.closest("[data-insight-mode]");
-    if (insightMode) {
-      state.ui.insightMode = insightMode.dataset.insightMode;
-      $$("[data-insight-mode]").forEach((button) => {
-        button.classList.toggle("active", button === insightMode);
-      });
-      $("insightModePill").textContent = insightMode.textContent.trim();
-      saveLocalState();
-      return;
-    }
-
     const parMarkerDelete = event.target.closest("[data-par-marker-delete]");
     if (parMarkerDelete) {
       state.map.parMarkers = (state.map.parMarkers || []).filter((marker) => marker.id !== parMarkerDelete.dataset.parMarkerDelete);
@@ -3469,14 +3458,6 @@
     });
   }
 
-  function initInsightMode() {
-    $$("[data-insight-mode]").forEach((button) => {
-      const active = button.dataset.insightMode === state.ui.insightMode;
-      button.classList.toggle("active", active);
-      if (active) $("insightModePill").textContent = button.textContent.trim();
-    });
-  }
-
   function getPendingInsightPhotos() {
     return pendingInsightPhotos.map(normalizePhotoRecord).filter(Boolean);
   }
@@ -3547,7 +3528,6 @@
       await loadLocalBackendConfig();
       bindEvents();
       seedLogDates();
-      initInsightMode();
       renderAll();
       await initBackend();
       renderAll();

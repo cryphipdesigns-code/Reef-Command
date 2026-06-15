@@ -3,6 +3,19 @@
   const state = RC.state;
   const $ = (id) => RC.$(id);
   const $$ = (sel, root) => RC.$$(sel, root);
+  const INSIGHT_CHAT_MODE = "chat";
+  const PARAMETER_FIELDS = [
+    { key: "ammonia", label: "Ammonia", unit: "ppm" },
+    { key: "nitrite", label: "Nitrite", unit: "ppm" },
+    { key: "nitrate", label: "Nitrate", unit: "ppm" },
+    { key: "phosphate", label: "Phosphate", unit: "ppm" },
+    { key: "ph", label: "pH", unit: "" },
+    { key: "salinity", label: "Salinity", unit: "" },
+    { key: "temperature", label: "Temperature", unit: "" },
+    { key: "alkalinity", label: "Alkalinity", unit: "dKH" },
+    { key: "calcium", label: "Calcium", unit: "ppm" },
+    { key: "magnesium", label: "Magnesium", unit: "ppm" },
+  ];
 
   function renderHomeInsightBrief() {
     const latest = state.insightRuns[0];
@@ -214,14 +227,15 @@
     if (!requests.length) return "";
     return `
       <article class="insight-card">
-        <strong>Raw Data Requests</strong>
+        <strong>Data Requests</strong>
         <ul>
           ${requests.map((request) => {
             if (typeof request === "string") return `<li>${RC.escapeHtml(request)}</li>`;
-            const label = request.label || request.data_type || "Raw data";
+            const label = request.label || request.path || request.data_type || "More context";
             const priority = request.priority ? ` (${request.priority})` : "";
+            const path = request.path ? ` — ${request.path}` : "";
             const reason = request.reason ? `: ${request.reason}` : "";
-            return `<li>${RC.escapeHtml(`${label}${priority}${reason}`)}</li>`;
+            return `<li>${RC.escapeHtml(`${label}${priority}${path}${reason}`)}</li>`;
           }).join("")}
         </ul>
       </article>
@@ -231,14 +245,14 @@
   function buildRemoteInsightPayload(mode, question, previousRun = null, attachedPhotos = []) {
     const fullContext = buildInsightContext();
     const evidence = buildInsightEvidenceBundles(fullContext, attachedPhotos);
-    const context = buildProgressiveInsightContext(fullContext, mode, question, evidence);
+    const context = buildProgressiveInsightContext(fullContext, question, evidence, attachedPhotos);
     if (previousRun) {
       context.conversationContext = summarizeInsightRunForFollowup(previousRun);
     }
     if (attachedPhotos.length) {
       context.requestAttachments = {
         photoCount: attachedPhotos.length,
-        evidenceBundle: "insight_prompt_photos",
+        evidencePath: "current_request.attachments.prompt_photos",
         indexPassPolicy: "Prompt-attached image bytes are sent with the first GPT pass. Stored app photos are still request-gated.",
       };
     }
@@ -293,41 +307,143 @@
     return Object.fromEntries(Object.entries(evidence || {}).map(([key, bundle]) => [
       key,
       {
-        data_type: bundle.data_type,
+        path: bundle.path || key,
+        parentPath: bundle.parentPath || "",
         label: bundle.label,
         summary: bundle.summary,
         count: bundle.count,
         available: bundle.available,
+        terminal: Boolean(bundle.terminal),
       },
     ]));
   }
 
-  function buildProgressiveInsightContext(fullContext, mode, question, evidence) {
-    const evidenceIndex = Object.values(evidence).map((bundle) => ({
-      data_type: bundle.data_type,
-      label: bundle.label,
-      summary: bundle.summary,
-      count: bundle.count,
-      available: bundle.available,
-    }));
+  function buildProgressiveInsightContext(fullContext, question, evidence, attachedPhotos = []) {
     return {
-      ...fullContext,
+      generatedAt: fullContext.generatedAt,
       contextStrategy: {
-        phase: "index_plus_selected_evidence",
-        mode,
+        phase: "tree_index_plus_selected_evidence",
+        mode: INSIGHT_CHAT_MODE,
         question,
-        approach: "Use this compact context first. Request the smallest useful evidence bundles only when they would materially change confidence or recommendations.",
+        approach: "Use the compact snapshot and evidence tree first. Request only the smallest specific paths needed to answer well.",
+        requestFormat: "Return data_requests with exact path values copied from contextTree.",
+        requestLimit: 4,
+        pathPolicy: "Prefer one branch deeper at a time. Do not request an entire parent branch when a child path is enough.",
         maxFollowupPasses: 1,
       },
-      evidenceIndex,
-      mapModel: summarizeInsightMapModel(fullContext.mapModel),
-      recentWaterTests: fullContext.recentWaterTests.slice(0, mode === "trends" ? 20 : 10),
-      recentEvents: selectInsightEventsForIndex(fullContext.recentEvents, mode),
-      rawDataInventory: {
-        ...fullContext.rawDataInventory,
-        evidenceBundles: evidenceIndex,
+      canonicalOwnership: {
+        photos: "Photos live under the object they describe. Livestock photos are under livestock record paths; lighting images are under lighting; prompt photos are under current_request.attachments.",
+        placement: "Livestock placement lives under livestock records and is also referenced from map.livestock_placements.",
+        overlap: "Care events are canonical under care_logs. Equipment schedules/configuration are canonical under equipment records; care logs can reference equipment.",
+      },
+      compactSnapshot: buildCompactInsightSnapshot(fullContext, attachedPhotos),
+      contextTree: buildEvidenceTreeIndex(evidence),
+    };
+  }
+
+  function buildCompactInsightSnapshot(fullContext, attachedPhotos = []) {
+    const latest = fullContext.latestWaterTest;
+    const activeEquipment = fullContext.profile.equipment || [];
+    const activeLivestock = fullContext.activeLivestock || [];
+    return {
+      tank: {
+        name: fullContext.profile.tankName || "Reef Tank",
+        displayVolume: fullContext.profile.displayVolume || "",
+        totalVolume: fullContext.profile.totalVolume || "",
+        startDate: fullContext.profile.startDate || "",
+        style: fullContext.profile.tankStyle || "",
+        currentLightPhase: fullContext.currentLightPhase,
+      },
+      parameters: {
+        latestTestAt: latest?.measuredAt || "",
+        latestReadings: latest ? summarizeWaterTest(latest) : null,
+        waterTestCount: state.waterTests.length,
+      },
+      livestock: {
+        activeCount: activeLivestock.length,
+        totalCount: fullContext.livestock.length,
+        photoRecordCount: fullContext.rawDataInventory.livestockPhotos.length,
+        placedCount: fullContext.rawDataInventory.map.placedLivestockCount,
+      },
+      careLogs: fullContext.rawDataInventory.logs,
+      equipment: {
+        activeCount: activeEquipment.length,
+        activeLabels: activeEquipment.map((item) => item.label),
+        detailsCount: fullContext.rawDataInventory.equipment.detailsCount,
+        uvScheduleAvailable: fullContext.rawDataInventory.equipment.uvScheduleAvailable,
+        autoFeederScheduleAvailable: Boolean(activeEquipment.find((item) => item.key === "autoFeeder")?.schedule),
+      },
+      lighting: {
+        model: fullContext.profile.lightingContext.model,
+        photoperiod: fullContext.profile.lightingContext.photoperiod,
+        summaryAvailable: Boolean(fullContext.profile.lightingContext.summary),
+        imageCount: fullContext.profile.lightingImageCount,
+      },
+      map: fullContext.rawDataInventory.map,
+      currentRequest: {
+        attachedPhotoCount: attachedPhotos.length,
       },
     };
+  }
+
+  function summarizeWaterTest(test) {
+    if (!test) return null;
+    return Object.fromEntries(PARAMETER_FIELDS.map(({ key }) => [key, test[key] ?? null]));
+  }
+
+  function buildEvidenceTreeIndex(evidence) {
+    const root = {
+      path: "reef_context",
+      label: "Reef Command context",
+      summary: "Canonical tree of app data available for progressive disclosure.",
+      children: [],
+    };
+    const nodes = { reef_context: root };
+    Object.values(evidence || {}).forEach((bundle) => {
+      const path = bundle.path || "";
+      if (!path) return;
+      const parts = path.split(".");
+      let currentPath = "";
+      parts.forEach((part, index) => {
+        currentPath = currentPath ? `${currentPath}.${part}` : part;
+        if (!nodes[currentPath]) {
+          const parentPath = index ? parts.slice(0, index).join(".") : "reef_context";
+          const node = {
+            path: currentPath,
+            label: titleFromPathSegment(part),
+            summary: "",
+            count: 0,
+            available: true,
+            terminal: false,
+            children: [],
+          };
+          nodes[currentPath] = node;
+          nodes[parentPath]?.children.push(node);
+        }
+      });
+      const node = nodes[path];
+      Object.assign(node, {
+        label: bundle.label || node.label,
+        summary: bundle.summary || node.summary,
+        count: bundle.count || 0,
+        available: bundle.available !== false,
+        terminal: Boolean(bundle.terminal),
+      });
+    });
+    sortEvidenceTree(root);
+    return root;
+  }
+
+  function sortEvidenceTree(node) {
+    if (!node?.children?.length) return;
+    node.children.sort((a, b) => a.path.localeCompare(b.path));
+    node.children.forEach(sortEvidenceTree);
+  }
+
+  function titleFromPathSegment(segment) {
+    return String(segment || "")
+      .replace(/[_-]+/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
 
   function summarizeInsightMapModel(mapModel) {
@@ -397,123 +513,359 @@
       .map((photo, index) => buildPhotoEvidenceRecord(photo, `insight-prompt-${index}`, `Prompt photo ${index + 1}`, { includeDataUrl: true }))
       .filter((photo) => photo.imageUrl || photo.inlineImageAvailable);
 
-    return {
-      tank_profile: {
-        data_type: "tank_profile",
-        label: "Full tank profile",
-        summary: "Tank profile fields, summary notes, lighting summary, targets, and active equipment.",
+    const evidence = {};
+    const add = (path, label, summary, content, options = {}) => {
+      evidence[path] = {
+        path,
+        parentPath: getParentPath(path),
+        label,
+        summary,
+        count: options.count ?? inferEvidenceCount(content),
+        available: options.available ?? true,
+        terminal: options.terminal ?? true,
+        content,
+      };
+    };
+
+    add("tank", "Tank", "Tank identity, age, volume, operating targets, and notes.", {
+      identity: pickKeys(fullContext.profile, ["tankName", "tankStyle", "startDate"]),
+      volume: pickKeys(fullContext.profile, ["displayVolume", "totalVolume"]),
+      currentLightPhase: fullContext.currentLightPhase,
+    }, { terminal: false });
+    add("tank.profile", "Tank Profile", "Tank name, style, volume, start date, and summary notes.", {
+      identity: pickKeys(fullContext.profile, ["tankName", "tankStyle", "startDate"]),
+      volume: pickKeys(fullContext.profile, ["displayVolume", "totalVolume"]),
+      tankSummary: fullContext.profile.tankSummary || "",
+    });
+    add("tank.operating_targets", "Operating Targets", "Salinity, temperature, salt, dosing, and profile notes.", {
+      targetSalinity: fullContext.profile.targetSalinity || "",
+      targetTemp: fullContext.profile.targetTemp || "",
+      saltMix: fullContext.profile.saltMix || "",
+      dosing: fullContext.profile.dosing || "",
+      notes: fullContext.profile.notes || "",
+    });
+
+    add("parameters", "Parameters", `${sortedTests.length} water test record${sortedTests.length === 1 ? "" : "s"} available.`, {
+      latest: fullContext.latestWaterTest ? summarizeWaterTest(fullContext.latestWaterTest) : null,
+      testCount: state.waterTests.length,
+    }, { count: state.waterTests.length, available: sortedTests.length > 0, terminal: false });
+    add("parameters.latest", "Latest Readings", "Latest water test values and timing context.", fullContext.latestWaterTest, {
+      count: fullContext.latestWaterTest ? 1 : 0,
+      available: Boolean(fullContext.latestWaterTest),
+    });
+    add("parameters.testing_cadence", "Testing Cadence", "Water-test count and recency summary.", {
+      totalCount: state.waterTests.length,
+      latestMeasuredAt: fullContext.latestWaterTest?.measuredAt || "",
+      latestAge: fullContext.latestWaterTest ? RC.formatAge(fullContext.latestWaterTest.measuredAt) : "",
+      recentSampleDates: sortedTests.slice(0, 12).map((test) => test.measuredAt),
+    }, { count: state.waterTests.length, available: sortedTests.length > 0 });
+    add("parameters.full_test_records", "Full Test Records", "Most recent raw water test records with timing context.", sortedTests, {
+      count: sortedTests.length,
+      available: sortedTests.length > 0,
+    });
+    add("parameters.trends", "Parameter Trends", "Per-parameter time series branches for logged water tests.", {
+      parameters: PARAMETER_FIELDS.map(({ key, label, unit }) => ({
+        path: `parameters.trends.${pathSegment(key)}`,
+        key,
+        label,
+        unit,
+        count: buildParameterSeries(sortedTests, key).length,
+      })),
+    }, {
+      count: PARAMETER_FIELDS.length,
+      available: sortedTests.length > 0,
+      terminal: false,
+    });
+    PARAMETER_FIELDS.forEach(({ key, label, unit }) => {
+      const series = buildParameterSeries(sortedTests, key);
+      add(`parameters.trends.${pathSegment(key)}`, `${label} Trend`, `${series.length} logged ${label}${unit ? ` ${unit}` : ""} value${series.length === 1 ? "" : "s"}.`, {
+        parameter: key,
+        label,
+        unit,
+        series,
+        summary: summarizeParameterSeries(series),
+      }, {
+        count: series.length,
+        available: series.length > 0,
+      });
+    });
+
+    const placementById = new Map(fullContext.mapModel.livestockPlacements.map((placement) => [placement.id, placement]));
+    const livestockIndex = fullContext.livestock.map((item) => ({
+      id: item.id,
+      species: item.species || item.name || "Unknown",
+      category: item.category || "Other",
+      status: item.status || "",
+      health: item.health || "",
+      growthTrend: item.growthTrend || "",
+      photoCount: item.photoCount || 0,
+      placementAvailable: Boolean(placementById.get(item.id)?.coordinateInches),
+      path: `livestock.records.${livestockPathSegment(item)}`,
+    }));
+    add("livestock", "Livestock", `${fullContext.activeLivestock.length} active lifecycle livestock; ${fullContext.livestock.length} total records.`, {
+      activeCount: fullContext.activeLivestock.length,
+      totalCount: fullContext.livestock.length,
+      categoryCounts: countBy(fullContext.livestock, (item) => item.category || "Other"),
+      statusCounts: countBy(fullContext.livestock, (item) => item.status || "unknown"),
+    }, { count: fullContext.livestock.length, available: fullContext.livestock.length > 0, terminal: false });
+    add("livestock.records", "Livestock Records", "Individual livestock record branches with identity, health, growth, placement, photos, and related logs.", {
+      indexPath: "livestock.records.index",
+      recordCount: livestockIndex.length,
+    }, {
+      count: livestockIndex.length,
+      available: livestockIndex.length > 0,
+      terminal: false,
+    });
+    add("livestock.records.index", "Livestock Record Index", "Compact list of livestock identities, status, photo availability, and record paths.", livestockIndex, {
+      count: livestockIndex.length,
+      available: livestockIndex.length > 0,
+    });
+    fullContext.livestock.forEach((item) => {
+      const original = state.livestock.find((entry) => entry.id === item.id) || item;
+      const recordPath = `livestock.records.${livestockPathSegment(item)}`;
+      const placement = placementById.get(item.id) || null;
+      const photos = RC.getLivestockPhotos(original).map((photo, index) =>
+        buildPhotoEvidenceRecord(photo, `${item.id}-${index}`, `${item.species || item.name || "Stock"} photo ${index + 1}`),
+      );
+      add(recordPath, item.species || item.name || "Livestock Record", "Individual livestock identity, status, health, growth, notes, placement, and photo availability.", {
+        ...item,
+        placement,
+        photoCount: photos.length,
+      }, { terminal: false });
+      add(`${recordPath}.placement`, `${item.species || item.name || "Livestock"} Placement`, "Zone and map placement for this livestock record.", placement, {
+        count: placement ? 1 : 0,
+        available: Boolean(placement),
+      });
+      add(`${recordPath}.photos`, `${item.species || item.name || "Livestock"} Photos`, `${photos.length} stored photo record${photos.length === 1 ? "" : "s"} for this livestock item.`, photos, {
+        count: photos.length,
+        available: photos.length > 0,
+      });
+      add(`${recordPath}.related_logs`, `${item.species || item.name || "Livestock"} Related Logs`, "Care logs whose label, target, or notes mention this livestock item.", getRelatedLogsForLivestock(item, sortedEvents), {
+        available: true,
+      });
+    });
+
+    const autoFeeder = activeEquipment.find((item) => item.key === "autoFeeder") || null;
+    add("care_logs", "Care Logs", "Feeding, water-change, maintenance, and care task history.", {
+      counts: fullContext.rawDataInventory.logs,
+      latestFeeding: fullContext.latestFeeding,
+      latestWaterChange: fullContext.latestWaterChange,
+    }, { terminal: false });
+    add("care_logs.feeding", "Feeding Logs", `${feedingLogs.length} recent feeding event${feedingLogs.length === 1 ? "" : "s"}.`, {
+      summary: summarizeEvents(feedingLogs),
+      relatedEquipmentRefs: autoFeeder ? ["equipment.records.auto_feeder"] : [],
+    }, { count: feedingLogs.length, available: feedingLogs.length > 0, terminal: false });
+    add("care_logs.feeding.recent_events", "Recent Feeding Events", "Recent feeding log entries.", feedingLogs.slice(0, 30), {
+      count: feedingLogs.length,
+      available: feedingLogs.length > 0,
+    });
+    add("care_logs.feeding.full_events", "Full Feeding Events", "All retained feeding log entries.", feedingLogs, {
+      count: feedingLogs.length,
+      available: feedingLogs.length > 0,
+    });
+    add("care_logs.water_changes", "Water Changes", `${waterChangeLogs.length} recent water-change event${waterChangeLogs.length === 1 ? "" : "s"}.`, {
+      summary: summarizeEvents(waterChangeLogs),
+    }, { count: waterChangeLogs.length, available: waterChangeLogs.length > 0, terminal: false });
+    add("care_logs.water_changes.recent_events", "Recent Water Changes", "Recent water-change entries.", waterChangeLogs.slice(0, 30), {
+      count: waterChangeLogs.length,
+      available: waterChangeLogs.length > 0,
+    });
+    add("care_logs.water_changes.full_events", "Full Water Changes", "All retained water-change entries.", waterChangeLogs, {
+      count: waterChangeLogs.length,
+      available: waterChangeLogs.length > 0,
+    });
+    add("care_logs.maintenance", "Maintenance Logs", `${maintenanceLogs.length} recent maintenance event${maintenanceLogs.length === 1 ? "" : "s"}.`, {
+      summary: summarizeEvents(maintenanceLogs),
+    }, { count: maintenanceLogs.length, available: maintenanceLogs.length > 0, terminal: false });
+    add("care_logs.maintenance.recent_events", "Recent Maintenance Events", "Recent maintenance log entries.", maintenanceLogs.slice(0, 30), {
+      count: maintenanceLogs.length,
+      available: maintenanceLogs.length > 0,
+    });
+    add("care_logs.maintenance.full_events", "Full Maintenance Events", "All retained maintenance log entries.", maintenanceLogs, {
+      count: maintenanceLogs.length,
+      available: maintenanceLogs.length > 0,
+    });
+    add("care_logs.care_tasks.schedule_status", "Care Task Schedule Status", "Logged cadence and overdue status for scheduled care tasks.", fullContext.careTasks, {
+      count: fullContext.careTasks.length,
+      available: fullContext.careTasks.length > 0,
+    });
+
+    const equipment = RC.getEquipmentProfiles();
+    add("equipment", "Equipment", `${activeEquipment.length} active equipment record${activeEquipment.length === 1 ? "" : "s"}.`, {
+      activeCount: activeEquipment.length,
+      activeLabels: activeEquipment.map((item) => item.label),
+      detailCount: activeEquipment.filter((item) => item.details).length,
+    }, { count: equipment.length, available: equipment.length > 0, terminal: false });
+    add("equipment.records", "Equipment Records", "Individual equipment branches with status, added date, details, and schedules.", {
+      recordCount: equipment.length,
+      activeCount: activeEquipment.length,
+      indexPath: "equipment.records.index",
+    }, {
+      count: equipment.length,
+      available: equipment.length > 0,
+      terminal: false,
+    });
+    add("equipment.records.index", "Equipment Record Index", "Compact list of equipment status, date, details, and schedule availability.", equipment.map((item) => ({
+      key: item.key,
+      path: `equipment.records.${pathSegment(item.key)}`,
+      label: item.label,
+      active: item.active,
+      status: item.status,
+      hasDetails: Boolean(item.details),
+      hasSchedule: Boolean(item.schedule),
+    })), { count: equipment.length, available: equipment.length > 0 });
+    equipment.forEach((item) => {
+      const recordPath = `equipment.records.${pathSegment(item.key)}`;
+      add(recordPath, item.label, "Individual equipment status, date, details, and schedule reference.", item, {
         count: 1,
         available: true,
-        content: {
-          profile: fullContext.profile,
-          currentLightPhase: fullContext.currentLightPhase,
-        },
-      },
-      equipment_details: {
-        data_type: "equipment_details",
-        label: "Equipment details",
-        summary: `${activeEquipment.filter((item) => item.details).length}/${activeEquipment.length} active equipment records include details/specs.`,
-        count: activeEquipment.length,
-        available: activeEquipment.length > 0,
-        content: activeEquipment,
-      },
-      livestock_records: {
-        data_type: "livestock_records",
-        label: "Livestock records",
-        summary: `${fullContext.livestock.length} livestock records with health, growth, quantity, count, and placement fields.`,
-        count: fullContext.livestock.length,
-        available: fullContext.livestock.length > 0,
-        content: {
-          livestock: fullContext.livestock,
-          placements: fullContext.mapModel.livestockPlacements,
-        },
-      },
-      map_model_detail: {
-        data_type: "map_model_detail",
-        label: "Detailed map model",
-        summary: "Full aquascape structure geometry, PAR markers, refinement annotations, and stock placements.",
-        count: fullContext.mapModel.structures.length,
-        available: true,
-        content: fullContext.mapModel,
-      },
-      par_map: {
-        data_type: "par_map",
-        label: "PAR and light context",
-        summary: `${fullContext.mapModel.parMarkers.length} PAR markers plus structure light and PAR ranges.`,
-        count: fullContext.mapModel.parMarkers.length,
-        available: fullContext.rawDataInventory.map.parMapAvailable,
-        content: {
-          parMarkers: fullContext.mapModel.parMarkers,
-          structures: fullContext.mapModel.structures.map((structure) => ({
-            id: structure.id,
-            name: structure.name,
-            light: structure.light,
-            parRange: structure.parRange,
-            notes: structure.notes,
-          })),
-          placements: fullContext.mapModel.livestockPlacements,
-        },
-      },
-      water_tests: {
-        data_type: "water_tests",
-        label: "Water test history",
-        summary: `${sortedTests.length} most recent water tests with timing context.`,
-        count: sortedTests.length,
-        available: sortedTests.length > 0,
-        content: sortedTests,
-      },
-      feeding_logs: {
-        data_type: "feeding_logs",
-        label: "Feeding logs",
-        summary: `${feedingLogs.length} recent feeding events.`,
-        count: feedingLogs.length,
-        available: feedingLogs.length > 0,
-        content: feedingLogs,
-      },
-      maintenance_logs: {
-        data_type: "maintenance_logs",
-        label: "Maintenance logs",
-        summary: `${maintenanceLogs.length} recent maintenance events and ${waterChangeLogs.length} water changes.`,
-        count: maintenanceLogs.length + waterChangeLogs.length,
-        available: maintenanceLogs.length > 0 || waterChangeLogs.length > 0,
-        content: {
-          maintenance: maintenanceLogs,
-          waterChanges: waterChangeLogs,
-        },
-      },
-      care_schedule: {
-        data_type: "care_schedule",
-        label: "Care schedule status",
-        summary: `${fullContext.overdueCareTasks.length} overdue scheduled care task${fullContext.overdueCareTasks.length === 1 ? "" : "s"}. Manual-only tasks are not treated as overdue.`,
-        count: fullContext.careTasks.length,
-        available: true,
-        content: fullContext.careTasks,
-      },
-      insight_prompt_photos: {
-        data_type: "insight_prompt_photos",
-        label: "Current prompt photos",
-        summary: `${insightPromptPhotoEvidence.length} photo${insightPromptPhotoEvidence.length === 1 ? "" : "s"} attached to the current insight request. Prompt-attached image bytes are sent with the first GPT pass.`,
-        count: insightPromptPhotoEvidence.length,
-        available: insightPromptPhotoEvidence.length > 0,
-        content: insightPromptPhotoEvidence,
-      },
-      lighting_images: {
-        data_type: "lighting_images",
-        label: "Lighting image inventory",
-        summary: `${lightingEvidence.length} lighting image records. Image bytes are not included in text-only insight requests.`,
-        count: lightingEvidence.length,
-        available: lightingEvidence.length > 0,
-        content: lightingEvidence,
-      },
-      livestock_photos: {
-        data_type: "livestock_photos",
-        label: "Livestock photo inventory",
-        summary: `${livestockPhotoEvidence.reduce((total, item) => total + item.photos.length, 0)} livestock photo records. Image bytes are not included in text-only insight requests.`,
-        count: livestockPhotoEvidence.reduce((total, item) => total + item.photos.length, 0),
-        available: livestockPhotoEvidence.length > 0,
-        content: livestockPhotoEvidence,
-      },
+        terminal: false,
+      });
+      add(`${recordPath}.details`, `${item.label} Details`, "Detailed notes/specs for this equipment record.", item.details || "", {
+        count: item.details ? 1 : 0,
+        available: Boolean(item.details),
+      });
+      if (item.schedule) {
+        add(`${recordPath}.schedule`, `${item.label} Schedule`, "Schedule/configuration for this equipment record.", item.schedule, {
+          count: 1,
+          available: true,
+        });
+      }
+    });
+
+    add("lighting", "Lighting", "Lighting model, photoperiod, summary notes, and lighting images.", fullContext.profile.lightingContext, {
+      terminal: false,
+    });
+    add("lighting.schedule_summary", "Lighting Schedule Summary", "Model, photoperiod, and summarized lighting notes.", fullContext.profile.lightingContext);
+    add("lighting.images", "Lighting Images", `${lightingEvidence.length} stored lighting image record${lightingEvidence.length === 1 ? "" : "s"}.`, lightingEvidence, {
+      count: lightingEvidence.length,
+      available: lightingEvidence.length > 0,
+    });
+
+    add("map", "Map", "Tank dimensions, aquascape, PAR markers, livestock placements, and geometry detail.", summarizeInsightMapModel(fullContext.mapModel), {
+      terminal: false,
+    });
+    add("map.tank_dimensions", "Map Tank Dimensions", "Mapped tank dimensions and coordinate system.", {
+      dimensions: fullContext.mapModel.dimensions,
+      coordinateSystem: fullContext.mapModel.coordinateSystem,
+      calibration: fullContext.mapModel.calibration,
+    });
+    add("map.structures", "Aquascape Structures", "Mapped rock/aquascape structures with light and PAR context.", fullContext.mapModel.structures.map((structure) => ({
+      id: structure.id,
+      name: structure.name,
+      type: structure.type,
+      position: structure.position,
+      size: structure.size,
+      light: structure.light,
+      parRange: structure.parRange,
+      notes: structure.notes,
+    })), {
+      count: fullContext.mapModel.structures.length,
+      available: fullContext.mapModel.structures.length > 0,
+    });
+    add("map.par_markers", "PAR Markers", "PAR marker values and coordinates.", fullContext.mapModel.parMarkers, {
+      count: fullContext.mapModel.parMarkers.length,
+      available: fullContext.mapModel.parMarkers.length > 0,
+    });
+    add("map.livestock_placements", "Map Livestock Placements", "Map placement coordinates for livestock records.", fullContext.mapModel.livestockPlacements, {
+      count: fullContext.mapModel.livestockPlacements.length,
+      available: fullContext.mapModel.livestockPlacements.length > 0,
+    });
+    add("map.geometry_detail", "Map Geometry Detail", "Full aquascape geometry, refinement annotations, and structure detail.", fullContext.mapModel, {
+      count: fullContext.mapModel.structures.length,
+      available: true,
+    });
+
+    add("current_request", "Current Request", "Current question and its attachments.", {
+      attachedPhotoCount: insightPromptPhotoEvidence.length,
+    }, { count: insightPromptPhotoEvidence.length, available: true, terminal: false });
+    add("current_request.attachments", "Current Request Attachments", "Files attached to the current question.", {
+      promptPhotoCount: insightPromptPhotoEvidence.length,
+    }, { count: insightPromptPhotoEvidence.length, available: insightPromptPhotoEvidence.length > 0, terminal: false });
+    add("current_request.attachments.prompt_photos", "Current Prompt Photos", `${insightPromptPhotoEvidence.length} photo${insightPromptPhotoEvidence.length === 1 ? "" : "s"} attached to the current insight request.`, insightPromptPhotoEvidence, {
+      count: insightPromptPhotoEvidence.length,
+      available: insightPromptPhotoEvidence.length > 0,
+    });
+
+    return evidence;
+  }
+
+  function getParentPath(path) {
+    const parts = String(path || "").split(".");
+    parts.pop();
+    return parts.join(".");
+  }
+
+  function inferEvidenceCount(content) {
+    if (Array.isArray(content)) return content.length;
+    if (content && typeof content === "object") return Object.keys(content).length;
+    return content ? 1 : 0;
+  }
+
+  function pickKeys(source, keys) {
+    return Object.fromEntries(keys.map((key) => [key, source?.[key] ?? ""]));
+  }
+
+  function pathSegment(value) {
+    return String(value || "item")
+      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      || "item";
+  }
+
+  function livestockPathSegment(item) {
+    const name = pathSegment(item.species || item.name || "livestock").slice(0, 36);
+    const id = pathSegment(item.id || "").slice(-8);
+    return [name || "livestock", id].filter(Boolean).join("_");
+  }
+
+  function countBy(items, getKey) {
+    return items.reduce((counts, item) => {
+      const key = getKey(item) || "unknown";
+      counts[key] = (counts[key] || 0) + 1;
+      return counts;
+    }, {});
+  }
+
+  function buildParameterSeries(tests, key) {
+    return tests
+      .map((test) => ({
+        measuredAt: test.measuredAt,
+        value: test[key] ?? "",
+        notes: test.notes || "",
+        timing: test.timing || {},
+      }))
+      .filter((entry) => entry.value !== null && entry.value !== "");
+  }
+
+  function summarizeParameterSeries(series) {
+    const values = series.map((entry) => Number(entry.value)).filter(Number.isFinite);
+    return {
+      count: series.length,
+      latest: series[0] || null,
+      previous: series[1] || null,
+      numericMin: values.length ? Math.min(...values) : null,
+      numericMax: values.length ? Math.max(...values) : null,
     };
+  }
+
+  function summarizeEvents(events) {
+    return {
+      count: events.length,
+      latest: events[0] || null,
+      recentLabels: events.slice(0, 8).map((event) => [event.label, RC.formatDateTime(event.happenedAt)].filter(Boolean).join(" · ")),
+    };
+  }
+
+  function getRelatedLogsForLivestock(item, events) {
+    const terms = [item.species, item.name].filter(Boolean).map((value) => String(value).toLowerCase());
+    if (!terms.length) return [];
+    return events.filter((event) => {
+      const text = [event.label, event.target, event.notes, event.details].filter(Boolean).join(" ").toLowerCase();
+      return terms.some((term) => term && text.includes(term));
+    });
   }
 
   function buildPhotoEvidenceRecord(photo, id, label, options = {}) {
@@ -775,9 +1127,8 @@
       missingData.push("Lighting summary from schedule images");
       dataRequests.push({
         label: "Lighting schedule images",
-        data_type: "lighting_images",
+        path: "lighting.images",
         reason: "Lighting images exist, but the compact lighting summary is empty.",
-        target_id: "profile.lightingPhotos",
         priority: "medium",
       });
     }
@@ -837,40 +1188,6 @@
       });
     }
 
-    if (mode === "maintenance") {
-      ["RODI replaced", "Top Carbon replaced", "Bottom Carbon replaced", "Purigen replaced", "UV bulb replaced"].forEach((label) => {
-        const event = [...state.events].filter((item) => item.label === label).sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))[0];
-        observations.push(`${label}: ${event ? RC.formatAge(event.happenedAt) : "not logged"}.`);
-      });
-      nextActions.push("Keep media changes logged as events so they can be compared against nutrient shifts.");
-    }
-
-    if (mode === "livestock") {
-      const unplaced = context.activeLivestock.filter((item) => !item.zoneId && !item.mapPosition);
-      if (unplaced.length) {
-        priorities.push({
-          label: "Unplaced livestock",
-          severity: "warning",
-          why: `${unplaced.length} active livestock record${unplaced.length === 1 ? "" : "s"} do not have a Map placement.`,
-        });
-      }
-      const photographed = context.rawDataInventory.livestockPhotos;
-      if (photographed.length) {
-        dataRequests.push({
-          label: "Livestock photos",
-          data_type: "livestock_photos",
-          reason: "Photos are available and may help with coral health or placement questions, though their currentness is unknown.",
-          target_id: photographed.slice(0, 3).map((item) => item.id).join(","),
-          priority: "low",
-        });
-      }
-      nextActions.push("Place corals and sensitive inverts on the Map so light and PAR context can be included.");
-    }
-
-    if (mode === "trends" && state.waterTests.length < 3) {
-      missingData.push("At least three water tests for trend analysis");
-    }
-
     if (question) observations.push(`User question: ${question}`);
 
     if (!priorities.length) {
@@ -885,7 +1202,7 @@
     }
 
     return {
-      headline: mode === "freeform" ? "Draft answer" : "Tank review",
+      headline: "Draft answer",
       summary: "This local draft uses simple rules. GPT insights will use the same context with better reasoning once the Supabase function is connected.",
       priorities,
       observations,
@@ -896,7 +1213,7 @@
   }
 
   async function generateInsight() {
-    const mode = state.ui.insightMode || "health";
+    const mode = INSIGHT_CHAT_MODE;
     const question = $("insightQuestion").value.trim();
     await runInsightRequest({
       mode,
@@ -924,7 +1241,7 @@
       return;
     }
     await runInsightRequest({
-      mode: previousRun.mode || state.ui.insightMode || "health",
+      mode: previousRun.mode || INSIGHT_CHAT_MODE,
       question,
       previousRun,
       attachedPhotos,
