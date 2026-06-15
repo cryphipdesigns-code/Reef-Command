@@ -2004,7 +2004,6 @@
   }
 
   function getPlacementAnchor(structure, seed) {
-    if (!window.THREE) return null;
     const random = seededRandom(`placement-${seed}`);
     const footprint = getRockFootprint(structure);
     const bounds = getPointBounds(footprint);
@@ -2016,19 +2015,22 @@
       if (pointInPolygon([x, y], footprint)) break;
     }
     const z = rockHeightAt(structure, footprint, x, y) + 0.22;
-    return new THREE.Vector3(structure.x + x, structure.y + y, structure.z + z);
+    return { x: structure.x + x, y: structure.y + y, z: structure.z + z };
   }
 
   function getMarkerAnchor(point) {
     const surface = getMapSurfaceAt(point.x, point.y);
     const z = Number.isFinite(Number(point.z)) ? Number(point.z) : surface.z;
-    return new THREE.Vector3(point.x, point.y, Math.max(z, surface.z) + 0.24);
+    return { x: point.x, y: point.y, z: Math.max(z, surface.z) + 0.24 };
   }
 
   function getMap2MarkerAnchor(point) {
     if (!point) return null;
     const surface = getMap2SurfaceAt(point.x, point.y);
-    if (!surface) return getMarkerAnchor(point);
+    if (!surface) {
+      const anchor = getMarkerAnchor(point);
+      return new THREE.Vector3(anchor.x, anchor.y, anchor.z);
+    }
     const z = Number.isFinite(Number(point.z)) ? Number(point.z) : surface.z;
     return new THREE.Vector3(point.x, point.y, Math.max(z, surface.z) + 0.24);
   }

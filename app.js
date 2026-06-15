@@ -875,6 +875,10 @@
     return number >= 0 ? number : fallback;
   }
 
+  function clamp(min, max, value) {
+    return Math.max(min, Math.min(max, value));
+  }
+
   function readJson(key) {
     try {
       const value = localStorage.getItem(key);

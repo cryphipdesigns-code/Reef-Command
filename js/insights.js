@@ -79,7 +79,7 @@
 
   function renderInsightRunPhotos(run) {
     const photos = (Array.isArray(run?.photos) ? run.photos : [])
-      .map(normalizePhotoRecord)
+      .map(RC.normalizePhotoRecord)
       .filter(Boolean);
     if (!photos.length) return "";
     return `
