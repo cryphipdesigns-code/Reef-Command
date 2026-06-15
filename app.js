@@ -1777,10 +1777,10 @@
     renderTankProfileForm();
     renderDashboard();
     renderZones();
-    window.RC.Map.renderMapSettings();
-    window.RC.Map.renderMap2Settings();
-    window.RC.Map.renderMapSummaries();
-    window.RC.Map.renderMapMarkerControls();
+    window.RC.Map?.renderMapSettings?.();
+    window.RC.Map?.renderMap2Settings?.();
+    window.RC.Map?.renderMapSummaries?.();
+    window.RC.Map?.renderMapMarkerControls?.();
     syncLivestockDateControls();
     renderLivestock();
     renderPhotoLibrary();
@@ -3254,100 +3254,6 @@
       return;
     }
 
-    const map2View = event.target.closest("[data-map2-view]");
-    if (map2View) {
-      setMap2ViewPreset(map2View.dataset.map2View);
-      return;
-    }
-
-    const map2Nav = event.target.closest("[data-map2-nav]");
-    if (map2Nav) {
-      state.ui.map2NavTool = ["rotate", "pan"].includes(map2Nav.dataset.map2Nav)
-        ? map2Nav.dataset.map2Nav
-        : "rotate";
-      state.ui.mapTool = "navigate";
-      state.ui.map2RefinementShape = "navigate";
-      map2RefinementDraft = null;
-      saveLocalState();
-      window.RC.Map.renderMapMarkerControls();
-      window.RC.Map.renderMap2Settings();
-      window.RC.Map.renderReefMap2({ rebuild: true });
-      return;
-    }
-
-    if (event.target.closest("[data-map2-reset-camera]")) {
-      resetMap2Camera();
-      return;
-    }
-
-    if (event.target.closest("[data-map2-refinement-overlay-toggle]")) {
-      state.ui.map2RefinementOverlayVisible = !getMap2RefinementOverlayVisible();
-      saveLocalState();
-      window.RC.Map.renderMap2RefinementControls();
-      syncMap2RefinementAnnotationOverlay();
-      window.RC.Map.renderReefMap2();
-      return;
-    }
-
-    const map2RefineShape = event.target.closest("[data-map2-refine-shape]");
-    if (map2RefineShape) {
-      state.ui.mapTool = "navigate";
-      state.ui.map2RefinementShape = MAP2_REFINEMENT_SHAPES.includes(map2RefineShape.dataset.map2RefineShape)
-        ? map2RefineShape.dataset.map2RefineShape
-        : "navigate";
-      map2RefinementDraft = null;
-      saveLocalState();
-      window.RC.Map.renderMapMarkerControls();
-      window.RC.Map.renderMap2RefinementControls();
-      window.RC.Map.renderReefMap2({ rebuild: true });
-      return;
-    }
-
-    if (event.target.closest("[data-map2-refinement-finish]")) {
-      finishMap2RefinementArea();
-      return;
-    }
-
-    if (event.target.closest("[data-map2-refinement-cancel]")) {
-      cancelMap2RefinementDraft();
-      return;
-    }
-
-    const map2RefinementDelete = event.target.closest("[data-map2-refinement-delete]");
-    if (map2RefinementDelete) {
-      state.map.refinementAnnotations = (state.map.refinementAnnotations || [])
-        .filter((annotation) => annotation.id !== map2RefinementDelete.dataset.map2RefinementDelete);
-      saveState();
-      window.RC.Map.renderMap2RefinementControls();
-      window.RC.Map.renderReefMap2({ rebuild: true });
-      window.RC.Insights?.renderInsightsContext?.();
-      return;
-    }
-
-    const mapLayer = event.target.closest("[data-map-layer]");
-    if (mapLayer) {
-      const layer = mapLayer.dataset.mapLayer;
-      state.map.layers[layer] = !state.map.layers[layer];
-      saveState();
-      window.RC.Map.renderMapSettings();
-      window.RC.Map.renderReefMap2({ rebuild: true });
-      window.RC.Insights?.renderInsightsContext?.();
-      return;
-    }
-
-    const mapTool = event.target.closest("[data-map-tool]");
-    if (mapTool) {
-      state.ui.mapTool = mapTool.dataset.mapTool;
-      state.ui.map2RefinementShape = "navigate";
-      map2RefinementDraft = null;
-      if (state.ui.mapTool !== "navigate") setMap2ViewPreset("top");
-      saveLocalState();
-      window.RC.Map.renderMapMarkerControls();
-      window.RC.Map.renderMap2RefinementControls();
-      window.RC.Map.renderReefMap2({ rebuild: true });
-      return;
-    }
-
     const parMarkerDelete = event.target.closest("[data-par-marker-delete]");
     if (parMarkerDelete) {
       state.map.parMarkers = (state.map.parMarkers || []).filter((marker) => marker.id !== parMarkerDelete.dataset.parMarkerDelete);
@@ -3356,19 +3262,6 @@
       window.RC.Map.renderReefMap2({ rebuild: true });
       window.RC.Insights?.renderInsightsContext?.();
       showToast("PAR marker deleted.");
-      return;
-    }
-
-    const stockPlace = event.target.closest("[data-map-stock-place]");
-    if (stockPlace) {
-      state.ui.mapTool = "stock";
-      state.ui.map2RefinementShape = "navigate";
-      state.ui.selectedMapStockId = stockPlace.dataset.mapStockPlace;
-      map2RefinementDraft = null;
-      setMap2ViewPreset("top");
-      saveLocalState();
-      window.RC.Map.renderMapMarkerControls();
-      window.RC.Map.renderMap2RefinementControls();
       return;
     }
 
@@ -3534,7 +3427,7 @@
       input.addEventListener("input", updateProfileFromForm);
       input.addEventListener("change", updateProfileFromForm);
     });
-    window.RC.Map.bindMapEvents();
+    window.RC.Map?.bindMapEvents?.();
     $("lightingPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "lighting"));
     $("insightPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "insight"));
     $("zoneForm")?.addEventListener("submit", addZone);
@@ -3637,15 +3530,20 @@
   };
 
   async function init() {
-    enableInstallShell();
-    await disableLocalInstallShell();
-    await loadLocalBackendConfig();
-    bindEvents();
-    seedLogDates();
-    initInsightMode();
-    renderAll();
-    await initBackend();
-    renderAll();
+    try {
+      enableInstallShell();
+      await disableLocalInstallShell();
+      await loadLocalBackendConfig();
+      bindEvents();
+      seedLogDates();
+      initInsightMode();
+      renderAll();
+      await initBackend();
+      renderAll();
+    } catch (error) {
+      console.error("Init failed:", error);
+      showToast("App failed to start: " + (error?.message || String(error)));
+    }
   }
 
   document.addEventListener("DOMContentLoaded", init);
