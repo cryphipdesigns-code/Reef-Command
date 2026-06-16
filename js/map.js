@@ -278,7 +278,7 @@
   }
 
   function getMapPlaceableStock() {
-    return state.livestock.filter((item) => isCasualStockCategory(item.category) || item.status === "active");
+    return state.livestock.filter((item) => isCasualStockCategory(item.category) || item.status === "alive" || item.status === "active");
   }
 
   function updateMapFromSettings() {
@@ -2011,7 +2011,7 @@
 
   function getLivestockMapPlacements() {
     return state.livestock
-      .filter((item) => isCasualStockCategory(item.category) || item.status === "active")
+      .filter((item) => isCasualStockCategory(item.category) || item.status === "alive" || item.status === "active")
       .map((item, index) => {
         const zone = state.zones.find((entry) => entry.id === item.zoneId);
         const hidden = item.mapMarkerHidden === true;

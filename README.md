@@ -4,11 +4,12 @@ Mobile-first reef tank logbook and insight app.
 
 ## What is included
 
-- Tank profile with static husbandry context
-- Placement zones with light, flow, and future PAR fields
-- Livestock records with active, moved, and deceased states
-- Water test logs with timestamp and light-phase context
-- Feeding, maintenance, and water-change events in one timeline
+- Tank setup with static husbandry context
+- Equipment setup items with inline history
+- Livestock setup items with Alive, Deceased, and Removed lifecycle states
+- Universal Journal entries that can link to equipment and livestock
+- Water test entries with timestamp and light-phase context
+- Feeding, dosing, maintenance, and water-change entries in one timeline
 - Stock photos stored in Supabase Storage so the synced app state stays small
 - Local insight drafts when GPT is not connected
 - Supabase sync scaffold with email magic-link auth
@@ -100,7 +101,24 @@ The hosted app reads `config.json` and uses the private Reef Command Supabase pr
 
 ## Data model note
 
-The app syncs one structured private JSON state row per authenticated user for profile, zones, livestock, water tests, events, and insight runs. Photos are uploaded to the private `reef-photos` Supabase Storage bucket under the signed-in user id, and the JSON stores only lightweight photo paths and metadata.
+The app syncs one structured private JSON state row per authenticated user. Current state is schema-versioned and centered on equipment/livestock items plus linked Journal entries. The migration keeps the pre-v2 blob recoverable under `legacyRaw` and keeps older compatibility arrays for Map and rollback safety.
+
+Photos are uploaded to the private `reef-photos` Supabase Storage bucket under the signed-in user id, and the JSON stores only lightweight photo paths and metadata.
+
+Before trusting a migration on real data, run:
+
+```bash
+node scripts/verify-record-journal-migration.mjs
+```
+
+To create fresh Supabase snapshots before a schema change:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=... \
+REEF_OWNER_USER_ID=your-auth-user-id \
+node scripts/snapshot-supabase-state.mjs
+```
 
 ## Privacy setup
 

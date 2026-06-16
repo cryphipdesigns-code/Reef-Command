@@ -2,11 +2,15 @@
   const STORAGE_KEY = "reefCommandState.v1";
   const BACKEND_KEY = "reefCommandBackend.v1";
   const PRE_PULL_BACKUP_KEY = "reefCommandState.beforeRemotePull.v1";
+  const PRE_RECORD_JOURNAL_BACKUP_KEY = "reefCommandState.beforeRecordJournal.v1";
   const PRIVATE_STATE_TABLE = "reef_app_state";
   const PHOTO_BUCKET = "reef-photos";
   const PHOTO_PLACEHOLDER_SRC = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
   const PRIVATE_STARTUP_TIMEOUT_MS = 12000;
   const LOCAL_PHOTO_DATA_URL_LIMIT = 2_750_000;
+  const RECORDS = window.ReefRecords || {};
+  const JOURNAL = window.ReefJournal || {};
+  const STATE_SCHEMA_VERSION = RECORDS.SCHEMA_VERSION || 2;
   const MAP2_REFINEMENT_SHAPES = ["navigate", "point", "line", "area"];
   const MAP2_REFINEMENT_ACTIONS = ["raise", "depress", "flatten", "cut-back", "smooth", "ridge"];
   const MAP2_REFINEMENT_DIRECTIONS = ["surface", "top-bottom", "left-right", "front-back"];
@@ -48,7 +52,9 @@
     { key: "uv_bulb", label: "UV bulb", source: "maintenance_label", labelMatch: "UV bulb replaced", intervalDays: null, overdueLabel: "UV bulb replacement due" },
   ];
 
-  let state = normalizeState(readJson(STORAGE_KEY) || getDefaultState());
+  const initialStoredState = readJson(STORAGE_KEY);
+  snapshotPreMigrationState(initialStoredState);
+  let state = normalizeState(initialStoredState || getDefaultState());
   let backendConfig = readJson(BACKEND_KEY) || {};
   let supabaseClient = null;
   let currentUser = null;
@@ -93,7 +99,8 @@
 
   function getDefaultState() {
     return {
-      version: 1,
+      version: STATE_SCHEMA_VERSION,
+      schemaVersion: STATE_SCHEMA_VERSION,
       updatedAt: new Date().toISOString(),
       profile: {
         tankName: "Reef Tank",
@@ -183,6 +190,12 @@
       livestock: [],
       waterTests: [],
       events: [],
+      records: {
+        equipment: [],
+        livestock: [],
+      },
+      journal: [],
+      legacyRaw: null,
       insightRuns: [],
       map: getDefaultMap(),
       ui: {
@@ -470,15 +483,21 @@
   function normalizeState(raw) {
     const base = getDefaultState();
     const rawProfile = raw?.profile || {};
+    const sourceSchemaVersion = Number(raw?.schemaVersion || raw?.version || 1);
     const next = {
       ...base,
       ...raw,
+      version: raw?.version || base.version,
+      schemaVersion: raw?.schemaVersion || sourceSchemaVersion,
       profile: { ...base.profile, ...rawProfile },
       ui: { ...base.ui, ...(raw.ui || {}) },
       zones: Array.isArray(raw.zones) ? raw.zones : base.zones,
       livestock: Array.isArray(raw.livestock) ? raw.livestock : [],
       waterTests: Array.isArray(raw.waterTests) ? raw.waterTests : [],
       events: Array.isArray(raw.events) ? raw.events : [],
+      records: raw.records || base.records,
+      journal: Array.isArray(raw.journal) ? raw.journal : base.journal,
+      legacyRaw: raw.legacyRaw || null,
       insightRuns: Array.isArray(raw.insightRuns) ? raw.insightRuns : [],
       map: normalizeMap(raw.map, base.map),
     };
@@ -524,7 +543,8 @@
         trackingUnit: item.trackingUnit || "",
         addedDate: item.addedDate || "",
         isLegacy,
-        status: casual ? "noticed" : item.status || "active",
+        status: normalizeLivestockLifecycleStatus(item.status, category),
+        casual,
         zoneId: item.zoneId || "",
         notes: "",
         noteLog,
@@ -569,6 +589,14 @@
       details: event.details || "",
       notes: event.notes || "",
     }));
+
+    if (RECORDS.migrateToRecordJournalState) {
+      const migrated = RECORDS.migrateToRecordJournalState(next);
+      if (!raw?.schemaVersion || Number(raw.schemaVersion) < STATE_SCHEMA_VERSION) {
+        migrated.legacyRaw = RECORDS.deepClone ? RECORDS.deepClone(raw) : raw;
+      }
+      return migrated;
+    }
 
     return next;
   }
@@ -918,6 +946,20 @@
     }
   }
 
+  function snapshotPreMigrationState(raw) {
+    if (!raw || Number(raw.schemaVersion || 1) >= STATE_SCHEMA_VERSION) return;
+    try {
+      if (localStorage.getItem(PRE_RECORD_JOURNAL_BACKUP_KEY)) return;
+      localStorage.setItem(PRE_RECORD_JOURNAL_BACKUP_KEY, JSON.stringify({
+        backedUpAt: new Date().toISOString(),
+        schemaVersion: raw.schemaVersion || raw.version || 1,
+        state: raw,
+      }));
+    } catch (error) {
+      console.warn("Could not snapshot pre-record/journal state", error);
+    }
+  }
+
   function isQuotaExceededError(error) {
     return (
       error?.name === "QuotaExceededError" ||
@@ -1054,6 +1096,8 @@
   }
 
   function getLightingPhotos() {
+    const lightingRecord = getEquipmentRecordByTemplate("lighting");
+    if (lightingRecord?.photos?.length) return normalizePhotoArray(lightingRecord.photos);
     return normalizePhotoArray([
       ...(Array.isArray(state.profile.lightingPhotos) ? state.profile.lightingPhotos : []),
       state.profile.lightingPhoto,
@@ -1066,6 +1110,51 @@
     state.profile.lightingPhotos = normalized;
     state.profile.lightingPhoto = normalized[0] || null;
     state.profile.lightingPhotoDataUrl = normalized.find((photo) => photo.dataUrl)?.dataUrl || "";
+    const lightingRecord = getOrCreateLightingRecord();
+    lightingRecord.photos = normalized;
+  }
+
+  function getEquipmentRecordByTemplate(templateKey) {
+    return (state.records?.equipment || []).find((record) => record.templateKey === templateKey) || null;
+  }
+
+  function getCurrentRecord(record) {
+    return RECORDS.getCurrentRecord ? RECORDS.getCurrentRecord(state, record) : record;
+  }
+
+  function getRecordHistory(recordId) {
+    return RECORDS.getRecordHistory ? RECORDS.getRecordHistory(state, recordId) : [];
+  }
+
+  function getOrCreateLightingRecord() {
+    state.records ||= { equipment: [], livestock: [] };
+    state.records.equipment ||= [];
+    let record = getEquipmentRecordByTemplate("lighting");
+    if (!record) {
+      record = {
+        id: RECORDS.stableEquipmentId ? RECORDS.stableEquipmentId("lighting") : "equipment_lighting",
+        recordType: "equipment",
+        category: "lighting",
+        templateKey: "lighting",
+        name: "Lighting",
+        status: "active",
+        addedAt: "",
+        retiredAt: "",
+        notes: "",
+        photos: [],
+        details: {
+          model: state.profile.lightingModel || "",
+          summary: state.profile.lightingSummary || "",
+          lightStart: state.profile.lightStart || "",
+          lightEnd: state.profile.lightEnd || "",
+        },
+        legacyRaw: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      state.records.equipment.push(record);
+    }
+    return record;
   }
 
   function photoIdFromPath(path) {
@@ -1210,6 +1299,9 @@
         value?.livestock?.length ||
         value?.waterTests?.length ||
         value?.events?.length ||
+        value?.records?.equipment?.length ||
+        value?.records?.livestock?.length ||
+        value?.journal?.length ||
         value?.insightRuns?.length,
     );
   }
@@ -1254,6 +1346,9 @@
       livestock: Array.isArray(value?.livestock) ? value.livestock.length : 0,
       waterTests: Array.isArray(value?.waterTests) ? value.waterTests.length : 0,
       events: Array.isArray(value?.events) ? value.events.length : 0,
+      equipmentRecords: Array.isArray(value?.records?.equipment) ? value.records.equipment.length : 0,
+      livestockRecords: Array.isArray(value?.records?.livestock) ? value.records.livestock.length : 0,
+      journal: Array.isArray(value?.journal) ? value.journal.length : 0,
       insightRuns: Array.isArray(value?.insightRuns) ? value.insightRuns.length : 0,
       profileFields,
       equipmentFlags,
@@ -1266,6 +1361,9 @@
       score.livestock +
       score.waterTests +
       score.events +
+      score.equipmentRecords +
+      score.livestockRecords +
+      score.journal +
       score.insightRuns +
       score.profileFields +
       score.equipmentFlags +
@@ -1297,6 +1395,15 @@
       return updatedAt !== lastRemoteUpdatedAt;
     }
     return Math.abs(remoteTime - knownTime) > 1000;
+  }
+
+  function getPayloadSchemaVersion(value) {
+    return Number(value?.schemaVersion || value?.version || 1);
+  }
+
+  function hasUnsupportedSchema(value) {
+    const version = getPayloadSchemaVersion(value);
+    return Number.isFinite(version) && version > STATE_SCHEMA_VERSION;
   }
 
   function uid() {
@@ -1377,10 +1484,28 @@
     return category === "Microfauna" || category === "Noticed pest";
   }
 
+  function normalizeLivestockLifecycleStatus(status, category) {
+    if (RECORDS.normalizeLivestockStatus) return RECORDS.normalizeLivestockStatus(status, category);
+    const value = String(status || "").toLowerCase();
+    if (value === "deceased") return "deceased";
+    if (["removed", "moved", "sold", "traded", "given away", "lost"].includes(value)) return "removed";
+    return "alive";
+  }
+
+  function livestockStatusLabel(status) {
+    if (status === "deceased") return "Deceased";
+    if (status === "removed") return "Removed";
+    return "Alive";
+  }
+
+  function isAliveStock(item) {
+    return normalizeLivestockLifecycleStatus(item.status, item.category) === "alive";
+  }
+
   function normalizeLivestockFilter(filter) {
-    const normalized = filter === "inactive" ? "deceased" : filter;
-    const filters = ["active", "all", "Coral", "Fish", "inverts", "Microfauna", "Noticed pest", "deceased"];
-    return filters.includes(normalized) ? normalized : "active";
+    const normalized = filter === "inactive" ? "deceased" : filter === "active" ? "alive" : filter;
+    const filters = ["alive", "all", "Coral", "Fish", "inverts", "Microfauna", "Noticed pest", "deceased", "removed"];
+    return filters.includes(normalized) ? normalized : "alive";
   }
 
   function isLifecycleStock(item) {
@@ -1402,6 +1527,26 @@
   }
 
   function getEquipmentProfiles(profile = state.profile) {
+    if (state.records?.equipment?.length) {
+      return state.records.equipment.map((record) => {
+        const current = getCurrentRecord(record);
+        return {
+          key: current.templateKey || current.id,
+          id: current.id,
+          label: current.name,
+          category: current.category,
+          active: current.status !== "retired",
+          addedDate: current.addedAt || "",
+          retiredAt: current.retiredAt || "",
+          isLegacy: Boolean(current.isLegacy),
+          details: current.details?.details || current.details?.summary || current.notes || "",
+          schedule: current.details?.schedule || current.details?.lightStart || "",
+          status: current.status === "retired"
+            ? `Retired${current.retiredAt ? ` ${formatDate(current.retiredAt)}` : ""}`
+            : current.addedAt ? `Added ${formatDate(current.addedAt)}` : "Active",
+        };
+      });
+    }
     return EQUIPMENT_FIELDS.map(({ key, label, dateKey, legacyKey, detailsKey, scheduleKey }) => ({
       key,
       label,
@@ -1742,8 +1887,9 @@
   }
 
   function getLightPhase(at = new Date()) {
-    const start = minutesFromTime(state.profile.lightStart);
-    const end = minutesFromTime(state.profile.lightEnd);
+    const lightingRecord = getEquipmentRecordByTemplate("lighting");
+    const start = minutesFromTime(lightingRecord?.details?.lightStart || state.profile.lightStart);
+    const end = minutesFromTime(lightingRecord?.details?.lightEnd || state.profile.lightEnd);
     if (start === null || end === null || start === end) {
       return { label: "Lighting unset", isOn: null };
     }
@@ -1826,6 +1972,21 @@
   }
 
   function getTimelineEntries() {
+    if (Array.isArray(state.journal) && state.journal.length) {
+      return state.journal
+        .map((entry) => ({
+          id: entry.id,
+          kind: "journal",
+          at: entry.occurredAt,
+          title: entry.title || entry.type || "Journal entry",
+          details: describeJournalEntry(entry),
+          meta: [formatDateTime(entry.occurredAt), entry.type, entry.severity && entry.severity !== "routine" ? entry.severity : ""]
+            .filter(Boolean)
+            .join(" · "),
+        }))
+        .sort((a, b) => new Date(b.at) - new Date(a.at));
+    }
+
     const tests = state.waterTests.map((test) => ({
       id: test.id,
       kind: "test",
@@ -1845,6 +2006,30 @@
     }));
 
     return [...tests, ...events].sort((a, b) => new Date(b.at) - new Date(a.at));
+  }
+
+  function describeJournalEntry(entry) {
+    if (entry.type === "Water Test" && entry.measurements) {
+      const measurements = entry.measurements || {};
+      return describeWaterTest({
+        ammonia: measurements.ammonia ?? null,
+        nitrite: measurements.nitrite ?? null,
+        nitrate: measurements.nitrate ?? null,
+        phosphate: measurements.phosphate ?? null,
+        ph: measurements.ph ?? null,
+        alkalinity: measurements.alkalinity ?? null,
+        calcium: measurements.calcium ?? null,
+        magnesium: measurements.magnesium ?? null,
+        salinity: measurements.salinity || "",
+        temperature: measurements.temperature || "",
+        notes: entry.summary || "",
+      });
+    }
+    const links = [
+      ...(entry.linkedEquipment || []).map((id) => (state.records?.equipment || []).find((record) => record.id === id)?.name || ""),
+      ...(entry.linkedLivestock || []).map((id) => (state.records?.livestock || []).find((record) => record.id === id)?.name || ""),
+    ].filter(Boolean);
+    return [entry.summary, links.length ? `Related: ${links.join(", ")}` : ""].filter(Boolean).join(" · ") || entry.type || "Journal entry";
   }
 
   function describeWaterTest(test) {
@@ -1927,7 +2112,7 @@
     const profile = state.profile;
     const latestTest = getLatestWaterTest();
     const latestWaterChange = getLatestEvent("water_change");
-    const activeLivestock = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "active");
+    const activeLivestock = state.livestock.filter((item) => isLifecycleStock(item) && isAliveStock(item));
     const activeQuantity = activeLivestock.reduce((total, item) => {
       const rawQuantity = item.currentCount !== "" && item.currentCount !== null && item.currentCount !== undefined
         ? item.currentCount
@@ -1952,7 +2137,7 @@
     $("metricWaterChange").textContent = latestWaterChange ? formatAge(latestWaterChange.happenedAt) : "--";
     $("metricWaterChangeMeta").textContent = latestWaterChange ? describeEventDetails(latestWaterChange) : "No event yet";
     $("metricLivestock").textContent = String(activeQuantity);
-    $("metricLivestockMeta").textContent = `${activeLivestock.length} active records`;
+    $("metricLivestockMeta").textContent = `${activeLivestock.length} alive items`;
 
     renderRiskStrip();
     renderHomeTimeline();
@@ -2010,6 +2195,7 @@
       }
     });
     renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
+    renderEquipmentRecords();
     syncEquipmentDateControls();
   }
 
@@ -2025,6 +2211,204 @@
     renderDashboard();
     renderPhotoLibrary();
     window.RC.Insights?.renderInsightsContext?.();
+  }
+
+  function equipmentCategoryLabel(category) {
+    const labels = {
+      filtration: "Filtration",
+      lighting: "Lighting",
+      skimmer: "Skimmer",
+      sump: "Sump",
+      refugium: "Refugium",
+      ato: "ATO",
+      feeder: "Feeder",
+      uv: "UV",
+      reactor: "Reactor",
+      flow: "Flow",
+      other: "Other",
+    };
+    return labels[category] || category || "Equipment";
+  }
+
+  function renderEquipmentRecords() {
+    const list = $("equipmentRecordList");
+    if (!list) return;
+    const records = [...(state.records?.equipment || [])]
+      .map((record) => getCurrentRecord(record))
+      .sort((a, b) => {
+        if (a.status === b.status) return String(a.name || "").localeCompare(String(b.name || ""));
+        return a.status === "active" ? -1 : 1;
+      });
+
+    list.innerHTML = records.length
+      ? records.map(renderEquipmentRecordCard).join("")
+      : `<div class="empty-state">No equipment setup yet.</div>`;
+    renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
+  }
+
+  function renderEquipmentRecordCard(record) {
+    const history = getRecordHistory(record.id);
+    const details = Object.entries(record.details || {})
+      .filter(([, value]) => value !== "" && value !== null && value !== undefined)
+      .map(([key, value]) => `${humanizeKey(key)}: ${String(value)}`)
+      .join(" · ");
+    const dates = [
+      record.addedAt ? `Added ${formatDate(record.addedAt)}` : "",
+      record.retiredAt ? `Retired ${formatDate(record.retiredAt)}` : "",
+    ].filter(Boolean).join(" · ");
+    return `
+      <article class="data-card record-card" data-equipment-record="${escapeHtml(record.id)}">
+        <div class="data-card-header">
+          <div class="data-card-title">
+            <strong>${escapeHtml(record.name || "Equipment")}</strong>
+            <p class="card-meta">${escapeHtml([equipmentCategoryLabel(record.category), dates].filter(Boolean).join(" · "))}</p>
+          </div>
+          <span class="category-pill">${escapeHtml(record.status === "retired" ? "Retired" : "Active")}</span>
+        </div>
+        ${details ? `<p class="card-meta">${escapeHtml(details)}</p>` : ""}
+        ${record.notes ? `<p class="card-meta">${escapeHtml(record.notes)}</p>` : ""}
+        ${renderRecordHistoryList(history)}
+        <div class="card-actions">
+          <button class="mini-button icon-mini-button" type="button" title="Edit setup" data-equipment-action="edit" data-id="${escapeHtml(record.id)}">
+            <i data-lucide="pencil"></i>
+          </button>
+          <button class="mini-button" type="button" data-record-journal="equipment:${escapeHtml(record.id)}">Log Change</button>
+        </div>
+      </article>
+    `;
+  }
+
+  function humanizeKey(key) {
+    return String(key || "")
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  function renderRecordHistoryList(history) {
+    if (!history.length) return `<div class="record-history empty-record-history">No journal history yet.</div>`;
+    return `
+      <div class="record-history">
+        <strong>History</strong>
+        ${history.slice(-4).reverse().map((entry) => `
+          <p class="card-meta">${escapeHtml(formatDateTime(entry.occurredAt))} · ${escapeHtml(entry.title || entry.type)}${entry.summary ? ` · ${escapeHtml(entry.summary)}` : ""}</p>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function resetEquipmentSetup() {
+    const form = $("equipmentSetupForm");
+    if (!form) return;
+    form.reset();
+    form.hidden = true;
+    $("equipmentRecordId").value = "";
+  }
+
+  function startEquipmentSetup(id = "") {
+    const form = $("equipmentSetupForm");
+    if (!form) return;
+    const record = id ? (state.records?.equipment || []).find((entry) => entry.id === id) : null;
+    $("equipmentRecordId").value = record?.id || "";
+    $("equipmentRecordName").value = record?.name || "";
+    $("equipmentRecordCategory").value = record?.category || "other";
+    $("equipmentRecordStatus").value = record?.status || "active";
+    $("equipmentRecordAddedAt").value = record?.addedAt || "";
+    $("equipmentRecordRetiredAt").value = record?.retiredAt || "";
+    $("equipmentRecordSchedule").value = record?.details?.schedule || record?.details?.lightStart || "";
+    $("equipmentRecordDetails").value = record?.details?.details || record?.details?.summary || record?.details?.model || "";
+    $("equipmentRecordNotes").value = record?.notes || "";
+    form.hidden = false;
+    form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function getEquipmentSetupFormData() {
+    const detailsText = $("equipmentRecordDetails").value.trim();
+    const schedule = $("equipmentRecordSchedule").value.trim();
+    return {
+      id: $("equipmentRecordId").value || `equipment_${uid()}`,
+      recordType: "equipment",
+      category: $("equipmentRecordCategory").value,
+      templateKey: "",
+      name: $("equipmentRecordName").value.trim(),
+      status: $("equipmentRecordStatus").value,
+      addedAt: $("equipmentRecordAddedAt").value,
+      retiredAt: $("equipmentRecordRetiredAt").value,
+      notes: $("equipmentRecordNotes").value.trim(),
+      photos: [],
+      details: {
+        details: detailsText,
+        schedule,
+      },
+      legacyRaw: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function addJournalEntry(entry) {
+    state.journal ||= [];
+    const normalized = JOURNAL.createJournalEntry ? JOURNAL.createJournalEntry(entry) : {
+      id: entry.id || uid(),
+      occurredAt: entry.occurredAt || new Date().toISOString(),
+      type: entry.type || "Observation",
+      title: entry.title || entry.type || "Journal entry",
+      summary: entry.summary || "",
+      linkedEquipment: entry.linkedEquipment || [],
+      linkedLivestock: entry.linkedLivestock || [],
+      effects: entry.effects || [],
+    };
+    state.journal = state.journal.filter((item) => item.id !== normalized.id);
+    state.journal.push(normalized);
+    state.journal.sort((a, b) => new Date(a.occurredAt) - new Date(b.occurredAt));
+    return normalized;
+  }
+
+  function saveEquipmentSetup(event) {
+    event.preventDefault();
+    const formData = getEquipmentSetupFormData();
+    if (!formData.name) {
+      showToast("Equipment needs a name.");
+      return;
+    }
+    state.records ||= { equipment: [], livestock: [] };
+    state.records.equipment ||= [];
+    const existing = state.records.equipment.find((record) => record.id === formData.id);
+    if (existing) {
+      Object.assign(existing, {
+        ...formData,
+        photos: existing.photos || [],
+        templateKey: existing.templateKey || formData.templateKey,
+        legacyRaw: existing.legacyRaw || {},
+        createdAt: existing.createdAt || formData.createdAt,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      state.records.equipment.push(formData);
+      addJournalEntry({
+        id: `journal_found_${formData.id}`,
+        type: "Equipment Change",
+        occurredAt: formData.addedAt ? new Date(`${formData.addedAt}T00:00:00`).toISOString() : new Date().toISOString(),
+        title: `${formData.name} setup captured`,
+        summary: formData.notes || formData.details.details || "",
+        linkedEquipment: [formData.id],
+        effects: [
+          {
+            recordId: formData.id,
+            fields: {
+              status: formData.status,
+              addedAt: formData.addedAt,
+              retiredAt: formData.retiredAt,
+            },
+          },
+        ],
+      });
+    }
+    resetEquipmentSetup();
+    saveState();
+    renderEquipmentRecords();
+    window.RC.Insights?.renderInsightsContext?.();
+    showToast(existing ? "Equipment setup updated." : "Equipment added.");
   }
 
   function syncEquipmentDateControls() {
@@ -2089,10 +2473,11 @@
   }
 
   function renderLivestock() {
-    const activeCount = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "active").length;
+    const activeCount = state.livestock.filter((item) => isLifecycleStock(item) && isAliveStock(item)).length;
     const deceasedCount = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "deceased").length;
-    const casualCount = state.livestock.filter((item) => isCasualStockCategory(item.category)).length;
-    $("livestockCountPill").textContent = `${activeCount} active · ${casualCount} noticed${deceasedCount ? ` · ${deceasedCount} deceased` : ""}`;
+    const removedCount = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "removed").length;
+    const casualCount = state.livestock.filter((item) => item.casual || isCasualStockCategory(item.category)).length;
+    $("livestockCountPill").textContent = `${activeCount} alive · ${casualCount} casual${deceasedCount ? ` · ${deceasedCount} deceased` : ""}${removedCount ? ` · ${removedCount} removed` : ""}`;
     state.ui.livestockFilter = normalizeLivestockFilter(state.ui.livestockFilter);
     const formShell = $("livestockFormShell");
     if (formShell) formShell.hidden = Boolean(editingLivestockId);
@@ -2105,16 +2490,17 @@
 
     $("livestockList").innerHTML = items.length
       ? items.map(renderLivestockCard).join("")
-      : `<div class="empty-state">No livestock records.</div>`;
+      : `<div class="empty-state">No livestock items.</div>`;
     renderActiveLivestockPhotoPreview();
     refreshIcons();
   }
 
   function isLivestockVisibleForFilter(item, filter) {
     if (filter === "deceased") return isLifecycleStock(item) && item.status === "deceased";
-    if (item.status === "deceased") return false;
+    if (filter === "removed") return isLifecycleStock(item) && item.status === "removed";
+    if (item.status === "deceased" || item.status === "removed") return false;
     if (filter === "all") return true;
-    if (filter === "active") return isLifecycleStock(item) && item.status === "active";
+    if (filter === "alive") return isLifecycleStock(item) && isAliveStock(item);
     if (filter === "inverts") return item.category === "Invert" || item.category === "Cleanup crew";
     return item.category === filter;
   }
@@ -2135,8 +2521,11 @@
       item.growthTrend ? `Growth: ${item.growthTrend}` : "",
       item.growthNotes ? `Growth notes: ${item.growthNotes}` : "",
     ].filter(Boolean);
-    const outcome = !casual && item.status !== "active"
-      ? `<p class="card-meta">${escapeHtml(item.status)}${item.removedDate ? ` on ${escapeHtml(formatDate(item.removedDate))}` : ""}${item.outcomeReason ? ` · ${escapeHtml(item.outcomeReason)}` : ""}</p>`
+    const currentRecord = getCurrentRecord({ ...item, recordType: "livestock" });
+    const currentHealth = currentRecord.currentHealth || item.health || "";
+    const history = getRecordHistory(item.id);
+    const outcome = !casual && !isAliveStock(item)
+      ? `<p class="card-meta">${escapeHtml(livestockStatusLabel(item.status))}${item.removedDate ? ` on ${escapeHtml(formatDate(item.removedDate))}` : ""}${item.outcomeReason ? ` · ${escapeHtml(item.outcomeReason)}` : ""}</p>`
       : "";
     return `
       <article class="data-card livestock-card${editing ? " is-editing" : ""}" data-livestock-card="${escapeHtml(item.id)}">
@@ -2145,22 +2534,25 @@
             <strong>${escapeHtml(item.species)}</strong>
             <p class="card-meta">${escapeHtml([item.category, ...countParts].join(" · "))}</p>
           </div>
-          <span class="category-pill">${escapeHtml(casual ? "noticed" : item.status)}</span>
+          <span class="category-pill">${escapeHtml(casual ? "Casual" : livestockStatusLabel(item.status))}</span>
         </div>
         ${editing ? renderLivestockInlineEditForm(item) : `
-          <p class="card-meta">${escapeHtml(formatStockDate(item))} · ${escapeHtml(getZoneName(item.zoneId))}</p>
+          <p class="card-meta">${escapeHtml(formatStockDate(item))}</p>
+          ${currentHealth ? `<p class="card-meta">${escapeHtml(`Current health: ${currentHealth}`)}</p>` : ""}
           ${healthParts.length ? `<p class="card-meta">${escapeHtml(healthParts.join(" · "))}</p>` : ""}
           ${renderStockPhotoGrid(item, photos)}
           ${renderLivestockNoteLog(item)}
+          ${renderRecordHistoryList(history)}
           ${outcome}
           <div class="card-actions">
             <button class="mini-button" type="button" data-livestock-action="edit" data-id="${escapeHtml(item.id)}">Edit</button>
-            ${!casual && item.status === "active" ? `
+            ${!casual && isAliveStock(item) ? `
               <button class="mini-button danger" type="button" data-livestock-action="deceased" data-id="${escapeHtml(item.id)}">Deceased</button>
-              <button class="mini-button" type="button" data-livestock-action="moved" data-id="${escapeHtml(item.id)}">Moved</button>
+              <button class="mini-button" type="button" data-livestock-action="removed" data-id="${escapeHtml(item.id)}">Removed</button>
             ` : !casual ? `
               <button class="mini-button good" type="button" data-livestock-action="restore" data-id="${escapeHtml(item.id)}">Restore</button>
             ` : ""}
+            <button class="mini-button" type="button" data-record-journal="livestock:${escapeHtml(item.id)}">Observation</button>
             <button class="mini-button danger" type="button" data-livestock-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
           </div>
         `}
@@ -2224,13 +2616,7 @@
             <input name="addedDate" type="date" value="${escapeHtml(item.addedDate || "")}" ${hideDate ? "disabled" : ""} />
           </label>
           <label>
-            Placement
-            <select name="zoneId">
-              ${renderLivestockZoneOptions(item.zoneId || "")}
-            </select>
-          </label>
-          <label>
-            Current Health
+            Initial Health
             <select name="health">
               ${renderLivestockSelectOptions([
                 ["", "Not tracked"],
@@ -2402,6 +2788,97 @@
     seedLogDates();
     updateTestTimingPill();
     updateLogSubmitLabels();
+    renderJournalRecordPickers();
+  }
+
+  function renderJournalRecordPickers() {
+    const equipmentSelect = $("journalLinkedEquipment");
+    const livestockSelect = $("journalLinkedLivestock");
+    if (!equipmentSelect || !livestockSelect) return;
+    const pending = state.ui.pendingJournalLink || {};
+    const type = $("journalEntryType")?.value || "Observation";
+    const suggestions = JOURNAL.suggestLinksForType ? JOURNAL.suggestLinksForType(state, type) : { linkedEquipment: [], linkedLivestock: [] };
+    const selectedEquipment = new Set([
+      ...getSelectedOptions(equipmentSelect),
+      ...(pending.recordType === "equipment" ? [pending.recordId] : []),
+      ...(suggestions.linkedEquipment || []),
+    ].filter(Boolean));
+    const selectedLivestock = new Set([
+      ...getSelectedOptions(livestockSelect),
+      ...(pending.recordType === "livestock" ? [pending.recordId] : []),
+      ...(suggestions.linkedLivestock || []),
+    ].filter(Boolean));
+
+    equipmentSelect.innerHTML = (state.records?.equipment || []).map((record) => `
+      <option value="${escapeHtml(record.id)}"${selectedEquipment.has(record.id) ? " selected" : ""}>${escapeHtml(record.name || record.id)}</option>
+    `).join("");
+    livestockSelect.innerHTML = (state.records?.livestock || []).map((record) => `
+      <option value="${escapeHtml(record.id)}"${selectedLivestock.has(record.id) ? " selected" : ""}>${escapeHtml(record.species || record.name || record.id)}</option>
+    `).join("");
+  }
+
+  function getSelectedOptions(select) {
+    if (!select) return [];
+    return Array.from(select.selectedOptions || []).map((option) => option.value).filter(Boolean);
+  }
+
+  function applyJournalLinkEffects(entry) {
+    const status = entry.effects?.find((effect) => effect.fields?.status)?.fields?.status || "";
+    const retiredAt = entry.effects?.find((effect) => effect.fields?.retiredAt)?.fields?.retiredAt || "";
+    const health = entry.observation?.health || "";
+    (entry.linkedLivestock || []).forEach((id) => {
+      const item = state.livestock.find((livestock) => livestock.id === id);
+      if (!item) return;
+      if (status) {
+        item.status = status;
+        item.removedDate = status === "alive" ? "" : retiredAt || todayInputValue();
+      }
+      if (health) item.health = health;
+      syncLivestockRecordFromItem(item);
+    });
+  }
+
+  function addJournalEntryFromForm(event) {
+    event.preventDefault();
+    const type = $("journalEntryType").value;
+    const linkedEquipment = getSelectedOptions($("journalLinkedEquipment"));
+    const linkedLivestock = getSelectedOptions($("journalLinkedLivestock"));
+    const health = $("journalHealth").value;
+    const status = $("journalLivestockStatus").value;
+    const occurredAt = fromDatetimeLocal($("journalOccurredAt").value);
+    const effects = [];
+    if (health) {
+      linkedLivestock.forEach((recordId) => effects.push({ recordId, fields: { currentHealth: health } }));
+    }
+    if (status) {
+      linkedLivestock.forEach((recordId) => effects.push({
+        recordId,
+        fields: {
+          status,
+          retiredAt: status === "alive" ? "" : occurredAt.slice(0, 10),
+        },
+      }));
+    }
+    const entry = addJournalEntry({
+      type,
+      occurredAt,
+      title: $("journalTitle").value.trim() || type,
+      summary: $("journalSummary").value.trim(),
+      severity: $("journalSeverity").value,
+      linkedEquipment,
+      linkedLivestock,
+      observation: {
+        health,
+      },
+      effects,
+    });
+    applyJournalLinkEffects(entry);
+    state.ui.pendingJournalLink = null;
+    $("journalEntryForm").reset();
+    seedLogDates();
+    saveState();
+    renderAll();
+    showToast("Journal entry saved.");
   }
 
   function renderTimeline() {
@@ -2412,6 +2889,12 @@
   }
 
   function renderTimelineEntry(entry) {
+    const actions = entry.kind === "journal"
+      ? `<button class="mini-button danger" type="button" data-delete-entry="${entry.kind}:${entry.id}">Delete</button>`
+      : `
+            <button class="mini-button" type="button" data-edit-entry="${entry.kind}:${entry.id}">Edit</button>
+            <button class="mini-button danger" type="button" data-delete-entry="${entry.kind}:${entry.id}">Delete</button>
+          `;
     return `
       <article class="timeline-item" data-kind="${entry.kind}">
         <div class="timeline-head">
@@ -2420,8 +2903,7 @@
             <p class="timeline-meta">${escapeHtml(entry.meta)}</p>
           </div>
           <div class="card-actions">
-            <button class="mini-button" type="button" data-edit-entry="${entry.kind}:${entry.id}">Edit</button>
-            <button class="mini-button danger" type="button" data-delete-entry="${entry.kind}:${entry.id}">Delete</button>
+            ${actions}
           </div>
         </div>
         <p class="timeline-details">${escapeHtml(entry.details)}</p>
@@ -2511,7 +2993,7 @@
   }
 
   function seedLogDates() {
-    ["testMeasuredAt", "feedingAt", "maintenanceAt", "waterChangeAt"].forEach((id) => {
+    ["journalOccurredAt", "testMeasuredAt", "feedingAt", "maintenanceAt", "waterChangeAt"].forEach((id) => {
       if ($(id) && !$(id).value) $(id).value = toDatetimeLocal();
     });
   }
@@ -2802,6 +3284,11 @@
         .select("data, updated_at")
         .eq("user_id", currentUser.id)
         .maybeSingle();
+      if (!remoteReadError && hasUnsupportedSchema(remoteRow?.data)) {
+        updateBackendStatus("Remote data uses a newer schema. Update Reef Command before syncing.");
+        if (!options.silent) showToast("Update Reef Command before syncing.");
+        return;
+      }
       if (
         !remoteReadError &&
         remoteRow?.data &&
@@ -2895,6 +3382,11 @@
       } else if (!options.silent) {
         showToast("No remote state yet.");
       }
+      return;
+    }
+    if (hasUnsupportedSchema(data.data)) {
+      updateBackendStatus("Remote data uses a newer schema. Update Reef Command before loading.");
+      if (!options.silent) showToast("Update Reef Command before loading remote data.");
       return;
     }
 
@@ -2991,8 +3483,9 @@
       trackingUnit: $("livestockTrackingUnit").value,
       addedDate,
       isLegacy: casual ? false : isLegacy,
-      status: casual ? "noticed" : "active",
-      zoneId: $("livestockZone").value,
+      status: "alive",
+      casual,
+      zoneId: $("livestockZone")?.value || "",
       noteText: $("livestockNotes").value.trim(),
       health: $("livestockHealth").value,
       growthTrend: $("livestockGrowthTrend").value,
@@ -3019,7 +3512,8 @@
       trackingUnit: field("trackingUnit"),
       addedDate,
       isLegacy: casual ? false : isLegacy,
-      status: casual ? "noticed" : "active",
+      status: "alive",
+      casual,
       zoneId: field("zoneId"),
       noteText: field("noteText").trim(),
       health: field("health"),
@@ -3133,6 +3627,7 @@
       const { noteText: _noteText, ...stockData } = formData;
       const payload = {
         ...stockData,
+        zoneId: stockData.zoneId || existing?.zoneId || "",
         notes: "",
         noteLog,
         photos,
@@ -3142,15 +3637,19 @@
       if (existing) {
         Object.assign(existing, {
           ...payload,
-          status: isCasualStockCategory(payload.category) ? "noticed" : existing.status === "noticed" ? "active" : existing.status,
+          status: normalizeLivestockLifecycleStatus(existing.status, payload.category),
+          casual: Boolean(payload.casual || isCasualStockCategory(payload.category)),
         });
+        syncLivestockRecordFromItem(existing);
       } else {
-        state.livestock.push({
+        const newItem = {
           id,
           ...payload,
           removedDate: "",
           outcomeReason: "",
-        });
+        };
+        state.livestock.push(newItem);
+        syncLivestockRecordFromItem(newItem, { createJournal: true });
       }
 
       await removeStoragePaths(previousPaths.filter((path) => !nextPaths.includes(path)));
@@ -3175,6 +3674,63 @@
       }
       refreshIcons();
     }
+  }
+
+  function syncLivestockRecordFromItem(item, options = {}) {
+    if (!item) return;
+    state.records ||= { equipment: [], livestock: [] };
+    state.records.livestock ||= [];
+    const record = RECORDS.buildLivestockRecord
+      ? RECORDS.buildLivestockRecord(item)
+      : {
+          ...item,
+          recordType: "livestock",
+          addedAt: item.addedDate || "",
+          retiredAt: item.removedDate || "",
+          details: {
+            initialHealth: item.health || "",
+            currentCount: item.currentCount || "",
+            trackingUnit: item.trackingUnit || "",
+          },
+          legacyRaw: item,
+        };
+    const existing = state.records.livestock.find((entry) => entry.id === item.id);
+    if (existing) {
+      Object.assign(existing, {
+        ...record,
+        legacyRaw: existing.legacyRaw || record.legacyRaw,
+        createdAt: existing.createdAt || record.createdAt,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      state.records.livestock.push(record);
+    }
+    if (options.createJournal) {
+      addJournalEntry({
+        id: `journal_setup_${item.id}`,
+        type: "Livestock Change",
+        occurredAt: item.addedDate ? new Date(`${item.addedDate}T00:00:00`).toISOString() : new Date().toISOString(),
+        title: `${item.species || item.name || "Livestock"} setup captured`,
+        summary: item.health ? `Initial health: ${item.health}` : "",
+        linkedLivestock: [item.id],
+        effects: [
+          {
+            recordId: item.id,
+            fields: {
+              status: item.status,
+              addedAt: item.addedDate || "",
+              currentHealth: item.health || "",
+            },
+          },
+        ],
+      });
+    }
+  }
+
+  function removeLivestockRecord(id) {
+    if (!state.records?.livestock) return;
+    state.records.livestock = state.records.livestock.filter((record) => record.id !== id);
+    state.journal = (state.journal || []).filter((entry) => !(entry.linkedLivestock || []).includes(id));
   }
 
   function updateLogSubmitLabels() {
@@ -3203,6 +3759,19 @@
     state.ui.logMode = mode;
     saveLocalState();
     renderLogMode();
+  }
+
+  function startJournalForRecord(recordKey = "") {
+    const [recordType, recordId] = String(recordKey).split(":");
+    state.ui.pendingJournalLink = { recordType, recordId };
+    if ($("journalEntryType")) {
+      $("journalEntryType").value = recordType === "equipment" ? "Equipment Change" : "Observation";
+    }
+    saveLocalState();
+    setActiveView("logbook");
+    renderLogMode();
+    $("journalEntryForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    showToast("Journal link selected.");
   }
 
   function setInputValue(id, value) {
@@ -3320,6 +3889,29 @@
     } else {
       state.waterTests.push(test);
     }
+    addJournalEntry({
+      id: `journal_water_test_${test.id}`,
+      type: "Water Test",
+      occurredAt: test.measuredAt,
+      title: "Water test",
+      summary: test.notes,
+      measurements: {
+        ammonia: test.ammonia,
+        nitrite: test.nitrite,
+        nitrate: test.nitrate,
+        phosphate: test.phosphate,
+        ph: test.ph,
+        alkalinity: test.alkalinity,
+        calcium: test.calcium,
+        magnesium: test.magnesium,
+        salinity: test.salinity,
+        temperature: test.temperature,
+      },
+      context: test.timing,
+      legacyKind: "water_test",
+      legacyId: test.id,
+      legacyRaw: test,
+    });
     $("waterTestForm").reset();
     seedLogDates();
     clearLogEdit();
@@ -3355,6 +3947,17 @@
     } else {
       state.events.push(feeding);
     }
+    addJournalEntry({
+      id: `journal_event_${feeding.id}`,
+      type: "Feeding / Dosing",
+      occurredAt: feeding.happenedAt,
+      title: `Fed ${feeding.label || "tank"}`,
+      summary: [feeding.amount, feeding.target, feeding.notes].filter(Boolean).join(" · "),
+      linkedEquipment: JOURNAL.suggestLinksForType ? JOURNAL.suggestLinksForType(state, "Feeding / Dosing").linkedEquipment : [],
+      legacyKind: "feeding",
+      legacyId: feeding.id,
+      legacyRaw: feeding,
+    });
     $("feedingForm").reset();
     seedLogDates();
     clearLogEdit();
@@ -3383,6 +3986,19 @@
     } else {
       state.events.push(maintenance);
     }
+    addJournalEntry({
+      id: `journal_event_${maintenance.id}`,
+      type: /equipment|skimmer|pump|uv|gfo|carbon|reactor|filter/i.test(maintenance.label)
+        ? "Equipment Change"
+        : "Maintenance / Water Change",
+      occurredAt: maintenance.happenedAt,
+      title: maintenance.label || "Maintenance",
+      summary: maintenance.details,
+      linkedEquipment: JOURNAL.suggestLinksForType ? JOURNAL.suggestLinksForType(state, "Maintenance / Water Change").linkedEquipment : [],
+      legacyKind: "maintenance",
+      legacyId: maintenance.id,
+      legacyRaw: maintenance,
+    });
     $("maintenanceForm").reset();
     seedLogDates();
     clearLogEdit();
@@ -3412,6 +4028,21 @@
     } else {
       state.events.push(waterChange);
     }
+    addJournalEntry({
+      id: `journal_event_${waterChange.id}`,
+      type: "Maintenance / Water Change",
+      occurredAt: waterChange.happenedAt,
+      title: "Water change",
+      summary: [
+        waterChange.gallons ? `${waterChange.gallons} gallons` : "",
+        waterChange.percent ? `${waterChange.percent}%` : "",
+        waterChange.notes,
+      ].filter(Boolean).join(" · "),
+      linkedEquipment: JOURNAL.suggestLinksForType ? JOURNAL.suggestLinksForType(state, "Maintenance / Water Change").linkedEquipment : [],
+      legacyKind: "water_change",
+      legacyId: waterChange.id,
+      legacyRaw: waterChange,
+    });
     $("waterChangeForm").reset();
     seedLogDates();
     clearLogEdit();
@@ -3514,6 +4145,12 @@
       return;
     }
 
+    const insightPreset = event.target.closest("[data-insight-preset]");
+    if (insightPreset) {
+      window.RC.Insights?.applyInsightPreset?.(insightPreset.dataset.insightPreset);
+      return;
+    }
+
     const parMarkerDelete = event.target.closest("[data-par-marker-delete]");
     if (parMarkerDelete) {
       state.map.parMarkers = (state.map.parMarkers || []).filter((marker) => marker.id !== parMarkerDelete.dataset.parMarkerDelete);
@@ -3559,6 +4196,20 @@
       return;
     }
 
+    const equipmentAction = event.target.closest("[data-equipment-action]");
+    if (equipmentAction) {
+      if (equipmentAction.dataset.equipmentAction === "edit") {
+        startEquipmentSetup(equipmentAction.dataset.id || "");
+      }
+      return;
+    }
+
+    const recordJournal = event.target.closest("[data-record-journal]");
+    if (recordJournal) {
+      startJournalForRecord(recordJournal.dataset.recordJournal);
+      return;
+    }
+
     const livestockAction = event.target.closest("[data-livestock-action]");
     if (livestockAction) {
       await updateLivestockStatus(livestockAction.dataset.id, livestockAction.dataset.livestockAction);
@@ -3597,26 +4248,49 @@
     }
     let toastMessage = "Livestock updated.";
     if (action === "delete") {
-      const label = item.species || item.name || "this livestock record";
-      const confirmed = window.confirm(`Delete ${label}? This permanently removes the record and its photos.`);
+      const label = item.species || item.name || "this livestock item";
+      const confirmed = window.confirm(`Delete ${label}? This permanently removes the item and its photos.`);
       if (!confirmed) return;
       await removeStoragePaths(getPhotoStoragePaths(getLivestockPhotos(item)));
       state.livestock = state.livestock.filter((entry) => entry.id !== id);
+      removeLivestockRecord(id);
       if (editingLivestockId === id) resetLivestockForm();
       toastMessage = "Livestock deleted.";
     } else if (action === "restore") {
-      item.status = "active";
+      item.status = "alive";
       item.removedDate = "";
       item.outcomeReason = "";
+      addJournalEntry({
+        type: "Livestock Change",
+        title: `${item.species || item.name || "Livestock"} restored`,
+        summary: "Marked alive.",
+        linkedLivestock: [item.id],
+        effects: [{ recordId: item.id, fields: { status: "alive", retiredAt: "" } }],
+      });
     } else if (action === "deceased") {
       item.status = "deceased";
       item.removedDate = todayInputValue();
       item.outcomeReason = window.prompt("Suspected cause or note?", item.outcomeReason || "") || "";
-    } else if (action === "moved") {
-      item.status = "moved";
+      addJournalEntry({
+        type: "Livestock Change",
+        title: `${item.species || item.name || "Livestock"} deceased`,
+        summary: item.outcomeReason,
+        linkedLivestock: [item.id],
+        effects: [{ recordId: item.id, fields: { status: "deceased", retiredAt: item.removedDate } }],
+      });
+    } else if (action === "removed") {
+      item.status = "removed";
       item.removedDate = todayInputValue();
-      item.outcomeReason = window.prompt("Moved where?", item.outcomeReason || "") || "";
+      item.outcomeReason = window.prompt("Removed how?", item.outcomeReason || "") || "";
+      addJournalEntry({
+        type: "Livestock Change",
+        title: `${item.species || item.name || "Livestock"} removed`,
+        summary: item.outcomeReason,
+        linkedLivestock: [item.id],
+        effects: [{ recordId: item.id, fields: { status: "removed", retiredAt: item.removedDate } }],
+      });
     }
+    if (action !== "delete") syncLivestockRecordFromItem(item);
     saveState();
     renderLivestock();
     renderPhotoLibrary();
@@ -3630,10 +4304,20 @@
 
   function deleteTimelineEntry(key) {
     const [kind, id] = key.split(":");
-    if (kind === "test") {
+    if (kind === "journal") {
+      const entry = state.journal.find((item) => item.id === id);
+      state.journal = state.journal.filter((item) => item.id !== id);
+      if (entry?.legacyKind === "water_test") {
+        state.waterTests = state.waterTests.filter((test) => test.id !== entry.legacyId);
+      } else if (entry?.legacyId) {
+        state.events = state.events.filter((event) => event.id !== entry.legacyId);
+      }
+    } else if (kind === "test") {
       state.waterTests = state.waterTests.filter((test) => test.id !== id);
+      state.journal = (state.journal || []).filter((entry) => entry.legacyId !== id);
     } else {
       state.events = state.events.filter((event) => event.id !== id);
+      state.journal = (state.journal || []).filter((entry) => entry.legacyId !== id);
     }
     if (editingLog?.kind === kind && editingLog.id === id) clearLogEdit();
     saveState();
@@ -3694,11 +4378,18 @@
     $("lightingPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "lighting"));
     $("insightPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "insight"));
     $("zoneForm")?.addEventListener("submit", addZone);
+    $("addEquipmentRecordButton")?.addEventListener("click", () => startEquipmentSetup());
+    $("equipmentSetupForm")?.addEventListener("submit", saveEquipmentSetup);
+    $("cancelEquipmentSetupButton")?.addEventListener("click", resetEquipmentSetup);
     $("livestockForm").addEventListener("submit", addLivestock);
     $("livestockCategory").addEventListener("change", syncLivestockDateControls);
     $("livestockLegacy").addEventListener("change", syncLivestockDateControls);
     $("livestockPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "livestock"));
     $("cancelLivestockEditButton").addEventListener("click", resetLivestockForm);
+    $("journalEntryForm")?.addEventListener("submit", addJournalEntryFromForm);
+    $("journalEntryType")?.addEventListener("change", () => {
+      renderJournalRecordPickers();
+    });
     $("waterTestForm").addEventListener("submit", addWaterTest);
     $("feedingForm").addEventListener("submit", addFeeding);
     $("maintenanceForm").addEventListener("submit", addMaintenance);
@@ -3775,6 +4466,7 @@
     formatValue, formatDate, formatDateTime, formatAge, daysSince,
     getZoneName, getLatestWaterTest, getLatestEvent, getLatestEventBefore, describeTimeAfter,
     getEquipmentProfiles, getCareTaskStatuses, getLightingPhotos, getLightPhase,
+    getCurrentRecord, getRecordHistory,
     getTimelineEntries, isCasualStockCategory, isLifecycleStock, getLivestockPhotos,
     getPhotoSrc, getStoragePublicUrl, prepareInsightPhotosForSave, renderPhotoPreview,
     positiveNumber, finiteNumber, nonNegativeNumber, getLidarHeightMap,

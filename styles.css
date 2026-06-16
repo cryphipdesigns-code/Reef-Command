@@ -1031,6 +1031,15 @@ textarea:focus {
   gap: 10px;
 }
 
+.record-list {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-editor {
+  margin-top: 10px;
+}
+
 .data-card {
   display: grid;
   gap: 10px;
@@ -1106,6 +1115,35 @@ textarea:focus {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+.record-history {
+  display: grid;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.record-history strong {
+  color: var(--muted-strong);
+  font-size: 0.76rem;
+}
+
+.record-history p {
+  margin: 0;
+}
+
+.empty-record-history {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.icon-mini-button {
+  width: 34px;
+  min-width: 34px;
+  padding-inline: 0;
 }
 
 .category-pill {

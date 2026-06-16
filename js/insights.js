@@ -16,6 +16,20 @@
     { key: "calcium", label: "Calcium", unit: "ppm" },
     { key: "magnesium", label: "Magnesium", unit: "ppm" },
   ];
+  const INSIGHT_PRESETS = {
+    algae_pressure: {
+      question: "Check algae pressure using recent nutrient trends, lighting context, maintenance history, and livestock observations. What is most likely feeding it, and what should I verify next?",
+      evidencePaths: ["records.index", "journal.index", "parameters.trends.nitrate", "parameters.trends.phosphate", "lighting.schedule_summary"],
+    },
+    dino_risk: {
+      question: "Assess dino risk from recent nutrients, water-change/maintenance history, livestock observations, and any photos I attach. What patterns would confirm or rule it out?",
+      evidencePaths: ["records.index", "journal.index", "parameters.full_test_records", "care_logs.water_changes.recent_events"],
+    },
+    nutrient_balance: {
+      question: "Review nutrient balance across nitrate, phosphate, feeding, export equipment, and water changes. What is drifting and what is the least disruptive next adjustment?",
+      evidencePaths: ["records.index", "journal.index", "parameters.trends.nitrate", "parameters.trends.phosphate", "care_logs.feeding.recent_events"],
+    },
+  };
 
   function renderHomeInsightBrief() {
     const latest = state.insightRuns[0];
@@ -28,10 +42,10 @@
 
   function renderInsightsContext() {
     const context = buildInsightContext();
-    $("contextCountPill").textContent = `${context.recentWaterTests.length + context.recentEvents.length} logs`;
+    $("contextCountPill").textContent = `${context.journal.length || context.recentWaterTests.length + context.recentEvents.length} entries`;
     $("contextSummary").innerHTML = [
       { label: "Tank", value: state.profile.displayVolume ? `${state.profile.displayVolume} gal` : "No volume" },
-      { label: "Stock", value: `${context.activeLivestock.length} active` },
+      { label: "Stock", value: `${context.activeLivestock.length} alive` },
       { label: "Latest Test", value: context.latestWaterTest ? RC.formatAge(context.latestWaterTest.measuredAt) : "None" },
       { label: "Water Change", value: context.latestWaterChange ? RC.formatAge(context.latestWaterChange.happenedAt) : "None" },
     ].map((tile) => `
@@ -358,14 +372,14 @@
         max_followup_passes: 1,
       },
       canonical_ownership: {
-        photos: "Photos live under the object they describe. Livestock photos are under livestock record paths; lighting images are under lighting; prompt photos are under current_request.attachments.",
-        placement: "Livestock placement lives under livestock records and is also referenced from map.livestock_placements.",
-        overlap: "Care events are canonical under care_logs. Equipment schedules/configuration are canonical under equipment records; care logs can reference equipment.",
+        photos: "Photos live under the object they describe. Livestock photos are under livestock item paths; lighting images are under lighting; prompt photos are under current_request.attachments.",
+        placement: "Livestock placement lives under livestock items and is also referenced from map.livestock_placements.",
+        overlap: "Care entries are canonical under journal. Equipment schedules/configuration are canonical under equipment items.",
       },
       path_conventions: {
-        naming_style: "All evidence paths use lower snake_case.",
-        equipment_records: "equipment.records.<equipment_key> uses stable snake_case equipment keys such as auto_feeder and uv_sterilizer.",
-        livestock_records: "livestock.records.<species_or_name_slug>_<id_suffix> combines a readable slug with a short id suffix for stability.",
+        naming_style: "Canonical evidence paths for records and journal entries use stable opaque ids.",
+        records: "Use record/<id> for current state and record/<id>.history for the linked chronological evidence.",
+        journal: "Use journal/<id> for an individual Journal entry. Older grouped paths are compatibility summaries.",
         request_paths: "Copy path values exactly from context_tree when requesting more evidence.",
       },
       compact_snapshot: buildCompactInsightSnapshot(fullContext, attachedPhotos),
@@ -404,6 +418,13 @@
         details_count: fullContext.rawDataInventory.equipment.detailsCount,
         uv_sterilizer_schedule_available: fullContext.rawDataInventory.equipment.uvScheduleAvailable,
         auto_feeder_schedule_available: Boolean(activeEquipment.find((item) => item.key === "autoFeeder")?.schedule),
+      },
+      records: {
+        equipment_count: fullContext.records?.equipment?.length || 0,
+        livestock_count: fullContext.records?.livestock?.length || 0,
+      },
+      journal: {
+        entry_count: fullContext.journal?.length || 0,
       },
       lighting: {
         model: fullContext.profile.lightingContext.model,
@@ -601,7 +622,7 @@
       notes: fullContext.profile.notes || "",
     });
 
-    add("parameters", "Parameters", `${sortedTests.length} water test record${sortedTests.length === 1 ? "" : "s"} available.`, {
+    add("parameters", "Parameters", `${sortedTests.length} water test entr${sortedTests.length === 1 ? "y" : "ies"} available.`, {
       latest: fullContext.latestWaterTest ? summarizeWaterTest(fullContext.latestWaterTest) : null,
       testCount: state.waterTests.length,
     }, { count: state.waterTests.length, available: sortedTests.length > 0, terminal: false });
@@ -615,7 +636,7 @@
       latestAge: fullContext.latestWaterTest ? RC.formatAge(fullContext.latestWaterTest.measuredAt) : "",
       recentSampleDates: sortedTests.slice(0, 12).map((test) => test.measuredAt),
     }, { count: state.waterTests.length, available: sortedTests.length > 0 });
-    add("parameters.full_test_records", "Full Test Records", "Most recent raw water test records with timing context.", sortedTests, {
+    add("parameters.full_test_records", "Full Test Entries", "Most recent raw water test entries with timing context.", sortedTests, {
       count: sortedTests.length,
       available: sortedTests.length > 0,
     });
@@ -646,6 +667,80 @@
       });
     });
 
+    const recordSource = [
+      ...(state.records?.equipment || []),
+      ...(state.records?.livestock || []),
+    ];
+    const canonicalRecords = recordSource.map((record) => {
+      const current = window.ReefRecords?.getCurrentRecord
+        ? window.ReefRecords.getCurrentRecord(state, record)
+        : record;
+      const history = window.ReefRecords?.getRecordHistory
+        ? window.ReefRecords.getRecordHistory(state, record.id)
+        : (state.journal || []).filter((entry) =>
+            (entry.linkedEquipment || []).includes(record.id) ||
+            (entry.linkedLivestock || []).includes(record.id)
+          );
+      return {
+        record,
+        current,
+        history,
+        path: `record/${record.id}`,
+      };
+    });
+    add("records", "Tank And Livestock Items", `${canonicalRecords.length} tank and livestock item${canonicalRecords.length === 1 ? "" : "s"}.`, {
+      count: canonicalRecords.length,
+      equipmentCount: state.records?.equipment?.length || 0,
+      livestockCount: state.records?.livestock?.length || 0,
+      indexPath: "records.index",
+    }, { count: canonicalRecords.length, available: canonicalRecords.length > 0, terminal: false });
+    add("records.index", "Item Index", "Stable item ids and current-state evidence paths.", canonicalRecords.map(({ current, history, path }) => ({
+      id: current.id,
+      type: current.recordType,
+      name: current.name || current.species || current.id,
+      category: current.category || "",
+      status: current.status || "",
+      path,
+      historyPath: `${path}.history`,
+      journalEntryCount: history.length,
+    })), { count: canonicalRecords.length, available: canonicalRecords.length > 0 });
+    canonicalRecords.forEach(({ current, history, path }) => {
+      const name = current.name || current.species || current.id;
+      add(path, name, "Current folded state for this tank or livestock item.", {
+        current,
+        historyPath: `${path}.history`,
+      }, { count: 1, available: true, terminal: false });
+      add(`${path}.history`, `${name} History`, "Journal entries linked to this item in chronological order.", history.map((entry) => ({
+        id: entry.id,
+        type: entry.type,
+        occurredAt: entry.occurredAt,
+        title: entry.title,
+        summary: entry.summary,
+        path: `journal/${entry.id}`,
+      })), { count: history.length, available: history.length > 0 });
+    });
+
+    const journalEntries = [...(state.journal || [])].sort((a, b) => new Date(b.occurredAt) - new Date(a.occurredAt));
+    add("journal", "Journal", `${journalEntries.length} chronological journal entr${journalEntries.length === 1 ? "y" : "ies"}.`, {
+      count: journalEntries.length,
+      typeCounts: countBy(journalEntries, (entry) => entry.type || "Observation"),
+      indexPath: "journal.index",
+    }, { count: journalEntries.length, available: journalEntries.length > 0, terminal: false });
+    add("journal.index", "Journal Index", "Stable journal ids, entry types, links, and evidence paths.", journalEntries.map((entry) => ({
+      id: entry.id,
+      type: entry.type,
+      occurredAt: entry.occurredAt,
+      title: entry.title,
+      linkedRecordIds: [...(entry.linkedEquipment || []), ...(entry.linkedLivestock || [])],
+      path: `journal/${entry.id}`,
+    })), { count: journalEntries.length, available: journalEntries.length > 0 });
+    journalEntries.forEach((entry) => {
+      add(`journal/${entry.id}`, entry.title || entry.type || "Journal entry", "Single Journal entry with links, measurements, observations, attachments, and effects.", entry, {
+        count: 1,
+        available: true,
+      });
+    });
+
     const placementById = new Map(fullContext.mapModel.livestockPlacements.map((placement) => [placement.id, placement]));
     const livestockIndex = fullContext.livestock.map((item) => ({
       id: item.id,
@@ -658,13 +753,13 @@
       placementAvailable: Boolean(placementById.get(item.id)?.coordinateInches),
       path: `livestock.records.${livestockPathSegment(item)}`,
     }));
-    add("livestock", "Livestock", `${fullContext.activeLivestock.length} active lifecycle livestock; ${fullContext.livestock.length} total records.`, {
+    add("livestock", "Livestock", `${fullContext.activeLivestock.length} alive livestock; ${fullContext.livestock.length} total items.`, {
       activeCount: fullContext.activeLivestock.length,
       totalCount: fullContext.livestock.length,
       categoryCounts: countBy(fullContext.livestock, (item) => item.category || "Other"),
       statusCounts: countBy(fullContext.livestock, (item) => item.status || "unknown"),
     }, { count: fullContext.livestock.length, available: fullContext.livestock.length > 0, terminal: false });
-    add("livestock.records", "Livestock Records", "Individual livestock record branches with identity, health, growth, placement, photos, and related logs.", {
+    add("livestock.records", "Livestock Items", "Individual livestock item branches with identity, health, growth, placement, photos, and related entries.", {
       indexPath: "livestock.records.index",
       recordCount: livestockIndex.length,
     }, {
@@ -672,7 +767,7 @@
       available: livestockIndex.length > 0,
       terminal: false,
     });
-    add("livestock.records.index", "Livestock Record Index", "Compact list of livestock identities, status, photo availability, and record paths.", livestockIndex, {
+    add("livestock.records.index", "Livestock Item Index", "Compact list of livestock identities, status, photo availability, and item paths.", livestockIndex, {
       count: livestockIndex.length,
       available: livestockIndex.length > 0,
     });
@@ -683,16 +778,16 @@
       const photos = RC.getLivestockPhotos(original).map((photo, index) =>
         buildPhotoEvidenceRecord(photo, `${item.id}-${index}`, `${item.species || item.name || "Stock"} photo ${index + 1}`),
       );
-      add(recordPath, item.species || item.name || "Livestock Record", "Individual livestock identity, status, health, growth, notes, placement, and photo availability.", {
+      add(recordPath, item.species || item.name || "Livestock Item", "Individual livestock identity, status, health, growth, notes, placement, and photo availability.", {
         ...item,
         placement,
         photoCount: photos.length,
       }, { terminal: false });
-      add(`${recordPath}.placement`, `${item.species || item.name || "Livestock"} Placement`, "Zone and map placement for this livestock record.", placement, {
+      add(`${recordPath}.placement`, `${item.species || item.name || "Livestock"} Placement`, "Map placement for this livestock item.", placement, {
         count: placement ? 1 : 0,
         available: Boolean(placement),
       });
-      add(`${recordPath}.photos`, `${item.species || item.name || "Livestock"} Photos`, `${photos.length} stored photo record${photos.length === 1 ? "" : "s"} for this livestock item.`, photos, {
+      add(`${recordPath}.photos`, `${item.species || item.name || "Livestock"} Photos`, `${photos.length} stored photo${photos.length === 1 ? "" : "s"} for this livestock item.`, photos, {
         count: photos.length,
         available: photos.length > 0,
       });
@@ -747,12 +842,12 @@
     });
 
     const equipment = RC.getEquipmentProfiles();
-    add("equipment", "Equipment", `${activeEquipment.length} active equipment record${activeEquipment.length === 1 ? "" : "s"}.`, {
+    add("equipment", "Equipment", `${activeEquipment.length} active equipment item${activeEquipment.length === 1 ? "" : "s"}.`, {
       activeCount: activeEquipment.length,
       activeLabels: activeEquipment.map((item) => item.label),
       detailCount: activeEquipment.filter((item) => item.details).length,
     }, { count: equipment.length, available: equipment.length > 0, terminal: false });
-    add("equipment.records", "Equipment Records", "Individual equipment branches with status, added date, details, and schedules.", {
+    add("equipment.records", "Equipment Items", "Individual equipment branches with status, added date, details, and schedules.", {
       recordCount: equipment.length,
       activeCount: activeEquipment.length,
       indexPath: "equipment.records.index",
@@ -761,7 +856,7 @@
       available: equipment.length > 0,
       terminal: false,
     });
-    add("equipment.records.index", "Equipment Record Index", "Compact list of equipment status, date, details, and schedule availability.", equipment.map((item) => ({
+    add("equipment.records.index", "Equipment Item Index", "Compact list of equipment status, date, details, and schedule availability.", equipment.map((item) => ({
       key: item.key,
       path: `equipment.records.${pathSegment(item.key)}`,
       label: item.label,
@@ -793,7 +888,7 @@
       terminal: false,
     });
     add("lighting.schedule_summary", "Lighting Schedule Summary", "Model, photoperiod, and summarized lighting notes.", fullContext.profile.lightingContext);
-    add("lighting.images", "Lighting Images", `${lightingEvidence.length} stored lighting image record${lightingEvidence.length === 1 ? "" : "s"}.`, lightingEvidence, {
+    add("lighting.images", "Lighting Images", `${lightingEvidence.length} stored lighting image${lightingEvidence.length === 1 ? "" : "s"}.`, lightingEvidence, {
       count: lightingEvidence.length,
       available: lightingEvidence.length > 0,
     });
@@ -823,7 +918,7 @@
       count: fullContext.mapModel.parMarkers.length,
       available: fullContext.mapModel.parMarkers.length > 0,
     });
-    add("map.livestock_placements", "Map Livestock Placements", "Map placement coordinates for livestock records.", fullContext.mapModel.livestockPlacements, {
+    add("map.livestock_placements", "Map Livestock Placements", "Map placement coordinates for livestock items.", fullContext.mapModel.livestockPlacements, {
       count: fullContext.mapModel.livestockPlacements.length,
       available: fullContext.mapModel.livestockPlacements.length > 0,
     });
@@ -1105,8 +1200,10 @@
       },
       zones: state.zones.map(({ flow: _flow, ...zone }) => zone),
       mapModel,
+      records: state.records || { equipment: [], livestock: [] },
+      journal: state.journal || [],
       livestock,
-      activeLivestock: livestock.filter((item) => RC.isLifecycleStock(item) && item.status === "active"),
+      activeLivestock: livestock.filter((item) => RC.isLifecycleStock(item) && (item.status === "alive" || item.status === "active")),
       recentWaterTests,
       recentEvents,
       latestWaterTest,
@@ -1282,6 +1379,18 @@
     });
   }
 
+  function applyInsightPreset(presetKey) {
+    const preset = INSIGHT_PRESETS[presetKey];
+    if (!preset) return;
+    const textarea = $("insightQuestion");
+    if (!textarea) return;
+    textarea.value = preset.question;
+    textarea.dataset.evidencePreset = presetKey;
+    textarea.dataset.evidencePaths = (preset.evidencePaths || []).join(",");
+    textarea.focus();
+    RC.showToast("Insight prompt ready.");
+  }
+
   async function generateFollowupInsight(runId = "", trigger = null) {
     const previousRun = state.insightRuns.find((run) => run.id === runId) || state.insightRuns[0];
     if (!previousRun) {
@@ -1398,6 +1507,6 @@
 
   window.RC.Insights = {
     renderInsightOutput, renderInsightsContext, renderHomeInsightBrief,
-    generateInsight, generateFollowupInsight,
+    generateInsight, generateFollowupInsight, applyInsightPreset,
   };
 })();

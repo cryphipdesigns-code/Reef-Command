@@ -17,9 +17,9 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <script src="./vendor/supabase.min.js?v=65"></script>
-    <script src="./vendor/lucide.min.js?v=65"></script>
-    <link rel="stylesheet" href="./styles.css?v=65" />
+    <script src="./vendor/supabase.min.js?v=66"></script>
+    <script src="./vendor/lucide.min.js?v=66"></script>
+    <link rel="stylesheet" href="./styles.css?v=66" />
   </head>
   <body class="private-locked">
     <section id="privateAccessGate" class="private-access-gate" aria-labelledby="privateAccessTitle">
@@ -236,349 +236,95 @@
               </div>
             </details>
 
-            <details class="equipment-panel collapsible-panel">
-              <summary>
-                <div class="summary-text">
+            <section class="equipment-panel record-panel">
+              <div class="section-heading">
+                <div>
                   <h2>Equipment</h2>
+                  <p class="muted-line">Setup details live here. Ongoing changes are logged in Journal.</p>
                 </div>
-                <i data-lucide="chevron-down"></i>
-              </summary>
-              <div class="equipment-list">
-                <section class="equipment-card equipment-card-overview">
-                  <div class="equipment-card-header">
-                    <div>
-                      <h3>Filtration & Lighting</h3>
-                      <p>Core system setup</p>
-                    </div>
-                  </div>
-                  <div class="field-grid equipment-field-grid">
-                    <label>
-                      Filtration System
-                      <select data-profile="filtration">
-                        <option value="">Select</option>
-                        <option value="Sump">Sump</option>
-                        <option value="All-in-one chamber">All-in-one chamber</option>
-                        <option value="Canister">Canister</option>
-                        <option value="Hang-on-back">Hang-on-back</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </label>
-                    <label>
-                      Lighting Model
-                      <input type="text" data-profile="lightingModel" />
-                    </label>
-                    <label>
-                      Lights On
-                      <input type="time" data-profile="lightStart" />
-                    </label>
-                    <label>
-                      Lights Off
-                      <input type="time" data-profile="lightEnd" />
-                    </label>
-                    <label class="wide-field">
-                      Filtration Details
-                      <textarea
-                        data-profile="filtrationDetails"
-                        rows="2"
-                        placeholder="Canister/HOB/sump layout, media, flow path, chamber notes"
-                      ></textarea>
-                    </label>
-                    <label class="wide-field">
-                      Lighting Summary
-                      <textarea
-                        data-profile="lightingSummary"
-                        rows="3"
-                        placeholder="Peak channels, ramp timing, PAR notes"
-                      ></textarea>
-                    </label>
-                  </div>
-                  <details class="collapsible-field photo-field">
-                    <summary>
-                      <span>
-                        <i data-lucide="image"></i>
-                        Lighting Images
-                      </span>
-                      <i data-lucide="chevron-down"></i>
-                    </summary>
-                    <div class="collapsible-content">
-                      <label>
-                        Upload Images
-                        <input id="lightingPhotoInput" type="file" accept="image/*" multiple />
-                      </label>
-                      <div id="lightingPhotoPreview" class="photo-preview" hidden></div>
-                    </div>
-                  </details>
-                </section>
-
-                <section class="equipment-card" data-equipment-card="proteinSkimmer">
-                  <div class="equipment-card-header">
-                    <div>
-                      <h3>Protein Skimmer</h3>
-                      <p>Export and aeration</p>
-                    </div>
-                  </div>
-                  <div class="equipment-row" data-equipment-row="proteinSkimmer">
-                    <label class="check-label equipment-check">
-                      <input type="checkbox" data-profile="proteinSkimmer" />
-                      Installed
-                    </label>
-                    <label data-equipment-date="proteinSkimmer">
-                      Added Date
-                      <input type="date" data-profile="proteinSkimmerAddedDate" />
-                    </label>
-                    <label class="check-label equipment-legacy" data-equipment-legacy="proteinSkimmer">
-                      <input type="checkbox" data-profile="proteinSkimmerLegacy" />
-                      Legacy / add date unknown
-                    </label>
-                  </div>
-                  <label class="wide-field equipment-details" data-equipment-details="proteinSkimmer">
-                    Details
-                    <textarea
-                      data-profile="proteinSkimmerDetails"
-                      rows="2"
-                      placeholder="Model, rating, cup/airline notes, cleaning cadence"
-                    ></textarea>
-                  </label>
-                </section>
-
-                <section class="equipment-card" data-equipment-card="sump">
-                  <div class="equipment-card-header">
-                    <div>
-                      <h3>Sump</h3>
-                      <p>Remote filtration and utility volume</p>
-                    </div>
-                  </div>
-                  <div class="equipment-row" data-equipment-row="sump">
-                    <label class="check-label equipment-check">
-                      <input type="checkbox" data-profile="sump" />
-                      Installed
-                    </label>
-                    <label data-equipment-date="sump">
-                      Added Date
-                      <input type="date" data-profile="sumpAddedDate" />
-                    </label>
-                    <label class="check-label equipment-legacy" data-equipment-legacy="sump">
-                      <input type="checkbox" data-profile="sumpLegacy" />
-                      Legacy / add date unknown
-                    </label>
-                  </div>
-                  <label class="wide-field equipment-details" data-equipment-details="sump">
-                    Details
-                    <textarea
-                      data-profile="sumpDetails"
-                      rows="2"
-                      placeholder="Elevated utility sump, siphon path, sand/rock, weir, livestock, and flow notes"
-                    ></textarea>
-                  </label>
-                </section>
-
-                <section class="equipment-card" data-equipment-card="refugium">
-                  <div class="equipment-card-header">
-                    <div>
-                      <h3>Refugium</h3>
-                      <p>Macroalgae, pods, and nutrient export</p>
-                    </div>
-                  </div>
-                  <div class="equipment-row" data-equipment-row="refugium">
-                    <label class="check-label equipment-check">
-                      <input type="checkbox" data-profile="refugium" />
-                      Installed
-                    </label>
-                    <label data-equipment-date="refugium">
-                      Added Date
-                      <input type="date" data-profile="refugiumAddedDate" />
-                    </label>
-                    <label class="check-label equipment-legacy" data-equipment-legacy="refugium">
-                      <input type="checkbox" data-profile="refugiumLegacy" />
-                      Legacy / add date unknown
-                    </label>
-                  </div>
-                  <label class="wide-field equipment-details" data-equipment-details="refugium">
-                    Details
-                    <textarea
-                      data-profile="refugiumDetails"
-                      rows="2"
-                      placeholder="Macroalgae, pod habitat, reverse-lighting, and nutrient export notes"
-                    ></textarea>
-                  </label>
-                </section>
-
-                <section class="equipment-card" data-equipment-card="autoTopOff">
-                  <div class="equipment-card-header">
-                    <div>
-                      <h3>Auto Top-Off</h3>
-                      <p>Evaporation and salinity stability</p>
-                    </div>
-                  </div>
-                  <div class="equipment-row" data-equipment-row="autoTopOff">
-                    <label class="check-label equipment-check">
-                      <input type="checkbox" data-profile="autoTopOff" />
-                      Installed
-                    </label>
-                    <label data-equipment-date="autoTopOff">
-                      Added Date
-                      <input type="date" data-profile="autoTopOffAddedDate" />
-                    </label>
-                    <label class="check-label equipment-legacy" data-equipment-legacy="autoTopOff">
-                      <input type="checkbox" data-profile="autoTopOffLegacy" />
-                      Legacy / add date unknown
-                    </label>
-                  </div>
-                  <label class="wide-field equipment-details" data-equipment-details="autoTopOff">
-                    Details
-                    <textarea
-                      data-profile="autoTopOffDetails"
-                      rows="2"
-                      placeholder="Reservoir, pump, sensors, kalk or RODI notes"
-                    ></textarea>
-                  </label>
-                </section>
-
-                <section class="equipment-card" data-equipment-card="autoFeeder">
-                  <div class="equipment-card-header">
-                    <div>
-                      <h3>Auto Feeder</h3>
-                      <p>Automated feeding schedule</p>
-                    </div>
-                  </div>
-                  <div class="equipment-row" data-equipment-row="autoFeeder">
-                    <label class="check-label equipment-check">
-                      <input type="checkbox" data-profile="autoFeeder" />
-                      Installed
-                    </label>
-                    <label data-equipment-date="autoFeeder">
-                      Added Date
-                      <input type="date" data-profile="autoFeederAddedDate" />
-                    </label>
-                    <label class="check-label equipment-legacy" data-equipment-legacy="autoFeeder">
-                      <input type="checkbox" data-profile="autoFeederLegacy" />
-                      Legacy / add date unknown
-                    </label>
-                  </div>
-                  <div class="equipment-subfields">
-                    <label class="wide-field equipment-details" data-equipment-details="autoFeeder">
-                      Details
-                      <textarea
-                        data-profile="autoFeederDetails"
-                        rows="2"
-                        placeholder="Model, food type, drum/slot setup, calibration notes"
-                      ></textarea>
-                    </label>
-                    <label class="wide-field equipment-schedule" data-equipment-schedule="autoFeeder">
-                      Feeding Schedule
-                      <textarea
-                        data-profile="autoFeederSchedule"
-                        rows="2"
-                        placeholder="Times, portions, days, and pause/manual feeding notes"
-                      ></textarea>
-                    </label>
-                  </div>
-                </section>
-
-                <section class="equipment-card" data-equipment-card="uvSterilizer">
-                  <div class="equipment-card-header">
-                    <div>
-                      <h3>UV Sterilizer</h3>
-                      <p>Water clarity and pathogen control</p>
-                    </div>
-                  </div>
-                  <div class="equipment-row" data-equipment-row="uvSterilizer">
-                    <label class="check-label equipment-check">
-                      <input type="checkbox" data-profile="uvSterilizer" />
-                      Installed
-                    </label>
-                    <label data-equipment-date="uvSterilizer">
-                      Added Date
-                      <input type="date" data-profile="uvSterilizerAddedDate" />
-                    </label>
-                    <label class="check-label equipment-legacy" data-equipment-legacy="uvSterilizer">
-                      <input type="checkbox" data-profile="uvSterilizerLegacy" />
-                      Legacy / add date unknown
-                    </label>
-                  </div>
-                  <div class="equipment-subfields">
-                    <label class="wide-field equipment-details" data-equipment-details="uvSterilizer">
-                      Details
-                      <textarea
-                        data-profile="uvSterilizerDetails"
-                        rows="2"
-                        placeholder="Model, wattage, plumbing order, flow estimate, location"
-                      ></textarea>
-                    </label>
-                    <label class="wide-field equipment-schedule" data-equipment-schedule="uvSterilizer">
-                      UV Schedule
-                      <textarea
-                        data-profile="uvSchedule"
-                        rows="2"
-                        placeholder="24/7, overnight, or scheduled run window"
-                      ></textarea>
-                    </label>
-                  </div>
-                </section>
-
-                <section class="equipment-card" data-equipment-card="gfoReactor">
-                  <div class="equipment-card-header">
-                    <div>
-                      <h3>GFO Reactor</h3>
-                      <p>Phosphate media</p>
-                    </div>
-                  </div>
-                  <div class="equipment-row" data-equipment-row="gfoReactor">
-                    <label class="check-label equipment-check">
-                      <input type="checkbox" data-profile="gfoReactor" />
-                      Installed
-                    </label>
-                    <label data-equipment-date="gfoReactor">
-                      Added Date
-                      <input type="date" data-profile="gfoReactorAddedDate" />
-                    </label>
-                    <label class="check-label equipment-legacy" data-equipment-legacy="gfoReactor">
-                      <input type="checkbox" data-profile="gfoReactorLegacy" />
-                      Legacy / add date unknown
-                    </label>
-                  </div>
-                  <label class="wide-field equipment-details" data-equipment-details="gfoReactor">
-                    Details
-                    <textarea
-                      data-profile="gfoReactorDetails"
-                      rows="2"
-                      placeholder="Reactor, media amount, flow, replacement trigger"
-                    ></textarea>
-                  </label>
-                </section>
-
-                <section class="equipment-card" data-equipment-card="carbonReactor">
-                  <div class="equipment-card-header">
-                    <div>
-                      <h3>Carbon Reactor</h3>
-                      <p>Chemical filtration</p>
-                    </div>
-                  </div>
-                  <div class="equipment-row" data-equipment-row="carbonReactor">
-                    <label class="check-label equipment-check">
-                      <input type="checkbox" data-profile="carbonReactor" />
-                      Installed
-                    </label>
-                    <label data-equipment-date="carbonReactor">
-                      Added Date
-                      <input type="date" data-profile="carbonReactorAddedDate" />
-                    </label>
-                    <label class="check-label equipment-legacy" data-equipment-legacy="carbonReactor">
-                      <input type="checkbox" data-profile="carbonReactorLegacy" />
-                      Legacy / add date unknown
-                    </label>
-                  </div>
-                  <label class="wide-field equipment-details" data-equipment-details="carbonReactor">
-                    Details
-                    <textarea
-                      data-profile="carbonReactorDetails"
-                      rows="2"
-                      placeholder="Reactor, media type, top/bottom carbon, amount, flow"
-                    ></textarea>
-                  </label>
-                </section>
+                <button id="addEquipmentRecordButton" class="icon-button" type="button" title="Add equipment">
+                  <i data-lucide="plus"></i>
+                </button>
               </div>
-            </details>
+              <div id="equipmentRecordList" class="record-list"></div>
+              <form id="equipmentSetupForm" class="embedded-form setup-editor" hidden>
+                <input id="equipmentRecordId" type="hidden" />
+                <div class="field-grid">
+                  <label>
+                    Name
+                    <input id="equipmentRecordName" type="text" required />
+                  </label>
+                  <label>
+                    Type
+                    <select id="equipmentRecordCategory">
+                      <option value="filtration">Filtration</option>
+                      <option value="lighting">Lighting</option>
+                      <option value="skimmer">Skimmer</option>
+                      <option value="sump">Sump</option>
+                      <option value="refugium">Refugium</option>
+                      <option value="ato">ATO</option>
+                      <option value="feeder">Feeder</option>
+                      <option value="uv">UV</option>
+                      <option value="reactor">Reactor</option>
+                      <option value="flow">Flow</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+                  <label>
+                    Status
+                    <select id="equipmentRecordStatus">
+                      <option value="active">Active</option>
+                      <option value="retired">Retired</option>
+                    </select>
+                  </label>
+                  <label>
+                    Added Date
+                    <input id="equipmentRecordAddedAt" type="date" />
+                  </label>
+                  <label>
+                    Retired Date
+                    <input id="equipmentRecordRetiredAt" type="date" />
+                  </label>
+                  <label>
+                    Schedule
+                    <input id="equipmentRecordSchedule" type="text" />
+                  </label>
+                  <label class="wide-field">
+                    Details
+                    <textarea id="equipmentRecordDetails" rows="3"></textarea>
+                  </label>
+                  <label class="wide-field">
+                    Notes
+                    <textarea id="equipmentRecordNotes" rows="3"></textarea>
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button class="primary-button" type="submit">
+                    <i data-lucide="save"></i>
+                    Save Setup
+                  </button>
+                  <button id="cancelEquipmentSetupButton" class="secondary-button" type="button">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+              <details class="collapsible-field photo-field">
+                <summary>
+                  <span>
+                    <i data-lucide="image"></i>
+                    Lighting Images
+                  </span>
+                  <i data-lucide="chevron-down"></i>
+                </summary>
+                <div class="collapsible-content">
+                  <label>
+                    Upload Images
+                    <input id="lightingPhotoInput" type="file" accept="image/*" multiple />
+                  </label>
+                  <div id="lightingPhotoPreview" class="photo-preview" hidden></div>
+                </div>
+              </details>
+            </section>
           </form>
 
         </section>
@@ -890,11 +636,7 @@
                 <input id="livestockAdded" type="date" />
               </label>
               <label>
-                Placement
-                <select id="livestockZone"></select>
-              </label>
-              <label>
-                Current Health
+                Initial Health
                 <select id="livestockHealth">
                   <option value="">Not tracked</option>
                   <option value="Thriving">Thriving</option>
@@ -950,8 +692,8 @@
           </details>
 
           <div class="filter-bar" role="tablist" aria-label="Livestock filter">
-            <button class="active" type="button" data-livestock-filter="active">
-              Active
+            <button class="active" type="button" data-livestock-filter="alive">
+              Alive
             </button>
             <button type="button" data-livestock-filter="all">All</button>
             <button type="button" data-livestock-filter="Coral">Coral</button>
@@ -966,6 +708,9 @@
             <button type="button" data-livestock-filter="deceased">
               Deceased
             </button>
+            <button type="button" data-livestock-filter="removed">
+              Removed
+            </button>
           </div>
 
           <div id="livestockList" class="card-list"></div>
@@ -979,7 +724,79 @@
           </section>
         </section>
 
-        <section id="logbookView" class="app-view" data-title="Logbook">
+        <section id="logbookView" class="app-view" data-title="Journal">
+          <form id="journalEntryForm" class="form-surface">
+            <div class="section-heading">
+              <h2>Journal Entry</h2>
+              <span class="status-pill">Linked history</span>
+            </div>
+            <div class="field-grid">
+              <label>
+                Type
+                <select id="journalEntryType">
+                  <option value="Observation">Observation</option>
+                  <option value="Water Test">Water Test</option>
+                  <option value="Feeding / Dosing">Feeding / Dosing</option>
+                  <option value="Maintenance / Water Change">Maintenance / Water Change</option>
+                  <option value="Equipment Change">Equipment Change</option>
+                  <option value="Livestock Change">Livestock Change</option>
+                </select>
+              </label>
+              <label>
+                When
+                <input id="journalOccurredAt" type="datetime-local" />
+              </label>
+              <label>
+                Severity
+                <select id="journalSeverity">
+                  <option value="routine">Routine</option>
+                  <option value="watch">Watch</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </label>
+              <label>
+                Health
+                <select id="journalHealth">
+                  <option value="">No health update</option>
+                  <option value="Thriving">Thriving</option>
+                  <option value="Stable">Stable</option>
+                  <option value="Struggling">Struggling</option>
+                  <option value="Declining">Declining</option>
+                  <option value="Unknown">Unknown</option>
+                </select>
+              </label>
+              <label>
+                Livestock Status
+                <select id="journalLivestockStatus">
+                  <option value="">No lifecycle change</option>
+                  <option value="alive">Alive</option>
+                  <option value="deceased">Deceased</option>
+                  <option value="removed">Removed</option>
+                </select>
+              </label>
+              <label class="wide-field">
+                Title
+                <input id="journalTitle" type="text" />
+              </label>
+              <label class="wide-field">
+                Notes
+                <textarea id="journalSummary" rows="3"></textarea>
+              </label>
+              <label>
+                Related Equipment
+                <select id="journalLinkedEquipment" multiple size="5"></select>
+              </label>
+              <label>
+                Related Livestock
+                <select id="journalLinkedLivestock" multiple size="5"></select>
+              </label>
+            </div>
+            <button class="primary-button" type="submit">
+              <i data-lucide="save"></i>
+              Save Entry
+            </button>
+          </form>
+
           <div class="filter-bar" role="tablist" aria-label="Log type">
             <button class="active" type="button" data-log-mode="test">
               Tests
@@ -1219,6 +1036,20 @@
                 placeholder="Review my last 30 days"
               ></textarea>
             </label>
+            <div class="quick-actions insight-presets">
+              <button class="action-button" type="button" data-insight-preset="algae_pressure">
+                <i data-lucide="leaf"></i>
+                Algae Pressure
+              </button>
+              <button class="action-button" type="button" data-insight-preset="dino_risk">
+                <i data-lucide="radar"></i>
+                Dino Risk
+              </button>
+              <button class="action-button" type="button" data-insight-preset="nutrient_balance">
+                <i data-lucide="scale"></i>
+                Nutrient Balance
+              </button>
+            </div>
             <button id="generateInsightButton" class="primary-button" type="button">
               <i data-lucide="sparkles"></i>
               Generate
@@ -1253,7 +1084,7 @@
             <summary class="section-heading">
               <h2>Context Sent</h2>
               <span class="summary-actions">
-                <span id="contextCountPill" class="status-pill">0 logs</span>
+                <span id="contextCountPill" class="status-pill">0 entries</span>
                 <i data-lucide="chevron-down"></i>
               </span>
             </summary>
@@ -1271,7 +1102,7 @@
         </button>
         <button type="button" data-view="logbook">
           <i data-lucide="clipboard-list"></i>
-          <span>Logs</span>
+          <span>Journal</span>
         </button>
         <button type="button" data-view="livestock">
           <i data-lucide="fish"></i>
@@ -1294,9 +1125,11 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </div>
 
-    <script src="./map-lidar-data.js?v=65"></script>
-    <script src="./app.js?v=65"></script>
-    <script src="./js/map.js?v=65"></script>
-    <script src="./js/insights.js?v=65"></script>
+    <script src="./map-lidar-data.js?v=66"></script>
+    <script src="./js/records.js?v=66"></script>
+    <script src="./js/journal.js?v=66"></script>
+    <script src="./app.js?v=66"></script>
+    <script src="./js/map.js?v=66"></script>
+    <script src="./js/insights.js?v=66"></script>
   </body>
 </html>
