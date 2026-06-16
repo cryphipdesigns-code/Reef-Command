@@ -5,6 +5,8 @@
   const PRIVATE_STATE_TABLE = "reef_app_state";
   const PHOTO_BUCKET = "reef-photos";
   const PHOTO_PLACEHOLDER_SRC = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+  const PRIVATE_STARTUP_TIMEOUT_MS = 12000;
+  const LOCAL_PHOTO_DATA_URL_LIMIT = 2_750_000;
   const MAP2_REFINEMENT_SHAPES = ["navigate", "point", "line", "area"];
   const MAP2_REFINEMENT_ACTIONS = ["raise", "depress", "flatten", "cut-back", "smooth", "ridge"];
   const MAP2_REFINEMENT_DIRECTIONS = ["surface", "top-bottom", "left-right", "front-back"];
@@ -56,6 +58,7 @@
   let autosaveTimer = null;
   let remoteSaveInFlight = false;
   let remoteSaveQueued = false;
+  let lastRemoteUpdatedAt = "";
   let isRemoteHydrating = false;
   let toastTimer = null;
   let pendingLivestockPhotos = [];
@@ -903,7 +906,25 @@
   }
 
   function writeJson(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (error) {
+      console.warn(`Could not write ${key}`, error);
+      if (isQuotaExceededError(error)) {
+        showToast("Local storage is full. Remove local-only photos or sign in to sync photos privately.");
+      }
+      return false;
+    }
+  }
+
+  function isQuotaExceededError(error) {
+    return (
+      error?.name === "QuotaExceededError" ||
+      error?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+      error?.code === 22 ||
+      error?.code === 1014
+    );
   }
 
   function hasValidBackendConfig(config) {
@@ -1268,6 +1289,16 @@
     );
   }
 
+  function remoteChangedSinceKnown(updatedAt) {
+    if (!updatedAt || !lastRemoteUpdatedAt) return false;
+    const remoteTime = new Date(updatedAt).getTime();
+    const knownTime = new Date(lastRemoteUpdatedAt).getTime();
+    if (!Number.isFinite(remoteTime) || !Number.isFinite(knownTime)) {
+      return updatedAt !== lastRemoteUpdatedAt;
+    }
+    return Math.abs(remoteTime - knownTime) > 1000;
+  }
+
   function uid() {
     return "id_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   }
@@ -1460,6 +1491,26 @@
     return response.blob();
   }
 
+  function getPhotoDataUrlBytes(value) {
+    if (Array.isArray(value)) {
+      return value.reduce((total, item) => total + getPhotoDataUrlBytes(item), 0);
+    }
+    if (!value || typeof value !== "object") return 0;
+    return Object.entries(value).reduce((total, [key, entry]) => {
+      if (key === "dataUrl" && typeof entry === "string") return total + entry.length;
+      return total + getPhotoDataUrlBytes(entry);
+    }, 0);
+  }
+
+  function canStoreLocalPhoto(dataUrl) {
+    if (supabaseClient && currentUser) return true;
+    return getPhotoDataUrlBytes(state) + getPhotoDataUrlBytes({
+      pendingLivestockPhotos,
+      pendingInsightPhotos,
+      pendingInsightFollowupPhotos,
+    }) + String(dataUrl || "").length <= LOCAL_PHOTO_DATA_URL_LIMIT;
+  }
+
   function createPendingPhoto(dataUrl) {
     return {
       id: uid(),
@@ -1532,6 +1583,7 @@
   async function processImageFiles(files, options) {
     const saved = [];
     const failed = [];
+    let storageLimited = false;
 
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
@@ -1539,6 +1591,10 @@
       try {
         showToast(`Processing ${label} ${index + 1} of ${files.length}.`);
         const dataUrl = await compressImageFile(file, options.maxDimension, options.quality);
+        if (!canStoreLocalPhoto(dataUrl)) {
+          storageLimited = true;
+          throw new Error("Local photo storage limit reached.");
+        }
         const pendingPhoto = createPendingPhoto(dataUrl);
         saved.push(await options.savePhoto(pendingPhoto));
       } catch (error) {
@@ -1547,14 +1603,18 @@
       }
     }
 
-    return { saved, failed };
+    return { saved, failed, storageLimited };
   }
 
-  function showImageSaveResult(savedCount, failedCount, label) {
+  function showImageSaveResult(savedCount, failedCount, label, storageLimited = false) {
     if (savedCount && failedCount) {
-      showToast(`${savedCount} ${label}${savedCount === 1 ? "" : "s"} saved, ${failedCount} skipped.`);
+      showToast(storageLimited
+        ? `${savedCount} ${label}${savedCount === 1 ? "" : "s"} saved. Local photo storage is full.`
+        : `${savedCount} ${label}${savedCount === 1 ? "" : "s"} saved, ${failedCount} skipped.`);
     } else if (savedCount) {
       showToast(`${savedCount} ${label}${savedCount === 1 ? "" : "s"} saved.`);
+    } else if (storageLimited) {
+      showToast("Local photo storage is full. Sign in or remove local photos.");
     } else {
       showToast(`No ${label}s saved. Try JPEG, PNG, or WebP.`);
     }
@@ -1629,7 +1689,7 @@
           renderPhotoLibrary();
           window.RC.Insights?.renderInsightsContext?.();
         }
-        showImageSaveResult(result.saved.length, result.failed.length, "lighting image");
+        showImageSaveResult(result.saved.length, result.failed.length, "lighting image", result.storageLimited);
       } else if (target === "insight" || target === "insight-followup") {
         const result = await processImageFiles(files, {
           label: "insight photo",
@@ -1651,7 +1711,7 @@
             renderPhotoPreview("insightPhotoPreview", pendingInsightPhotos, "Insight photo");
           }
         }
-        showImageSaveResult(result.saved.length, result.failed.length, "insight photo");
+        showImageSaveResult(result.saved.length, result.failed.length, "insight photo", result.storageLimited);
       } else {
         const result = await processImageFiles(files, {
           label: "photo",
@@ -1663,7 +1723,7 @@
           pendingLivestockPhotos = [...pendingLivestockPhotos, ...result.saved];
           renderActiveLivestockPhotoPreview();
         }
-        showImageSaveResult(result.saved.length, result.failed.length, "photo");
+        showImageSaveResult(result.saved.length, result.failed.length, "photo", result.storageLimited);
       }
     } catch (error) {
       console.error(error);
@@ -2570,17 +2630,7 @@
       updatePrivateAccessGate(currentUser && !privateStateReady ? "Loading private reef data..." : undefined);
       window.RC.Insights?.renderInsightOutput?.();
       if (currentUser && currentUser.id !== previousUserId) {
-        pullState({ silent: true, startup: true }).then(() => {
-          return migrateInlinePhotosToStorage();
-        }).then(() => {
-          privateStateReady = true;
-          updatePrivateAccessGate();
-          renderAll();
-        }).catch((error) => {
-          console.error("Error loading private reef state:", error);
-          updateBackendStatus("Private sync load failed.");
-          updatePrivateAccessGate("Private sync load failed.");
-        });
+        loadPrivateStateForSession();
       }
     });
     authSubscription = subscription.data?.subscription || null;
@@ -2588,10 +2638,7 @@
     updatePrivateAccessGate(currentUser ? "Loading private reef data..." : undefined);
     window.RC.Insights?.renderInsightOutput?.();
     if (currentUser) {
-      await pullState({ silent: true, startup: true });
-      await migrateInlinePhotosToStorage();
-      privateStateReady = true;
-      updatePrivateAccessGate();
+      await loadPrivateStateForSession();
     } else {
       privateStateReady = false;
       updatePrivateAccessGate();
@@ -2629,6 +2676,47 @@
       console.error(error);
       showToast("Some photos still need storage upload.");
     }
+  }
+
+  function withTimeout(promise, timeoutMs, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`${label} timed out.`)), timeoutMs);
+      }),
+    ]);
+  }
+
+  async function loadPrivateStateForSession() {
+    if (!supabaseClient || !currentUser) {
+      privateStateReady = false;
+      updatePrivateAccessGate();
+      return;
+    }
+
+    privateStateReady = false;
+    updatePrivateAccessGate("Loading private reef data...");
+
+    try {
+      await withTimeout(
+        pullState({ silent: true, startup: true }),
+        PRIVATE_STARTUP_TIMEOUT_MS,
+        "Private sync",
+      );
+    } catch (error) {
+      console.error("Private sync startup failed:", error);
+      updateBackendStatus("Private sync load failed; showing cached data.");
+      showToast("Private sync is slow. Showing cached data.");
+    } finally {
+      privateStateReady = true;
+      updatePrivateAccessGate();
+      renderAll();
+    }
+
+    migrateInlinePhotosToStorage().catch((error) => {
+      console.error("Photo migration failed:", error);
+      showToast("Some photos still need storage upload.");
+    });
   }
 
   async function saveBackendSettings() {
@@ -2714,11 +2802,34 @@
         .select("data, updated_at")
         .eq("user_id", currentUser.id)
         .maybeSingle();
+      if (
+        !remoteReadError &&
+        remoteRow?.data &&
+        lastRemoteUpdatedAt &&
+        remoteRow.updated_at &&
+        remoteChangedSinceKnown(remoteRow.updated_at)
+      ) {
+        writeJson(PRE_PULL_BACKUP_KEY, {
+          backedUpAt: new Date().toISOString(),
+          reason: "remote-changed-before-push",
+          state,
+        });
+        isRemoteHydrating = true;
+        Object.assign(state, normalizeState(remoteRow.data));
+        saveLocalState();
+        isRemoteHydrating = false;
+        lastRemoteUpdatedAt = remoteRow.updated_at;
+        renderAll();
+        updateBackendStatus("Remote changed on another device; local cache was backed up and refreshed.");
+        if (!options.silent) showToast("Remote changed. Refreshed from private sync.");
+        return;
+      }
       if (!remoteReadError && remoteRow?.data && shouldProtectRemoteState(remoteRow.data, state)) {
         isRemoteHydrating = true;
         Object.assign(state, normalizeState(remoteRow.data));
         saveLocalState();
         isRemoteHydrating = false;
+        lastRemoteUpdatedAt = remoteRow.updated_at || lastRemoteUpdatedAt;
         renderAll();
         updateBackendStatus("Remote data protected; local stale state was refreshed.");
         if (!options.silent) showToast("Refreshed from remote data.");
@@ -2730,13 +2841,14 @@
       return;
     }
     remoteSaveInFlight = true;
+    const remoteUpdatedAt = new Date().toISOString();
     const { error } = await supabaseClient
       .from(PRIVATE_STATE_TABLE)
       .upsert(
         {
           user_id: currentUser.id,
           data: state,
-          updated_at: new Date().toISOString(),
+          updated_at: remoteUpdatedAt,
         },
         { onConflict: "user_id" },
       );
@@ -2747,6 +2859,7 @@
       if (!options.silent) showToast("Sync failed.");
       return;
     }
+    lastRemoteUpdatedAt = remoteUpdatedAt;
     updateBackendStatus(
       options.silent
         ? `Autosaved at ${new Date().toLocaleTimeString([], {
@@ -2786,8 +2899,6 @@
     }
 
     const remoteState = normalizeState(data.data);
-    const localTime = new Date(state.updatedAt || 0).getTime();
-    const remoteTime = new Date(remoteState.updatedAt || data.updated_at || 0).getTime();
     const remoteHasData = hasMeaningfulState(remoteState);
     if (options.startup) {
       if (localHasData && !remoteHasData) {
@@ -2797,12 +2908,8 @@
       if (!localHasData && !remoteHasData) {
         return;
       }
-      if (localHasData && remoteHasData && shouldProtectRemoteState(remoteState, state)) {
-        // Remote wins when local cache is stale or still references pre-private shared photos.
-      } else if (localHasData && remoteHasData && localTime > remoteTime) {
-        await pushState({ silent: true });
-        return;
-      }
+      // Existing private remote data wins on startup. This prevents stale local
+      // caches, especially pre-private shared photo paths, from overwriting it.
     }
 
     isRemoteHydrating = true;
@@ -2816,6 +2923,7 @@
     Object.assign(state, normalizeState(data.data));
     writeJson(STORAGE_KEY, state);
     isRemoteHydrating = false;
+    lastRemoteUpdatedAt = data.updated_at || lastRemoteUpdatedAt;
     renderAll();
     if (!options.silent) showToast("Pulled from Supabase.");
   }
