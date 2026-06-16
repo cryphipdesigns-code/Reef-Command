@@ -1268,6 +1268,108 @@ textarea:focus {
   font-family: "Space Grotesk", sans-serif;
 }
 
+.insight-answer-card,
+.insight-priorities-card {
+  gap: 10px;
+}
+
+.insight-answer-card > strong,
+.insight-priorities-card > strong {
+  font-family: "Space Grotesk", "Manrope", sans-serif;
+  font-size: 0.98rem;
+}
+
+.insight-answer-block {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.insight-answer-block + .insight-answer-block {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.insight-card-kicker {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.insight-answer-block h3 {
+  margin: 0;
+  font-size: 1.04rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.insight-priority-list {
+  display: grid;
+  gap: 8px;
+}
+
+.insight-priority-item {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.insight-priority-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.insight-priority-header strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.insight-priority-header .status-pill {
+  flex: 0 0 auto;
+}
+
+.insight-priority-item[data-tone="danger"] {
+  border-color: #efbbb5;
+  background: #fff8f7;
+}
+
+.insight-priority-item[data-tone="danger"] .status-pill {
+  color: #9b2521;
+  background: #fff0ee;
+  border-color: #efbbb5;
+}
+
+.insight-priority-item[data-tone="warning"] {
+  border-color: #efd79c;
+  background: #fffaf0;
+}
+
+.insight-priority-item[data-tone="warning"] .status-pill {
+  color: #7c4a03;
+  background: #fff8e8;
+  border-color: #efd79c;
+}
+
+.insight-priority-item[data-tone="good"] {
+  border-color: #b8dfc4;
+  background: #f5fbf7;
+}
+
+.insight-priority-item[data-tone="good"] .status-pill {
+  color: #1d6843;
+  background: #edf9f1;
+  border-color: #b8dfc4;
+}
+
 .insight-card[data-tone="danger"] {
   border-color: #efbbb5;
   background: #fff8f7;

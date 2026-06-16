@@ -181,16 +181,18 @@
     const dataRequests = Array.isArray(result.data_requests) ? result.data_requests : [];
 
     return `
-      <article class="insight-card">
-        <strong>${RC.escapeHtml(result.headline || "Tank summary")}</strong>
-        <p>${RC.escapeHtml(result.summary || "No summary.")}</p>
+      <article class="insight-card insight-answer-card">
+        <strong>Answer</strong>
+        <div class="insight-answer-block">
+          <span class="insight-card-kicker">Headline</span>
+          <h3>${RC.escapeHtml(result.headline || "Tank summary")}</h3>
+        </div>
+        <div class="insight-answer-block">
+          <span class="insight-card-kicker">Summary</span>
+          <p>${RC.escapeHtml(result.summary || "No summary.")}</p>
+        </div>
       </article>
-      ${priorities.map((priority) => `
-        <article class="insight-card" data-tone="${RC.escapeHtml(priority.severity || "warning")}">
-          <strong>${RC.escapeHtml(priority.label || "Priority")}</strong>
-          <p>${RC.escapeHtml(priority.why || "")}</p>
-        </article>
-      `).join("")}
+      ${renderInsightPriorities(priorities)}
       ${renderInsightList("Observations", observations)}
       ${renderInsightList("Next Actions", nextActions)}
       ${renderInsightRequests(dataRequests)}
@@ -219,6 +221,30 @@
         <ul>
           ${items.map((item) => `<li>${RC.escapeHtml(item)}</li>`).join("")}
         </ul>
+      </article>
+    `;
+  }
+
+  function renderInsightPriorities(priorities) {
+    if (!priorities.length) return "";
+    return `
+      <article class="insight-card insight-priorities-card">
+        <strong>Priorities</strong>
+        <div class="insight-priority-list">
+          ${priorities.map((priority) => {
+            const severity = String(priority.severity || "warning");
+            const severityLabel = severity.charAt(0).toUpperCase() + severity.slice(1);
+            return `
+              <div class="insight-priority-item" data-tone="${RC.escapeHtml(severity)}">
+                <div class="insight-priority-header">
+                  <strong>${RC.escapeHtml(priority.label || "Priority")}</strong>
+                  <span class="status-pill">${RC.escapeHtml(severityLabel)}</span>
+                </div>
+                <p>${RC.escapeHtml(priority.why || "")}</p>
+              </div>
+            `;
+          }).join("")}
+        </div>
       </article>
     `;
   }
