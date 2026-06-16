@@ -1,8 +1,20 @@
+declare const Deno: {
+  serve(handler: (request: Request) => Response | Promise<Response>): void;
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+const rateLimitWindowMs = 60_000;
+const maxRequestsPerWindow = 12;
+const maxRequestBytes = 3_000_000;
+const insightRateLimits = new Map<string, { count: number; resetAt: number }>();
 
 type InsightRequest = {
   mode?: string;
@@ -81,9 +93,27 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
+  const authContext = await authenticateRequest(request.headers.get("authorization"));
+  if ("response" in authContext) {
+    return authContext.response;
+  }
+
+  const rateLimit = checkInsightRateLimit(authContext.user.id);
+  if (!rateLimit.allowed) {
+    return jsonResponse(
+      { error: "Rate limit exceeded", retry_after_seconds: rateLimit.retryAfterSeconds },
+      429,
+    );
+  }
+
   const openAiKey = Deno.env.get("OPENAI_API_KEY");
   if (!openAiKey) {
     return jsonResponse({ error: "OPENAI_API_KEY is not configured" }, 500);
+  }
+
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > maxRequestBytes) {
+    return jsonResponse({ error: "Request body is too large" }, 413);
   }
 
   let body: InsightRequest;
@@ -175,7 +205,7 @@ Deno.serve(async (request) => {
     );
   }
 
-  await recordInsightRun(request.headers.get("authorization"), {
+  await recordInsightRun(authContext.user.id, {
     mode,
     question,
     result: insight,
@@ -500,13 +530,22 @@ function extractOutputText(data: Record<string, unknown>) {
   return "";
 }
 
-async function recordInsightRun(
+type AuthenticatedUser = {
+  id: string;
+  email?: string;
+};
+
+async function authenticateRequest(
   authorizationHeader: string | null,
-  payload: { mode: string; question: string; result: unknown },
-) {
+): Promise<{ user: AuthenticatedUser } | { response: Response }> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!authorizationHeader || !supabaseUrl || !serviceRoleKey) return;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) {
+    return { response: jsonResponse({ error: "Supabase auth is not configured" }, 500) };
+  }
+  if (!authorizationHeader?.toLowerCase().startsWith("bearer ")) {
+    return { response: jsonResponse({ error: "Authentication required" }, 401) };
+  }
 
   const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: {
@@ -515,9 +554,61 @@ async function recordInsightRun(
     },
   });
 
-  if (!userResponse.ok) return;
+  if (!userResponse.ok) {
+    return { response: jsonResponse({ error: "Invalid or expired session" }, 401) };
+  }
   const user = await userResponse.json();
-  if (!user?.id) return;
+  if (!user?.id) {
+    return { response: jsonResponse({ error: "Invalid session user" }, 401) };
+  }
+
+  const allowedEmails = parseAllowedEmails(Deno.env.get("REEF_ALLOWED_EMAILS") || "");
+  const userEmail = String(user.email || "").trim().toLowerCase();
+  if (allowedEmails.size && !allowedEmails.has(userEmail)) {
+    return { response: jsonResponse({ error: "User is not allowed to run insights" }, 403) };
+  }
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+    },
+  };
+}
+
+function parseAllowedEmails(value: string) {
+  return new Set(
+    value
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function checkInsightRateLimit(userId: string) {
+  const now = Date.now();
+  const current = insightRateLimits.get(userId);
+  if (!current || current.resetAt <= now) {
+    insightRateLimits.set(userId, { count: 1, resetAt: now + rateLimitWindowMs });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+  if (current.count >= maxRequestsPerWindow) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
+    };
+  }
+  current.count += 1;
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+async function recordInsightRun(
+  userId: string,
+  payload: { mode: string; question: string; result: unknown },
+) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) return;
 
   await fetch(`${supabaseUrl}/rest/v1/reef_insight_runs`, {
     method: "POST",
@@ -528,7 +619,7 @@ async function recordInsightRun(
       Prefer: "return=minimal",
     },
     body: JSON.stringify({
-      user_id: user.id,
+      user_id: userId,
       mode: payload.mode,
       question: payload.question,
       result: payload.result,

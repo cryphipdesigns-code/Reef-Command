@@ -2,9 +2,9 @@
   const STORAGE_KEY = "reefCommandState.v1";
   const BACKEND_KEY = "reefCommandBackend.v1";
   const PRE_PULL_BACKUP_KEY = "reefCommandState.beforeRemotePull.v1";
-  const SHARED_STATE_ID = "default";
+  const PRIVATE_STATE_TABLE = "reef_app_state";
   const PHOTO_BUCKET = "reef-photos";
-  const PHOTO_ROOT = "shared";
+  const PHOTO_PLACEHOLDER_SRC = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
   const MAP2_REFINEMENT_SHAPES = ["navigate", "point", "line", "area"];
   const MAP2_REFINEMENT_ACTIONS = ["raise", "depress", "flatten", "cut-back", "smooth", "ridge"];
   const MAP2_REFINEMENT_DIRECTIONS = ["surface", "top-bottom", "left-right", "front-back"];
@@ -50,6 +50,8 @@
   let backendConfig = readJson(BACKEND_KEY) || {};
   let supabaseClient = null;
   let currentUser = null;
+  let privateStateReady = false;
+  let localOnlyMode = false;
   let authSubscription = null;
   let autosaveTimer = null;
   let remoteSaveInFlight = false;
@@ -62,6 +64,9 @@
   let pendingInsightFollowupPhotos = [];
   let pendingInsightFollowupRunId = "";
   let editingLog = null;
+  const signedPhotoUrls = new Map();
+  const signedPhotoUrlRequests = new Set();
+  let signedPhotoRenderTimer = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -1058,16 +1063,48 @@
 
   function getStoragePublicUrl(path) {
     if (!path) return "";
-    if (supabaseClient) {
-      return supabaseClient.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+    const cached = signedPhotoUrls.get(path);
+    if (cached?.url && cached.expiresAt > Date.now()) {
+      return cached.url;
     }
-    const baseUrl = backendConfig.supabaseUrl || "";
-    if (!baseUrl) return "";
-    return `${baseUrl.replace(/\/$/, "")}/storage/v1/object/public/${PHOTO_BUCKET}/${encodeStoragePath(path)}`;
+    if (supabaseClient && currentUser) {
+      ensureSignedPhotoUrl(path);
+    }
+    return PHOTO_PLACEHOLDER_SRC;
   }
 
-  function encodeStoragePath(path) {
-    return path.split("/").map((part) => encodeURIComponent(part)).join("/");
+  async function ensureSignedPhotoUrl(path) {
+    if (!path || signedPhotoUrlRequests.has(path) || !supabaseClient || !currentUser) return;
+    signedPhotoUrlRequests.add(path);
+    try {
+      const { data, error } = await supabaseClient.storage
+        .from(PHOTO_BUCKET)
+        .createSignedUrl(path, 3600);
+      if (error) throw error;
+      if (data?.signedUrl) {
+        signedPhotoUrls.set(path, {
+          url: data.signedUrl,
+          expiresAt: Date.now() + 55 * 60 * 1000,
+        });
+        scheduleSignedPhotoRender();
+      }
+    } catch (error) {
+      console.warn("Could not create signed photo URL", error);
+    } finally {
+      signedPhotoUrlRequests.delete(path);
+    }
+  }
+
+  function scheduleSignedPhotoRender() {
+    clearTimeout(signedPhotoRenderTimer);
+    signedPhotoRenderTimer = setTimeout(() => {
+      renderAll();
+    }, 80);
+  }
+
+  function clearSignedPhotoUrls() {
+    signedPhotoUrls.clear();
+    signedPhotoUrlRequests.clear();
   }
 
   function cleanPathSegment(value) {
@@ -1076,6 +1113,10 @@
       .replace(/[^a-zA-Z0-9_-]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 80) || "item";
+  }
+
+  function isCurrentUserStoragePath(path) {
+    return Boolean(currentUser?.id && path?.split("/")[0] === currentUser.id);
   }
 
   async function loadLocalBackendConfig() {
@@ -1113,7 +1154,7 @@
   }
 
   function scheduleRemoteSave(delay = 450) {
-    if (!supabaseClient || isRemoteHydrating) return;
+    if (!supabaseClient || !currentUser || isRemoteHydrating) return;
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
       pushState({ silent: true });
@@ -1150,6 +1191,19 @@
         value?.events?.length ||
         value?.insightRuns?.length,
     );
+  }
+
+  function countLegacySharedPhotoPaths(value) {
+    if (Array.isArray(value)) {
+      return value.reduce((total, item) => total + countLegacySharedPhotoPaths(item), 0);
+    }
+    if (!value || typeof value !== "object") return 0;
+    return Object.entries(value).reduce((total, [key, entry]) => {
+      if ((key === "path" || key === "storagePath") && typeof entry === "string" && entry.startsWith("shared/")) {
+        return total + 1;
+      }
+      return total + countLegacySharedPhotoPaths(entry);
+    }, 0);
   }
 
   function getStateDataScore(value) {
@@ -1202,6 +1256,10 @@
   }
 
   function shouldProtectRemoteState(remoteState, localState) {
+    const remoteLegacyPhotoPaths = countLegacySharedPhotoPaths(remoteState);
+    const localLegacyPhotoPaths = countLegacySharedPhotoPaths(localState);
+    if (localLegacyPhotoPaths > remoteLegacyPhotoPaths) return true;
+
     const remoteScore = getStateDataScore(remoteState);
     const localScore = getStateDataScore(localState);
     return (
@@ -1419,11 +1477,11 @@
 
   async function uploadPhotoRecord(photo, folder, ownerId) {
     const normalized = normalizePhotoRecord(photo);
-    if (!normalized || !normalized.dataUrl || !supabaseClient) return normalized;
+    if (!normalized || !normalized.dataUrl || !supabaseClient || !currentUser) return normalized;
 
     const blob = await dataUrlToBlob(normalized.dataUrl);
-    const path = normalized.path || [
-      PHOTO_ROOT,
+    const path = isCurrentUserStoragePath(normalized.path) ? normalized.path : [
+      currentUser.id,
       cleanPathSegment(folder),
       cleanPathSegment(ownerId),
       `${cleanPathSegment(normalized.id)}.jpg`,
@@ -1459,14 +1517,14 @@
     for (const photo of photos) {
       const normalized = normalizePhotoRecord(photo);
       if (!normalized) continue;
-      saved.push(supabaseClient ? await uploadPhotoRecord(normalized, "insights", runId) : normalized);
+      saved.push(supabaseClient && currentUser ? await uploadPhotoRecord(normalized, "insights", runId) : normalized);
     }
     return saved;
   }
 
   async function removeStoragePaths(paths) {
     const uniquePaths = [...new Set(paths.filter(Boolean))];
-    if (!uniquePaths.length || !supabaseClient) return;
+    if (!uniquePaths.length || !supabaseClient || !currentUser) return;
     const { error } = await supabaseClient.storage.from(PHOTO_BUCKET).remove(uniquePaths);
     if (error) console.warn("Could not remove stored photos", error);
   }
@@ -2415,6 +2473,42 @@
     updateBackendStatus();
   }
 
+  function setPrivateAccessStatus(message) {
+    const status = $("privateAuthStatus");
+    if (status) status.textContent = message;
+  }
+
+  function updatePrivateAccessGate(message) {
+    const backendAvailable = Boolean(supabaseClient);
+    const loadingPrivateState = backendAvailable && currentUser && !privateStateReady;
+    const locked = backendAvailable && !localOnlyMode && (!currentUser || loadingPrivateState);
+    document.body.classList.toggle("private-locked", locked);
+    $("appShell")?.setAttribute("aria-hidden", String(locked));
+    const email = $("privateAuthEmail");
+    const submit = $("privateAuthSubmit");
+    if (email) {
+      email.disabled = !locked || loadingPrivateState || !backendAvailable;
+      if (!email.value && currentUser?.email) email.value = currentUser.email;
+    }
+    if (submit) {
+      submit.disabled = !locked || loadingPrivateState || !backendAvailable;
+      submit.textContent = loadingPrivateState
+        ? "Loading..."
+        : backendAvailable ? "Send Magic Link" : "Sync Unavailable";
+    }
+    if (message) {
+      setPrivateAccessStatus(message);
+    } else if (!backendAvailable || localOnlyMode) {
+      setPrivateAccessStatus("Local mode. Data stays on this device.");
+    } else if (loadingPrivateState) {
+      setPrivateAccessStatus("Loading private reef data...");
+    } else if (currentUser) {
+      setPrivateAccessStatus(`Signed in as ${currentUser.email || currentUser.id}.`);
+    } else {
+      setPrivateAccessStatus("Enter your email to unlock Reef Command.");
+    }
+  }
+
   function updateBackendStatus(message) {
     const status = $("backendStatus");
     if (!status) return;
@@ -2425,9 +2519,9 @@
     if (!backendConfig.supabaseUrl || !backendConfig.supabaseAnonKey) {
       status.textContent = "Local mode";
     } else if (currentUser) {
-      status.textContent = `Auto sync on · signed in as ${currentUser.email || currentUser.id}`;
+      status.textContent = `Private sync on · signed in as ${currentUser.email || currentUser.id}`;
     } else {
-      status.textContent = "Auto sync is on.";
+      status.textContent = "Sign in for private sync.";
     }
   }
 
@@ -2438,9 +2532,14 @@
     }
     supabaseClient = null;
     currentUser = null;
+    privateStateReady = false;
+    localOnlyMode = false;
 
     if (!backendConfig.supabaseUrl || !backendConfig.supabaseAnonKey || !window.supabase) {
+      localOnlyMode = true;
+      privateStateReady = true;
       updateBackendStatus();
+      updatePrivateAccessGate("Local mode. Data stays on this device.");
       return;
     }
 
@@ -2459,19 +2558,48 @@
     const sessionResponse = await supabaseClient.auth.getSession();
     currentUser = sessionResponse.data?.session?.user || null;
     const subscription = supabaseClient.auth.onAuthStateChange((_event, session) => {
+      const previousUserId = currentUser?.id || "";
       currentUser = session?.user || null;
+      clearSignedPhotoUrls();
+      if (!currentUser) {
+        privateStateReady = false;
+      } else if (currentUser.id !== previousUserId) {
+        privateStateReady = false;
+      }
       updateBackendStatus();
+      updatePrivateAccessGate(currentUser && !privateStateReady ? "Loading private reef data..." : undefined);
       window.RC.Insights?.renderInsightOutput?.();
+      if (currentUser && currentUser.id !== previousUserId) {
+        pullState({ silent: true, startup: true }).then(() => {
+          return migrateInlinePhotosToStorage();
+        }).then(() => {
+          privateStateReady = true;
+          updatePrivateAccessGate();
+          renderAll();
+        }).catch((error) => {
+          console.error("Error loading private reef state:", error);
+          updateBackendStatus("Private sync load failed.");
+          updatePrivateAccessGate("Private sync load failed.");
+        });
+      }
     });
     authSubscription = subscription.data?.subscription || null;
     updateBackendStatus();
+    updatePrivateAccessGate(currentUser ? "Loading private reef data..." : undefined);
     window.RC.Insights?.renderInsightOutput?.();
-    await pullState({ silent: true, startup: true });
-    await migrateInlinePhotosToStorage();
+    if (currentUser) {
+      await pullState({ silent: true, startup: true });
+      await migrateInlinePhotosToStorage();
+      privateStateReady = true;
+      updatePrivateAccessGate();
+    } else {
+      privateStateReady = false;
+      updatePrivateAccessGate();
+    }
   }
 
   async function migrateInlinePhotosToStorage() {
-    if (!supabaseClient) return;
+    if (!supabaseClient || !currentUser) return;
     let changed = false;
 
     try {
@@ -2518,18 +2646,29 @@
       showToast("Add Supabase settings first.");
       return false;
     }
+    if (!currentUser) {
+      showToast("Sign in for private sync.");
+      return false;
+    }
     return true;
   }
 
   async function sendMagicLink() {
     if (!supabaseClient) {
-      showToast("Add Supabase settings first.");
+      setPrivateAccessStatus("Private sync is not configured.");
+      showToast("Private sync is not configured.");
       return;
     }
-    const email = $("authEmail").value.trim();
+    const email = ($("authEmail")?.value || $("privateAuthEmail")?.value || "").trim();
     if (!email) {
+      setPrivateAccessStatus("Enter your email.");
       showToast("Enter an email.");
       return;
+    }
+    const submit = $("privateAuthSubmit");
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = "Sending...";
     }
     const { error } = await supabaseClient.auth.signInWithOtp({
       email,
@@ -2537,11 +2676,17 @@
         emailRedirectTo: window.location.href.split("#")[0],
       },
     });
+    if (submit) {
+      submit.disabled = false;
+      submit.textContent = "Send Magic Link";
+    }
     if (error) {
       console.error(error);
+      setPrivateAccessStatus("Could not send sign-in link.");
       showToast("Could not send link.");
       return;
     }
+    setPrivateAccessStatus("Magic link sent. Open it to unlock Reef Command.");
     showToast("Magic link sent.");
   }
 
@@ -2549,7 +2694,11 @@
     if (!supabaseClient) return;
     await supabaseClient.auth.signOut();
     currentUser = null;
+    privateStateReady = false;
+    localOnlyMode = false;
+    clearSignedPhotoUrls();
     updateBackendStatus();
+    updatePrivateAccessGate("Signed out.");
     showToast("Signed out.");
   }
 
@@ -2561,9 +2710,9 @@
     }
     if (!options.force && !options.allowEmpty) {
       const { data: remoteRow, error: remoteReadError } = await supabaseClient
-        .from("reef_shared_state")
+        .from(PRIVATE_STATE_TABLE)
         .select("data, updated_at")
-        .eq("id", SHARED_STATE_ID)
+        .eq("user_id", currentUser.id)
         .maybeSingle();
       if (!remoteReadError && remoteRow?.data && shouldProtectRemoteState(remoteRow.data, state)) {
         isRemoteHydrating = true;
@@ -2582,14 +2731,14 @@
     }
     remoteSaveInFlight = true;
     const { error } = await supabaseClient
-      .from("reef_shared_state")
+      .from(PRIVATE_STATE_TABLE)
       .upsert(
         {
-          id: SHARED_STATE_ID,
+          user_id: currentUser.id,
           data: state,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "id" },
+        { onConflict: "user_id" },
       );
     remoteSaveInFlight = false;
     if (error) {
@@ -2616,9 +2765,9 @@
   async function pullState(options = {}) {
     if (!ensureBackend()) return;
     const { data, error } = await supabaseClient
-      .from("reef_shared_state")
+      .from(PRIVATE_STATE_TABLE)
       .select("data, updated_at")
-      .eq("id", SHARED_STATE_ID)
+      .eq("user_id", currentUser.id)
       .maybeSingle();
     if (error) {
       console.error(error);
@@ -2648,7 +2797,9 @@
       if (!localHasData && !remoteHasData) {
         return;
       }
-      if (localHasData && remoteHasData && localTime > remoteTime) {
+      if (localHasData && remoteHasData && shouldProtectRemoteState(remoteState, state)) {
+        // Remote wins when local cache is stale or still references pre-private shared photos.
+      } else if (localHasData && remoteHasData && localTime > remoteTime) {
         await pushState({ silent: true });
         return;
       }
@@ -3446,6 +3597,10 @@
     $("waterChangeForm").addEventListener("submit", addWaterChange);
     $("testMeasuredAt").addEventListener("change", updateTestTimingPill);
     $("generateInsightButton").addEventListener("click", () => window.RC.Insights.generateInsight());
+    $("privateAuthForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      sendMagicLink();
+    });
     $("saveBackendButton")?.addEventListener("click", saveBackendSettings);
     $("sendMagicLinkButton")?.addEventListener("click", sendMagicLink);
     $("signOutButton")?.addEventListener("click", signOut);
@@ -3456,7 +3611,7 @@
       if (event.target.open) renderParameterTrends();
     });
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") {
+      if (document.visibilityState === "hidden" && supabaseClient && currentUser) {
         pushState({ silent: true });
       }
     });

@@ -46,7 +46,7 @@
     const latest = state.insightRuns[0];
     if (!latest) {
       $("insightOutput").innerHTML = `<div class="empty-state">No result yet.</div>`;
-      $("insightSourcePill").textContent = RC.supabaseClient ? "GPT ready" : "Local";
+      $("insightSourcePill").textContent = RC.supabaseClient && RC.currentUser ? "GPT ready" : "Local";
       return;
     }
     $("insightSourcePill").textContent = latest.source === "gpt" ? "GPT" : "Local";
@@ -1348,7 +1348,7 @@
       let result;
       let source = "local";
       let debug;
-      if (RC.supabaseClient) {
+      if (RC.supabaseClient && RC.currentUser) {
         const response = await RC.supabaseClient.functions.invoke("generate-insights", {
           body: {
             mode,

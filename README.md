@@ -96,8 +96,38 @@ scripts/deploy-supabase.sh
 
 The script links the project, pushes migrations, deploys the GPT Edge Function, sets function secrets, and writes local app settings to `.env.supabase`.
 
-The hosted app reads `config.json` and uses the shared Reef Command Supabase project automatically.
+The hosted app reads `config.json` and uses the private Reef Command Supabase project automatically.
 
 ## Data model note
 
-The app syncs one structured shared JSON state row for profile, zones, livestock, water tests, events, and insight runs. Photos are uploaded to the `reef-photos` Supabase Storage bucket, and the JSON stores only lightweight photo paths and metadata.
+The app syncs one structured private JSON state row per authenticated user for profile, zones, livestock, water tests, events, and insight runs. Photos are uploaded to the private `reef-photos` Supabase Storage bucket under the signed-in user id, and the JSON stores only lightweight photo paths and metadata.
+
+## Privacy setup
+
+Reef Command now shows one private sign-in gate before the app. After sign-in,
+the same session unlocks tank data, photos, sync, and GPT insights.
+
+To preserve existing shared data:
+
+1. Sign in once through Reef Command so your Supabase Auth user exists.
+2. Find your user id in Supabase Auth.
+3. Apply the original private user table migration if it is not already applied.
+4. Adopt the old shared state and photos:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=... \
+REEF_OWNER_USER_ID=your-auth-user-id \
+node scripts/adopt-private-data.mjs
+```
+
+5. Apply `supabase/migrations/20260616000000_private_sync_and_storage.sql` to
+   revoke shared state/photo policies and use private Storage policies.
+
+The adoption script writes local backups under `.tmp-backups/`, copies
+`shared/...` Storage photos into your user folder, rewrites photo paths, and
+upserts the result into `reef_app_state`.
+
+GPT insights now require a valid Supabase Auth session before the Edge Function
+calls OpenAI. For production, set `REEF_ALLOWED_EMAILS` as a comma-separated
+Supabase secret to restrict GPT usage to your own email address(es).

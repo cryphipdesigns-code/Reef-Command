@@ -32,6 +32,12 @@ npx supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"
 npx supabase db push --password "$DB_PASSWORD"
 npx supabase functions deploy generate-insights
 npx supabase secrets set OPENAI_API_KEY="$OPENAI_API_KEY" OPENAI_MODEL="$OPENAI_MODEL"
+if [[ -n "${REEF_ALLOWED_EMAILS:-}" ]]; then
+  npx supabase secrets set REEF_ALLOWED_EMAILS="$REEF_ALLOWED_EMAILS"
+fi
+if [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
+  npx supabase secrets set SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
+fi
 
 ANON_KEY="$(
   npx supabase projects api-keys --project-ref "$PROJECT_REF" -o json \
