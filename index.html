@@ -17,9 +17,9 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <script src="./vendor/supabase.min.js?v=66"></script>
-    <script src="./vendor/lucide.min.js?v=66"></script>
-    <link rel="stylesheet" href="./styles.css?v=66" />
+    <script src="./vendor/supabase.min.js?v=67"></script>
+    <script src="./vendor/lucide.min.js?v=67"></script>
+    <link rel="stylesheet" href="./styles.css?v=67" />
   </head>
   <body class="private-locked">
     <section id="privateAccessGate" class="private-access-gate" aria-labelledby="privateAccessTitle">
@@ -774,6 +774,100 @@
                   <option value="removed">Removed</option>
                 </select>
               </label>
+              <div class="journal-type-meta wide-field" data-journal-fields="Water Test" hidden>
+                <span id="testTimingPill" class="status-pill">Now</span>
+              </div>
+              <label data-journal-fields="Water Test" hidden>
+                Ammonia
+                <input id="testAmmonia" type="number" min="0" step="0.01" placeholder="ppm" />
+              </label>
+              <label data-journal-fields="Water Test" hidden>
+                Nitrite
+                <input id="testNitrite" type="number" min="0" step="0.01" placeholder="ppm" />
+              </label>
+              <label data-journal-fields="Water Test" hidden>
+                Nitrate
+                <input id="testNitrate" type="number" min="0" step="0.1" placeholder="ppm" />
+              </label>
+              <label data-journal-fields="Water Test" hidden>
+                Phosphate
+                <input id="testPhosphate" type="number" min="0" step="0.01" placeholder="ppm" />
+              </label>
+              <label data-journal-fields="Water Test" hidden>
+                pH
+                <input id="testPh" type="number" min="0" step="0.01" />
+              </label>
+              <label data-journal-fields="Water Test" hidden>
+                Salinity
+                <input id="testSalinity" type="text" placeholder="1.026" />
+              </label>
+              <label data-journal-fields="Water Test" hidden>
+                Temperature
+                <input id="testTemp" type="text" placeholder="78 F" />
+              </label>
+              <label data-journal-fields="Water Test" hidden>
+                Alkalinity
+                <input id="testAlk" type="number" min="0" step="0.1" />
+              </label>
+              <label data-journal-fields="Water Test" hidden>
+                Calcium
+                <input id="testCalcium" type="number" min="0" step="1" />
+              </label>
+              <label data-journal-fields="Water Test" hidden>
+                Magnesium
+                <input id="testMagnesium" type="number" min="0" step="1" />
+              </label>
+              <label data-journal-fields="Feeding / Dosing" hidden>
+                Food
+                <select id="feedingFood">
+                  <option value="Flakes">Flakes</option>
+                  <option value="Pellets">Pellets</option>
+                  <option value="Frozen">Frozen</option>
+                  <option value="Nori">Nori</option>
+                  <option value="Coral food">Coral food</option>
+                  <option value="Phyto">Phyto</option>
+                  <option value="Amino acids">Amino acids</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label data-journal-fields="Feeding / Dosing" hidden>
+                Amount
+                <input id="feedingAmount" type="text" placeholder="1/2 cube" />
+              </label>
+              <label data-journal-fields="Feeding / Dosing" hidden>
+                Target
+                <input id="feedingTarget" type="text" placeholder="Whole tank" />
+              </label>
+              <label data-journal-fields="Maintenance / Water Change" hidden>
+                Type
+                <select id="maintenanceType">
+                  <option value="RODI replaced">RODI replaced</option>
+                  <option value="Top Carbon replaced">Top Carbon replaced</option>
+                  <option value="Bottom Carbon replaced">Bottom Carbon replaced</option>
+                  <option value="Purigen replaced">Purigen replaced</option>
+                  <option value="GFO replaced">GFO replaced</option>
+                  <option value="UV bulb replaced">UV bulb replaced</option>
+                  <option value="Filter floss changed">Filter floss changed</option>
+                  <option value="Skimmer cleaned">Skimmer cleaned</option>
+                  <option value="Pump cleaned">Pump cleaned</option>
+                  <option value="Dosing adjusted">Dosing adjusted</option>
+                  <option value="Equipment changed">Equipment changed</option>
+                  <option value="Water change">Water change</option>
+                  <option value="General note">General note</option>
+                </select>
+              </label>
+              <label data-journal-fields="Maintenance / Water Change" hidden>
+                Gallons
+                <input id="waterChangeGallons" type="number" min="0" step="0.1" />
+              </label>
+              <label data-journal-fields="Maintenance / Water Change" hidden>
+                Percent
+                <input id="waterChangePercent" type="number" min="0" step="1" />
+              </label>
+              <label class="wide-field" data-journal-fields="Maintenance / Water Change" hidden>
+                Details
+                <input id="maintenanceDetails" type="text" />
+              </label>
               <label class="wide-field">
                 Title
                 <input id="journalTitle" type="text" />
@@ -794,213 +888,6 @@
             <button class="primary-button" type="submit">
               <i data-lucide="save"></i>
               Save Entry
-            </button>
-          </form>
-
-          <div class="filter-bar" role="tablist" aria-label="Log type">
-            <button class="active" type="button" data-log-mode="test">
-              Tests
-            </button>
-            <button type="button" data-log-mode="feeding">Feeding</button>
-            <button type="button" data-log-mode="maintenance">
-              Maintenance
-            </button>
-            <button type="button" data-log-mode="water_change">
-              Water Change
-            </button>
-          </div>
-
-          <form id="waterTestForm" class="form-surface log-form active">
-            <div class="section-heading">
-              <h2>Water Test</h2>
-              <span id="testTimingPill" class="status-pill">Now</span>
-            </div>
-            <div class="field-grid">
-              <label>
-                Measured At
-                <input id="testMeasuredAt" type="datetime-local" />
-              </label>
-              <label>
-                Ammonia
-                <input
-                  id="testAmmonia"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="ppm"
-                />
-              </label>
-              <label>
-                Nitrite
-                <input
-                  id="testNitrite"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="ppm"
-                />
-              </label>
-              <label>
-                Nitrate
-                <input
-                  id="testNitrate"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  placeholder="ppm"
-                />
-              </label>
-              <label>
-                Phosphate
-                <input
-                  id="testPhosphate"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="ppm"
-                />
-              </label>
-              <label>
-                pH
-                <input id="testPh" type="number" min="0" step="0.01" />
-              </label>
-              <label>
-                Salinity
-                <input id="testSalinity" type="text" placeholder="1.026" />
-              </label>
-              <label>
-                Temperature
-                <input id="testTemp" type="text" placeholder="78 F" />
-              </label>
-              <label>
-                Alkalinity
-                <input id="testAlk" type="number" min="0" step="0.1" />
-              </label>
-              <label>
-                Calcium
-                <input id="testCalcium" type="number" min="0" step="1" />
-              </label>
-              <label>
-                Magnesium
-                <input id="testMagnesium" type="number" min="0" step="1" />
-              </label>
-              <label class="wide-field">
-                Notes
-                <input id="testNotes" type="text" />
-              </label>
-            </div>
-            <button class="primary-button" type="submit">
-              <i data-lucide="save"></i>
-              Save Test
-            </button>
-          </form>
-
-          <form id="feedingForm" class="form-surface log-form">
-            <div class="section-heading">
-              <h2>Feeding</h2>
-              <span class="status-pill">Nutrients</span>
-            </div>
-            <div class="field-grid">
-              <label>
-                Fed At
-                <input id="feedingAt" type="datetime-local" />
-              </label>
-              <label>
-                Food
-                <select id="feedingFood">
-                  <option value="Flakes">Flakes</option>
-                  <option value="Pellets">Pellets</option>
-                  <option value="Frozen">Frozen</option>
-                  <option value="Nori">Nori</option>
-                  <option value="Coral food">Coral food</option>
-                  <option value="Phyto">Phyto</option>
-                  <option value="Amino acids">Amino acids</option>
-                  <option value="Other">Other</option>
-                </select>
-              </label>
-              <label>
-                Amount
-                <input id="feedingAmount" type="text" placeholder="1/2 cube" />
-              </label>
-              <label>
-                Target
-                <input id="feedingTarget" type="text" placeholder="Whole tank" />
-              </label>
-              <label class="wide-field">
-                Notes
-                <input id="feedingNotes" type="text" />
-              </label>
-            </div>
-            <button class="primary-button" type="submit">
-              <i data-lucide="save"></i>
-              Save Feeding
-            </button>
-          </form>
-
-          <form id="maintenanceForm" class="form-surface log-form">
-            <div class="section-heading">
-              <h2>Maintenance</h2>
-              <span class="status-pill">Equipment</span>
-            </div>
-            <div class="field-grid">
-              <label>
-                Completed At
-                <input id="maintenanceAt" type="datetime-local" />
-              </label>
-              <label>
-                Type
-                <select id="maintenanceType">
-                  <option value="RODI replaced">RODI replaced</option>
-                  <option value="Top Carbon replaced">Top Carbon replaced</option>
-                  <option value="Bottom Carbon replaced">Bottom Carbon replaced</option>
-                  <option value="Purigen replaced">Purigen replaced</option>
-                  <option value="GFO replaced">GFO replaced</option>
-                  <option value="UV bulb replaced">UV bulb replaced</option>
-                  <option value="Filter floss changed">Filter floss changed</option>
-                  <option value="Skimmer cleaned">Skimmer cleaned</option>
-                  <option value="Pump cleaned">Pump cleaned</option>
-                  <option value="Dosing adjusted">Dosing adjusted</option>
-                  <option value="Equipment changed">Equipment changed</option>
-                  <option value="General note">General note</option>
-                </select>
-              </label>
-              <label class="wide-field">
-                Details
-                <input id="maintenanceDetails" type="text" />
-              </label>
-            </div>
-            <button class="primary-button" type="submit">
-              <i data-lucide="save"></i>
-              Save Maintenance
-            </button>
-          </form>
-
-          <form id="waterChangeForm" class="form-surface log-form">
-            <div class="section-heading">
-              <h2>Water Change</h2>
-              <span class="status-pill">Reset point</span>
-            </div>
-            <div class="field-grid">
-              <label>
-                Changed At
-                <input id="waterChangeAt" type="datetime-local" />
-              </label>
-              <label>
-                Gallons
-                <input id="waterChangeGallons" type="number" min="0" step="0.1" />
-              </label>
-              <label>
-                Percent
-                <input id="waterChangePercent" type="number" min="0" step="1" />
-              </label>
-              <label class="wide-field">
-                Notes
-                <input id="waterChangeNotes" type="text" />
-              </label>
-            </div>
-            <button class="primary-button" type="submit">
-              <i data-lucide="save"></i>
-              Save Change
             </button>
           </form>
 
@@ -1125,11 +1012,11 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </div>
 
-    <script src="./map-lidar-data.js?v=66"></script>
-    <script src="./js/records.js?v=66"></script>
-    <script src="./js/journal.js?v=66"></script>
-    <script src="./app.js?v=66"></script>
-    <script src="./js/map.js?v=66"></script>
-    <script src="./js/insights.js?v=66"></script>
+    <script src="./map-lidar-data.js?v=67"></script>
+    <script src="./js/records.js?v=67"></script>
+    <script src="./js/journal.js?v=67"></script>
+    <script src="./app.js?v=67"></script>
+    <script src="./js/map.js?v=67"></script>
+    <script src="./js/insights.js?v=67"></script>
   </body>
 </html>

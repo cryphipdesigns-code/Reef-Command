@@ -26,13 +26,6 @@
     insights: "insightsView",
   };
 
-  const logFormMap = {
-    test: "waterTestForm",
-    feeding: "feedingForm",
-    maintenance: "maintenanceForm",
-    water_change: "waterChangeForm",
-  };
-
   const EQUIPMENT_FIELDS = [
     { key: "proteinSkimmer", label: "Protein skimmer", dateKey: "proteinSkimmerAddedDate", legacyKey: "proteinSkimmerLegacy", detailsKey: "proteinSkimmerDetails" },
     { key: "sump", label: "Sump", dateKey: "sumpAddedDate", legacyKey: "sumpLegacy", detailsKey: "sumpDetails" },
@@ -72,7 +65,6 @@
   let pendingInsightPhotos = [];
   let pendingInsightFollowupPhotos = [];
   let pendingInsightFollowupRunId = "";
-  let editingLog = null;
   const signedPhotoUrls = new Map();
   const signedPhotoUrlRequests = new Set();
   let signedPhotoRenderTimer = null;
@@ -1126,6 +1118,121 @@
     return RECORDS.getRecordHistory ? RECORDS.getRecordHistory(state, recordId) : [];
   }
 
+  function getLivestockRecord(id) {
+    return (state.records?.livestock || []).find((record) => record.id === id) || null;
+  }
+
+  function getLivestockItems() {
+    return (state.records?.livestock || []).map(livestockItemFromRecord);
+  }
+
+  function livestockItemFromRecord(record) {
+    const current = getCurrentRecord(record);
+    const legacy = record.legacyRaw || {};
+    const details = {
+      ...(legacy.details || {}),
+      ...(record.details || {}),
+      ...(current.details || {}),
+    };
+    const species = current.species || current.name || legacy.species || legacy.name || "Unknown";
+    return {
+      ...legacy,
+      ...record,
+      ...current,
+      id: record.id,
+      species,
+      name: species,
+      category: current.category || legacy.category || "Other",
+      quantity: details.quantity ?? current.quantity ?? legacy.quantity ?? "",
+      currentCount: current.currentCount ?? details.currentCount ?? legacy.currentCount ?? "",
+      trackingUnit: details.trackingUnit || current.trackingUnit || legacy.trackingUnit || "",
+      addedDate: current.addedAt || current.addedDate || legacy.addedDate || "",
+      isLegacy: Boolean(current.isLegacy ?? legacy.isLegacy),
+      status: normalizeLivestockLifecycleStatus(current.status || legacy.status, current.category || legacy.category),
+      casual: Boolean(current.casual || legacy.casual || isCasualStockCategory(current.category || legacy.category)),
+      zoneId: details.zoneId || current.zoneId || legacy.zoneId || "",
+      initialHealth: details.initialHealth || legacy.health || "",
+      health: current.currentHealth || details.initialHealth || legacy.health || "",
+      growthTrend: current.growthTrend || details.growthTrend || legacy.growthTrend || "",
+      growthNotes: details.growthNotes || current.growthNotes || legacy.growthNotes || "",
+      photos: normalizePhotoArray(current.photos || record.photos || legacy.photos || []),
+      photoDataUrl: "",
+      mapPosition: current.mapPosition || legacy.mapPosition || null,
+      mapMarkerHidden: Boolean(current.mapMarkerHidden ?? legacy.mapMarkerHidden),
+      removedDate: current.retiredAt || legacy.removedDate || "",
+      outcomeReason: details.outcomeReason || current.outcomeReason || legacy.outcomeReason || "",
+    };
+  }
+
+  function syncLegacyLivestockFromRecords() {
+    state.livestock = getLivestockItems();
+  }
+
+  function updateLivestockPlacement(id, fields = {}) {
+    const record = getLivestockRecord(id);
+    if (!record) return null;
+    if (Object.prototype.hasOwnProperty.call(fields, "mapPosition")) {
+      record.mapPosition = normalizeMapPosition(fields.mapPosition);
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, "mapMarkerHidden")) {
+      record.mapMarkerHidden = Boolean(fields.mapMarkerHidden);
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, "zoneId")) {
+      record.details ||= {};
+      record.details.zoneId = fields.zoneId || "";
+    }
+    record.updatedAt = new Date().toISOString();
+    if (record.legacyRaw) {
+      if (Object.prototype.hasOwnProperty.call(fields, "mapPosition")) {
+        record.legacyRaw.mapPosition = record.mapPosition;
+      }
+      if (Object.prototype.hasOwnProperty.call(fields, "mapMarkerHidden")) {
+        record.legacyRaw.mapMarkerHidden = record.mapMarkerHidden;
+      }
+      if (Object.prototype.hasOwnProperty.call(fields, "zoneId")) {
+        record.legacyRaw.zoneId = record.details?.zoneId || "";
+      }
+    }
+    syncLegacyLivestockFromRecords();
+    return livestockItemFromRecord(record);
+  }
+
+  function hasJournalSource() {
+    return Array.isArray(state.journal) && state.journal.length > 0;
+  }
+
+  function getWaterTestsFromJournal() {
+    const tests = (state.journal || [])
+      .filter((entry) => entry.type === "Water Test" || entry.legacyKind === "water_test")
+      .map((entry) => JOURNAL.entryToLegacyWaterTest ? JOURNAL.entryToLegacyWaterTest(entry) : null)
+      .filter(Boolean)
+      .sort((a, b) => new Date(a.measuredAt) - new Date(b.measuredAt));
+    if (tests.length || hasJournalSource()) return tests;
+    return [...(state.waterTests || [])].sort((a, b) => new Date(a.measuredAt) - new Date(b.measuredAt));
+  }
+
+  function isCareJournalEntry(entry = {}) {
+    if (entry.legacyKind === "water_test") return false;
+    if (["feeding", "maintenance", "water_change"].includes(entry.legacyKind)) return true;
+    if (["equipment_setup", "livestock_setup", "livestock_health", "livestock_note"].includes(entry.legacyKind)) return false;
+    return ["Feeding / Dosing", "Maintenance / Water Change", "Equipment Change"].includes(entry.type);
+  }
+
+  function getEventsFromJournal() {
+    const events = (state.journal || [])
+      .filter(isCareJournalEntry)
+      .map((entry) => JOURNAL.entryToLegacyEvent ? JOURNAL.entryToLegacyEvent(entry) : null)
+      .filter(Boolean)
+      .sort((a, b) => new Date(a.happenedAt) - new Date(b.happenedAt));
+    if (events.length || hasJournalSource()) return events;
+    return [...(state.events || [])].sort((a, b) => new Date(a.happenedAt) - new Date(b.happenedAt));
+  }
+
+  function syncLegacyLogsFromJournal() {
+    state.waterTests = getWaterTestsFromJournal();
+    state.events = getEventsFromJournal();
+  }
+
   function getOrCreateLightingRecord() {
     state.records ||= { equipment: [], livestock: [] };
     state.records.equipment ||= [];
@@ -1255,11 +1362,15 @@
 
   function saveState() {
     state.updatedAt = new Date().toISOString();
+    syncLegacyLivestockFromRecords();
+    syncLegacyLogsFromJournal();
     writeJson(STORAGE_KEY, state);
     scheduleRemoteSave();
   }
 
   function saveLocalState() {
+    syncLegacyLivestockFromRecords();
+    syncLegacyLogsFromJournal();
     writeJson(STORAGE_KEY, state);
   }
 
@@ -1902,24 +2013,24 @@
   }
 
   function getLatestWaterTest() {
-    return [...state.waterTests].sort((a, b) => new Date(b.measuredAt) - new Date(a.measuredAt))[0] || null;
+    return [...getWaterTestsFromJournal()].sort((a, b) => new Date(b.measuredAt) - new Date(a.measuredAt))[0] || null;
   }
 
   function getLatestEvent(type) {
-    return [...state.events]
+    return [...getEventsFromJournal()]
       .filter((event) => event.type === type)
       .sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))[0] || null;
   }
 
   function getLatestEventBefore(type, beforeIso) {
     const before = new Date(beforeIso).getTime();
-    return [...state.events]
+    return [...getEventsFromJournal()]
       .filter((event) => event.type === type && new Date(event.happenedAt).getTime() <= before)
       .sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))[0] || null;
   }
 
   function getLatestMaintenanceByLabel(label) {
-    return [...state.events]
+    return [...getEventsFromJournal()]
       .filter((event) => event.type === "maintenance" && event.label === label)
       .sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))[0] || null;
   }
@@ -1987,7 +2098,7 @@
         .sort((a, b) => new Date(b.at) - new Date(a.at));
     }
 
-    const tests = state.waterTests.map((test) => ({
+    const tests = getWaterTestsFromJournal().map((test) => ({
       id: test.id,
       kind: "test",
       at: test.measuredAt,
@@ -1996,7 +2107,7 @@
       meta: `${formatDateTime(test.measuredAt)} · ${test.timing?.lightPhase || getLightPhase(test.measuredAt).label}`,
     }));
 
-    const events = state.events.map((event) => ({
+    const events = getEventsFromJournal().map((event) => ({
       id: event.id,
       kind: event.type,
       at: event.happenedAt,
@@ -2089,6 +2200,8 @@
   }
 
   function renderAll() {
+    syncLegacyLivestockFromRecords();
+    syncLegacyLogsFromJournal();
     renderTankProfileForm();
     renderDashboard();
     renderZones();
@@ -2112,7 +2225,7 @@
     const profile = state.profile;
     const latestTest = getLatestWaterTest();
     const latestWaterChange = getLatestEvent("water_change");
-    const activeLivestock = state.livestock.filter((item) => isLifecycleStock(item) && isAliveStock(item));
+    const activeLivestock = getLivestockItems().filter((item) => isLifecycleStock(item) && isAliveStock(item));
     const activeQuantity = activeLivestock.reduce((total, item) => {
       const rawQuantity = item.currentCount !== "" && item.currentCount !== null && item.currentCount !== undefined
         ? item.currentCount
@@ -2196,7 +2309,6 @@
     });
     renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
     renderEquipmentRecords();
-    syncEquipmentDateControls();
   }
 
   function updateProfileFromForm() {
@@ -2204,8 +2316,6 @@
       const key = input.dataset.profile;
       state.profile[key] = input.type === "checkbox" ? input.checked : input.value;
     });
-    normalizeEquipmentProfile(state.profile, state.profile);
-    syncEquipmentDateControls();
     saveState();
     $("profileSavedStatus").textContent = "Saved";
     renderDashboard();
@@ -2411,38 +2521,6 @@
     showToast(existing ? "Equipment setup updated." : "Equipment added.");
   }
 
-  function syncEquipmentDateControls() {
-    EQUIPMENT_FIELDS.forEach(({ key, dateKey, legacyKey, detailsKey, scheduleKey }) => {
-      const activeInput = document.querySelector(`[data-profile="${key}"]`);
-      const dateField = document.querySelector(`[data-equipment-date="${key}"]`);
-      const dateInput = document.querySelector(`[data-profile="${dateKey}"]`);
-      const legacyField = document.querySelector(`[data-equipment-legacy="${key}"]`);
-      const legacyInput = document.querySelector(`[data-profile="${legacyKey}"]`);
-      const detailsField = document.querySelector(`[data-equipment-details="${key}"]`);
-      const detailsInput = document.querySelector(`[data-profile="${detailsKey}"]`);
-      const scheduleField = scheduleKey ? document.querySelector(`[data-equipment-schedule="${key}"]`) : null;
-      const scheduleInput = scheduleKey ? document.querySelector(`[data-profile="${scheduleKey}"]`) : null;
-      const active = Boolean(activeInput?.checked);
-      const legacy = Boolean(legacyInput?.checked);
-      const hideDate = !active || legacy;
-
-      if (legacyField) legacyField.hidden = !active;
-      if (legacyInput) {
-        legacyInput.disabled = !active;
-        if (!active) legacyInput.checked = false;
-      }
-      if (dateField) dateField.hidden = hideDate;
-      if (dateInput) {
-        dateInput.disabled = hideDate;
-        if (hideDate) dateInput.value = "";
-      }
-      if (detailsField) detailsField.hidden = !active;
-      if (detailsInput) detailsInput.disabled = !active;
-      if (scheduleField) scheduleField.hidden = !active;
-      if (scheduleInput) scheduleInput.disabled = !active;
-    });
-  }
-
   function renderZones() {
     const zoneList = $("zoneList");
     if (zoneList) {
@@ -2473,10 +2551,11 @@
   }
 
   function renderLivestock() {
-    const activeCount = state.livestock.filter((item) => isLifecycleStock(item) && isAliveStock(item)).length;
-    const deceasedCount = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "deceased").length;
-    const removedCount = state.livestock.filter((item) => isLifecycleStock(item) && item.status === "removed").length;
-    const casualCount = state.livestock.filter((item) => item.casual || isCasualStockCategory(item.category)).length;
+    const livestockItems = getLivestockItems();
+    const activeCount = livestockItems.filter((item) => isLifecycleStock(item) && isAliveStock(item)).length;
+    const deceasedCount = livestockItems.filter((item) => isLifecycleStock(item) && item.status === "deceased").length;
+    const removedCount = livestockItems.filter((item) => isLifecycleStock(item) && item.status === "removed").length;
+    const casualCount = livestockItems.filter((item) => item.casual || isCasualStockCategory(item.category)).length;
     $("livestockCountPill").textContent = `${activeCount} alive · ${casualCount} casual${deceasedCount ? ` · ${deceasedCount} deceased` : ""}${removedCount ? ` · ${removedCount} removed` : ""}`;
     state.ui.livestockFilter = normalizeLivestockFilter(state.ui.livestockFilter);
     const formShell = $("livestockFormShell");
@@ -2486,7 +2565,7 @@
     });
 
     const filter = state.ui.livestockFilter;
-    const items = state.livestock.filter((item) => isLivestockVisibleForFilter(item, filter));
+    const items = livestockItems.filter((item) => isLivestockVisibleForFilter(item, filter));
 
     $("livestockList").innerHTML = items.length
       ? items.map(renderLivestockCard).join("")
@@ -2516,13 +2595,11 @@
       currentCount ? `Current ${currentCount}` : "",
     ].filter(Boolean);
     const photos = getLivestockPhotos(item);
-    const healthParts = [
-      item.health ? `Health: ${item.health}` : "",
+    const currentHealth = item.health || "";
+    const wellnessParts = [
+      currentHealth ? `Current health: ${currentHealth}` : "",
       item.growthTrend ? `Growth: ${item.growthTrend}` : "",
-      item.growthNotes ? `Growth notes: ${item.growthNotes}` : "",
     ].filter(Boolean);
-    const currentRecord = getCurrentRecord({ ...item, recordType: "livestock" });
-    const currentHealth = currentRecord.currentHealth || item.health || "";
     const history = getRecordHistory(item.id);
     const outcome = !casual && !isAliveStock(item)
       ? `<p class="card-meta">${escapeHtml(livestockStatusLabel(item.status))}${item.removedDate ? ` on ${escapeHtml(formatDate(item.removedDate))}` : ""}${item.outcomeReason ? ` · ${escapeHtml(item.outcomeReason)}` : ""}</p>`
@@ -2538,10 +2615,8 @@
         </div>
         ${editing ? renderLivestockInlineEditForm(item) : `
           <p class="card-meta">${escapeHtml(formatStockDate(item))}</p>
-          ${currentHealth ? `<p class="card-meta">${escapeHtml(`Current health: ${currentHealth}`)}</p>` : ""}
-          ${healthParts.length ? `<p class="card-meta">${escapeHtml(healthParts.join(" · "))}</p>` : ""}
+          ${wellnessParts.length ? `<p class="card-meta">${escapeHtml(wellnessParts.join(" · "))}</p>` : ""}
           ${renderStockPhotoGrid(item, photos)}
-          ${renderLivestockNoteLog(item)}
           ${renderRecordHistoryList(history)}
           ${outcome}
           <div class="card-actions">
@@ -2625,7 +2700,7 @@
                 ["Struggling", "Struggling"],
                 ["Declining", "Declining"],
                 ["Unknown", "Unknown"],
-              ], item.health || "")}
+              ], item.initialHealth || "")}
             </select>
           </label>
           <label>
@@ -2682,38 +2757,12 @@
     `).join("");
   }
 
-  function renderLivestockZoneOptions(selectedValue) {
-    return [
-      ["", "Unplaced"],
-      ...state.zones.map((zone) => [zone.id, zone.name]),
-    ].map(([value, label]) => `
-      <option value="${escapeHtml(value)}"${String(value) === String(selectedValue) ? " selected" : ""}>${escapeHtml(label)}</option>
-    `).join("");
-  }
-
   function getLivestockPhotoPreviewId() {
     return editingLivestockId ? "livestockInlinePhotoPreview" : "livestockPhotoPreview";
   }
 
   function renderActiveLivestockPhotoPreview() {
     renderPhotoPreview(getLivestockPhotoPreviewId(), pendingLivestockPhotos, "Stock photo");
-  }
-
-  function renderLivestockNoteLog(item) {
-    const notes = normalizeLivestockNoteLog(item);
-    if (!notes.length) return "";
-    return `
-      <div class="livestock-note-log">
-        <strong>Notes</strong>
-        ${notes.slice(0, 4).map((note) => `
-          <p class="card-meta">
-            <span>${escapeHtml(note.at ? formatDateTime(note.at) : "Legacy note")}</span>
-            ${escapeHtml(note.text)}
-          </p>
-        `).join("")}
-        ${notes.length > 4 ? `<p class="card-meta">${notes.length - 4} older note${notes.length - 4 === 1 ? "" : "s"}</p>` : ""}
-      </div>
-    `;
   }
 
   function renderStockPhotoGrid(item, photos) {
@@ -2743,7 +2792,7 @@
       });
     });
 
-    state.livestock.forEach((item) => {
+    getLivestockItems().forEach((item) => {
       const itemPhotos = getLivestockPhotos(item);
       itemPhotos.forEach((photo, index) => {
         photos.push({
@@ -2778,17 +2827,21 @@
   }
 
   function renderLogMode() {
-    const mode = state.ui.logMode || "test";
-    $$("[data-log-mode]").forEach((button) => {
-      button.classList.toggle("active", button.dataset.logMode === mode);
-    });
-    Object.entries(logFormMap).forEach(([key, formId]) => {
-      $(formId).classList.toggle("active", key === mode);
-    });
     seedLogDates();
-    updateTestTimingPill();
-    updateLogSubmitLabels();
+    renderJournalTypeFields();
     renderJournalRecordPickers();
+  }
+
+  function renderJournalTypeFields() {
+    const type = $("journalEntryType")?.value || "Observation";
+    $$("[data-journal-fields]").forEach((element) => {
+      const visible = element.dataset.journalFields === type;
+      element.hidden = !visible;
+      element.querySelectorAll?.("input, select, textarea, button").forEach((input) => {
+        input.disabled = !visible;
+      });
+    });
+    updateTestTimingPill();
   }
 
   function renderJournalRecordPickers() {
@@ -2823,19 +2876,8 @@
   }
 
   function applyJournalLinkEffects(entry) {
-    const status = entry.effects?.find((effect) => effect.fields?.status)?.fields?.status || "";
-    const retiredAt = entry.effects?.find((effect) => effect.fields?.retiredAt)?.fields?.retiredAt || "";
-    const health = entry.observation?.health || "";
-    (entry.linkedLivestock || []).forEach((id) => {
-      const item = state.livestock.find((livestock) => livestock.id === id);
-      if (!item) return;
-      if (status) {
-        item.status = status;
-        item.removedDate = status === "alive" ? "" : retiredAt || todayInputValue();
-      }
-      if (health) item.health = health;
-      syncLivestockRecordFromItem(item);
-    });
+    if (!entry) return;
+    syncLegacyLivestockFromRecords();
   }
 
   function addJournalEntryFromForm(event) {
@@ -2847,6 +2889,13 @@
     const status = $("journalLivestockStatus").value;
     const occurredAt = fromDatetimeLocal($("journalOccurredAt").value);
     const effects = [];
+    const measurements = {};
+    const context = {};
+    let title = $("journalTitle").value.trim() || type;
+    let summary = $("journalSummary").value.trim();
+    let legacyKind = "";
+    let legacyId = "";
+    let legacyRaw = null;
     if (health) {
       linkedLivestock.forEach((recordId) => effects.push({ recordId, fields: { currentHealth: health } }));
     }
@@ -2859,18 +2908,98 @@
         },
       }));
     }
+    if (type === "Water Test") {
+      const previousWaterChange = getLatestEventBefore("water_change", occurredAt);
+      const previousFeeding = getLatestEventBefore("feeding", occurredAt);
+      Object.assign(measurements, {
+        ammonia: readNumber("testAmmonia"),
+        nitrite: readNumber("testNitrite"),
+        nitrate: readNumber("testNitrate"),
+        phosphate: readNumber("testPhosphate"),
+        ph: readNumber("testPh"),
+        alkalinity: readNumber("testAlk"),
+        calcium: readNumber("testCalcium"),
+        magnesium: readNumber("testMagnesium"),
+        salinity: $("testSalinity").value.trim(),
+        temperature: $("testTemp").value.trim(),
+      });
+      Object.assign(context, {
+        lightPhase: getLightPhase(occurredAt).label,
+        afterWaterChange: describeTimeAfter(previousWaterChange, occurredAt),
+        afterFeeding: describeTimeAfter(previousFeeding, occurredAt),
+      });
+      legacyId = uid();
+      legacyKind = "water_test";
+      legacyRaw = {
+        id: legacyId,
+        measuredAt: occurredAt,
+        ...measurements,
+        notes: summary,
+        timing: context,
+      };
+      title = $("journalTitle").value.trim() || "Water test";
+    } else if (type === "Feeding / Dosing") {
+      legacyId = uid();
+      legacyKind = "feeding";
+      legacyRaw = {
+        id: legacyId,
+        type: "feeding",
+        happenedAt: occurredAt,
+        label: $("feedingFood").value,
+        amount: $("feedingAmount").value.trim(),
+        target: $("feedingTarget").value.trim(),
+        notes: summary,
+      };
+      title = $("journalTitle").value.trim() || `Fed ${legacyRaw.label || "tank"}`;
+      summary = [legacyRaw.amount, legacyRaw.target, summary].filter(Boolean).join(" · ");
+    } else if (type === "Maintenance / Water Change") {
+      const gallons = $("waterChangeGallons").value;
+      const percent = $("waterChangePercent").value;
+      const maintenanceType = $("maintenanceType").value;
+      const details = $("maintenanceDetails").value.trim();
+      const isWaterChange = /water change/i.test(maintenanceType) || Boolean(gallons || percent);
+      legacyId = uid();
+      legacyKind = isWaterChange ? "water_change" : "maintenance";
+      legacyRaw = isWaterChange
+        ? {
+            id: legacyId,
+            type: "water_change",
+            happenedAt: occurredAt,
+            label: "Water change",
+            gallons,
+            percent,
+            notes: summary || details,
+          }
+        : {
+            id: legacyId,
+            type: "maintenance",
+            happenedAt: occurredAt,
+            label: maintenanceType,
+            details,
+            notes: summary,
+          };
+      title = $("journalTitle").value.trim() || legacyRaw.label || maintenanceType || "Maintenance";
+      summary = isWaterChange
+        ? [gallons ? `${gallons} gallons` : "", percent ? `${percent}%` : "", summary || details].filter(Boolean).join(" · ")
+        : [details, summary].filter(Boolean).join(" · ");
+    }
     const entry = addJournalEntry({
       type,
       occurredAt,
-      title: $("journalTitle").value.trim() || type,
-      summary: $("journalSummary").value.trim(),
+      title,
+      summary,
       severity: $("journalSeverity").value,
       linkedEquipment,
       linkedLivestock,
+      measurements,
+      context,
       observation: {
         health,
       },
       effects,
+      legacyKind,
+      legacyId,
+      legacyRaw,
     });
     applyJournalLinkEffects(entry);
     state.ui.pendingJournalLink = null;
@@ -2878,6 +3007,13 @@
     seedLogDates();
     saveState();
     renderAll();
+    if (type === "Water Test" && legacyRaw) {
+      const alerts = getWaterTestAlerts(legacyRaw);
+      if (alerts.length) {
+        showToast(`Saved. Warning: ${alerts[0]}${alerts.length > 1 ? ` (+${alerts.length - 1} more)` : ""}`);
+        return;
+      }
+    }
     showToast("Journal entry saved.");
   }
 
@@ -2889,12 +3025,7 @@
   }
 
   function renderTimelineEntry(entry) {
-    const actions = entry.kind === "journal"
-      ? `<button class="mini-button danger" type="button" data-delete-entry="${entry.kind}:${entry.id}">Delete</button>`
-      : `
-            <button class="mini-button" type="button" data-edit-entry="${entry.kind}:${entry.id}">Edit</button>
-            <button class="mini-button danger" type="button" data-delete-entry="${entry.kind}:${entry.id}">Delete</button>
-          `;
+    const actions = `<button class="mini-button danger" type="button" data-delete-entry="${entry.kind}:${entry.id}">Delete</button>`;
     return `
       <article class="timeline-item" data-kind="${entry.kind}">
         <div class="timeline-head">
@@ -2926,7 +3057,7 @@
       { key: "magnesium", label: "Magnesium", unit: "ppm", decimals: 0 },
     ];
 
-    const tests = state.waterTests
+    const tests = getWaterTestsFromJournal()
       .filter((t) => t.measuredAt)
       .sort((a, b) => new Date(a.measuredAt) - new Date(b.measuredAt))
       .slice(-90);
@@ -2993,15 +3124,17 @@
   }
 
   function seedLogDates() {
-    ["journalOccurredAt", "testMeasuredAt", "feedingAt", "maintenanceAt", "waterChangeAt"].forEach((id) => {
+    ["journalOccurredAt"].forEach((id) => {
       if ($(id) && !$(id).value) $(id).value = toDatetimeLocal();
     });
   }
 
   function updateTestTimingPill() {
-    const measuredAt = $("testMeasuredAt").value ? fromDatetimeLocal($("testMeasuredAt").value) : new Date().toISOString();
+    const pill = $("testTimingPill");
+    if (!pill) return;
+    const measuredAt = $("journalOccurredAt")?.value ? fromDatetimeLocal($("journalOccurredAt").value) : new Date().toISOString();
     const phase = getLightPhase(measuredAt).label;
-    $("testTimingPill").textContent = phase;
+    pill.textContent = phase;
   }
 
 
@@ -3142,11 +3275,16 @@
         changed = true;
       }
 
-      for (const item of state.livestock) {
+      for (const record of state.records?.livestock || []) {
+        const item = livestockItemFromRecord(record);
         const photos = getLivestockPhotos(item);
         if (!photos.some((photo) => photo.dataUrl)) continue;
-        item.photos = await preparePhotosForSave(item.id, photos);
-        item.photoDataUrl = "";
+        const uploadedPhotos = await preparePhotosForSave(item.id, photos);
+        record.photos = uploadedPhotos;
+        record.legacyRaw ||= {};
+        record.legacyRaw.photos = uploadedPhotos;
+        record.legacyRaw.photoDataUrl = "";
+        record.updatedAt = new Date().toISOString();
         changed = true;
       }
 
@@ -3567,7 +3705,8 @@
   }
 
   function startLivestockEdit(id) {
-    const item = state.livestock.find((entry) => entry.id === id);
+    const record = getLivestockRecord(id);
+    const item = record ? livestockItemFromRecord(record) : null;
     if (!item) return;
     editingLivestockId = item.id;
     $("livestockEditId").value = "";
@@ -3591,12 +3730,12 @@
     if (!formData.species) return;
     const submitButton = $("livestockSubmitButton");
     const editId = $("livestockEditId").value;
-    const existing = editId ? state.livestock.find((item) => item.id === editId) : null;
+    const existing = editId ? getLivestockRecord(editId) : null;
     await saveLivestockRecord(formData, existing, submitButton);
   }
 
   async function saveInlineLivestockEdit(form) {
-    const existing = state.livestock.find((item) => item.id === form.dataset.id);
+    const existing = getLivestockRecord(form.dataset.id);
     if (!existing) {
       resetLivestockForm();
       renderLivestock();
@@ -3615,41 +3754,48 @@
     }
     refreshIcons();
 
+    const existingItem = existing ? livestockItemFromRecord(existing) : null;
     const id = existing?.id || uid();
     const updatedExisting = Boolean(existing);
-    const previousPaths = existing ? getPhotoStoragePaths(getLivestockPhotos(existing)) : [];
+    const previousPaths = existingItem ? getPhotoStoragePaths(getLivestockPhotos(existingItem)) : [];
 
     try {
       const photos = await preparePhotosForSave(id, formData.photos);
       const nextPaths = getPhotoStoragePaths(photos);
-      const noteLog = existing ? normalizeLivestockNoteLog(existing) : [];
-      if (formData.noteText) noteLog.unshift(createLivestockNoteEntry(formData.noteText));
       const { noteText: _noteText, ...stockData } = formData;
       const payload = {
         ...stockData,
-        zoneId: stockData.zoneId || existing?.zoneId || "",
+        zoneId: stockData.zoneId || existingItem?.zoneId || "",
         notes: "",
-        noteLog,
         photos,
         photoDataUrl: photos.find((photo) => photo.dataUrl)?.dataUrl || "",
       };
 
+      const nextItem = {
+        ...(existingItem || {}),
+        id,
+        ...payload,
+        status: updatedExisting
+          ? normalizeLivestockLifecycleStatus(existingItem.status, payload.category)
+          : "alive",
+        casual: Boolean(payload.casual || isCasualStockCategory(payload.category)),
+        removedDate: existingItem?.removedDate || "",
+        outcomeReason: existingItem?.outcomeReason || "",
+      };
+
       if (existing) {
-        Object.assign(existing, {
-          ...payload,
-          status: normalizeLivestockLifecycleStatus(existing.status, payload.category),
-          casual: Boolean(payload.casual || isCasualStockCategory(payload.category)),
-        });
-        syncLivestockRecordFromItem(existing);
+        syncLivestockRecordFromItem(nextItem);
       } else {
-        const newItem = {
-          id,
-          ...payload,
-          removedDate: "",
-          outcomeReason: "",
-        };
-        state.livestock.push(newItem);
-        syncLivestockRecordFromItem(newItem, { createJournal: true });
+        syncLivestockRecordFromItem(nextItem, { createJournal: true });
+      }
+
+      if (formData.noteText) {
+        addJournalEntry({
+          type: "Observation",
+          title: `${nextItem.species || nextItem.name || "Livestock"} note`,
+          summary: formData.noteText,
+          linkedLivestock: [id],
+        });
       }
 
       await removeStoragePaths(previousPaths.filter((path) => !nextPaths.includes(path)));
@@ -3733,34 +3879,6 @@
     state.journal = (state.journal || []).filter((entry) => !(entry.linkedLivestock || []).includes(id));
   }
 
-  function updateLogSubmitLabels() {
-    const labels = {
-      test: "Save Test",
-      feeding: "Save Feeding",
-      maintenance: "Save Maintenance",
-      water_change: "Save Change",
-    };
-
-    Object.entries(logFormMap).forEach(([kind, formId]) => {
-      const button = $(formId)?.querySelector('button[type="submit"]');
-      if (!button) return;
-      const label = editingLog?.kind === kind ? "Save Edit" : labels[kind];
-      button.innerHTML = `<i data-lucide="save"></i>${label}`;
-    });
-    refreshIcons();
-  }
-
-  function clearLogEdit() {
-    editingLog = null;
-    updateLogSubmitLabels();
-  }
-
-  function setLogMode(mode) {
-    state.ui.logMode = mode;
-    saveLocalState();
-    renderLogMode();
-  }
-
   function startJournalForRecord(recordKey = "") {
     const [recordType, recordId] = String(recordKey).split(":");
     state.ui.pendingJournalLink = { recordType, recordId };
@@ -3774,63 +3892,19 @@
     showToast("Journal link selected.");
   }
 
-  function setInputValue(id, value) {
-    $(id).value = value ?? "";
-  }
-
-  function ensureSelectOption(select, value) {
-    if (!value || Array.from(select.options).some((option) => option.value === value)) return;
-    select.add(new Option(value, value));
-  }
-
-  function startLogEdit(key) {
-    const [kind, id] = key.split(":");
-    if (kind === "test") {
-      const test = state.waterTests.find((entry) => entry.id === id);
-      if (!test) return;
-      editingLog = { kind, id };
-      setLogMode("test");
-      setInputValue("testMeasuredAt", toDatetimeLocal(test.measuredAt));
-      setInputValue("testAmmonia", test.ammonia);
-      setInputValue("testNitrite", test.nitrite);
-      setInputValue("testNitrate", test.nitrate);
-      setInputValue("testPhosphate", test.phosphate);
-      setInputValue("testPh", test.ph);
-      setInputValue("testSalinity", test.salinity);
-      setInputValue("testTemp", test.temperature);
-      setInputValue("testAlk", test.alkalinity);
-      setInputValue("testCalcium", test.calcium);
-      setInputValue("testMagnesium", test.magnesium);
-      setInputValue("testNotes", test.notes);
-      updateTestTimingPill();
-    } else {
-      const entry = state.events.find((event) => event.id === id && event.type === kind);
-      if (!entry) return;
-      editingLog = { kind, id };
-      setLogMode(kind);
-      if (kind === "feeding") {
-        setInputValue("feedingAt", toDatetimeLocal(entry.happenedAt));
-        ensureSelectOption($("feedingFood"), entry.label);
-        setInputValue("feedingFood", entry.label);
-        setInputValue("feedingAmount", entry.amount);
-        setInputValue("feedingTarget", entry.target);
-        setInputValue("feedingNotes", entry.notes);
-      } else if (kind === "maintenance") {
-        setInputValue("maintenanceAt", toDatetimeLocal(entry.happenedAt));
-        ensureSelectOption($("maintenanceType"), entry.label);
-        setInputValue("maintenanceType", entry.label);
-        setInputValue("maintenanceDetails", entry.details || entry.notes);
-      } else if (kind === "water_change") {
-        setInputValue("waterChangeAt", toDatetimeLocal(entry.happenedAt));
-        setInputValue("waterChangeGallons", entry.gallons);
-        setInputValue("waterChangePercent", entry.percent);
-        setInputValue("waterChangeNotes", entry.notes);
-      }
-    }
-
-    $(logFormMap[kind]).scrollIntoView({ behavior: "smooth", block: "start" });
-    updateLogSubmitLabels();
-    showToast("Editing timeline entry.");
+  function startJournalQuickEntry(mode = "") {
+    const typeByMode = {
+      test: "Water Test",
+      feeding: "Feeding / Dosing",
+      maintenance: "Maintenance / Water Change",
+      water_change: "Maintenance / Water Change",
+    };
+    const type = typeByMode[mode] || "Observation";
+    if ($("journalEntryType")) $("journalEntryType").value = type;
+    if (mode === "water_change" && $("maintenanceType")) $("maintenanceType").value = "Water change";
+    renderLogMode();
+    setActiveView("logbook");
+    $("journalEntryForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function getWaterTestAlerts(test) {
@@ -3844,213 +3918,6 @@
     if (test.phosphate !== null && test.phosphate > 0.1)
       alerts.push(`Phosphate ${test.phosphate} ppm — elevated (reef target <0.1)`);
     return alerts;
-  }
-
-  function addWaterTest(event) {
-    event.preventDefault();
-    const measuredAt = fromDatetimeLocal($("testMeasuredAt").value);
-    const previousWaterChange = getLatestEventBefore("water_change", measuredAt);
-    const previousFeeding = getLatestEventBefore("feeding", measuredAt);
-    const existing = editingLog?.kind === "test"
-      ? state.waterTests.find((entry) => entry.id === editingLog.id)
-      : null;
-    const test = {
-      id: existing?.id || uid(),
-      measuredAt,
-      ammonia: readNumber("testAmmonia"),
-      nitrite: readNumber("testNitrite"),
-      nitrate: readNumber("testNitrate"),
-      phosphate: readNumber("testPhosphate"),
-      ph: readNumber("testPh"),
-      salinity: $("testSalinity").value.trim(),
-      temperature: $("testTemp").value.trim(),
-      alkalinity: readNumber("testAlk"),
-      calcium: readNumber("testCalcium"),
-      magnesium: readNumber("testMagnesium"),
-      notes: $("testNotes").value.trim(),
-      timing: {
-        lightPhase: getLightPhase(measuredAt).label,
-        afterWaterChange: describeTimeAfter(previousWaterChange, measuredAt),
-        afterFeeding: describeTimeAfter(previousFeeding, measuredAt),
-      },
-    };
-
-    const hasValues = Object.entries(test).some(([key, value]) => {
-      if (["id", "measuredAt", "timing"].includes(key)) return false;
-      return value !== null && value !== "";
-    });
-    if (!hasValues) {
-      showToast("Add at least one value.");
-      return;
-    }
-
-    if (existing) {
-      Object.assign(existing, test);
-    } else {
-      state.waterTests.push(test);
-    }
-    addJournalEntry({
-      id: `journal_water_test_${test.id}`,
-      type: "Water Test",
-      occurredAt: test.measuredAt,
-      title: "Water test",
-      summary: test.notes,
-      measurements: {
-        ammonia: test.ammonia,
-        nitrite: test.nitrite,
-        nitrate: test.nitrate,
-        phosphate: test.phosphate,
-        ph: test.ph,
-        alkalinity: test.alkalinity,
-        calcium: test.calcium,
-        magnesium: test.magnesium,
-        salinity: test.salinity,
-        temperature: test.temperature,
-      },
-      context: test.timing,
-      legacyKind: "water_test",
-      legacyId: test.id,
-      legacyRaw: test,
-    });
-    $("waterTestForm").reset();
-    seedLogDates();
-    clearLogEdit();
-    saveState();
-    renderDashboard();
-    renderTimeline();
-    window.RC.Insights?.renderInsightsContext?.();
-
-    const alerts = getWaterTestAlerts(test);
-    if (alerts.length) {
-      showToast(`Saved. Warning: ${alerts[0]}${alerts.length > 1 ? ` (+${alerts.length - 1} more)` : ""}`);
-    } else {
-      showToast(existing ? "Water test updated." : "Water test saved.");
-    }
-  }
-
-  function addFeeding(event) {
-    event.preventDefault();
-    const existing = editingLog?.kind === "feeding"
-      ? state.events.find((entry) => entry.id === editingLog.id)
-      : null;
-    const feeding = {
-      id: existing?.id || uid(),
-      type: "feeding",
-      happenedAt: fromDatetimeLocal($("feedingAt").value),
-      label: $("feedingFood").value,
-      amount: $("feedingAmount").value.trim(),
-      target: $("feedingTarget").value.trim(),
-      notes: $("feedingNotes").value.trim(),
-    };
-    if (existing) {
-      Object.assign(existing, feeding);
-    } else {
-      state.events.push(feeding);
-    }
-    addJournalEntry({
-      id: `journal_event_${feeding.id}`,
-      type: "Feeding / Dosing",
-      occurredAt: feeding.happenedAt,
-      title: `Fed ${feeding.label || "tank"}`,
-      summary: [feeding.amount, feeding.target, feeding.notes].filter(Boolean).join(" · "),
-      linkedEquipment: JOURNAL.suggestLinksForType ? JOURNAL.suggestLinksForType(state, "Feeding / Dosing").linkedEquipment : [],
-      legacyKind: "feeding",
-      legacyId: feeding.id,
-      legacyRaw: feeding,
-    });
-    $("feedingForm").reset();
-    seedLogDates();
-    clearLogEdit();
-    saveState();
-    renderDashboard();
-    renderTimeline();
-    window.RC.Insights?.renderInsightsContext?.();
-    showToast(existing ? "Feeding updated." : "Feeding saved.");
-  }
-
-  function addMaintenance(event) {
-    event.preventDefault();
-    const existing = editingLog?.kind === "maintenance"
-      ? state.events.find((entry) => entry.id === editingLog.id)
-      : null;
-    const maintenance = {
-      id: existing?.id || uid(),
-      type: "maintenance",
-      happenedAt: fromDatetimeLocal($("maintenanceAt").value),
-      label: $("maintenanceType").value,
-      details: $("maintenanceDetails").value.trim(),
-      notes: "",
-    };
-    if (existing) {
-      Object.assign(existing, maintenance);
-    } else {
-      state.events.push(maintenance);
-    }
-    addJournalEntry({
-      id: `journal_event_${maintenance.id}`,
-      type: /equipment|skimmer|pump|uv|gfo|carbon|reactor|filter/i.test(maintenance.label)
-        ? "Equipment Change"
-        : "Maintenance / Water Change",
-      occurredAt: maintenance.happenedAt,
-      title: maintenance.label || "Maintenance",
-      summary: maintenance.details,
-      linkedEquipment: JOURNAL.suggestLinksForType ? JOURNAL.suggestLinksForType(state, "Maintenance / Water Change").linkedEquipment : [],
-      legacyKind: "maintenance",
-      legacyId: maintenance.id,
-      legacyRaw: maintenance,
-    });
-    $("maintenanceForm").reset();
-    seedLogDates();
-    clearLogEdit();
-    saveState();
-    renderDashboard();
-    renderTimeline();
-    window.RC.Insights?.renderInsightsContext?.();
-    showToast(existing ? "Maintenance updated." : "Maintenance saved.");
-  }
-
-  function addWaterChange(event) {
-    event.preventDefault();
-    const existing = editingLog?.kind === "water_change"
-      ? state.events.find((entry) => entry.id === editingLog.id)
-      : null;
-    const waterChange = {
-      id: existing?.id || uid(),
-      type: "water_change",
-      happenedAt: fromDatetimeLocal($("waterChangeAt").value),
-      label: "Water change",
-      gallons: $("waterChangeGallons").value,
-      percent: $("waterChangePercent").value,
-      notes: $("waterChangeNotes").value.trim(),
-    };
-    if (existing) {
-      Object.assign(existing, waterChange);
-    } else {
-      state.events.push(waterChange);
-    }
-    addJournalEntry({
-      id: `journal_event_${waterChange.id}`,
-      type: "Maintenance / Water Change",
-      occurredAt: waterChange.happenedAt,
-      title: "Water change",
-      summary: [
-        waterChange.gallons ? `${waterChange.gallons} gallons` : "",
-        waterChange.percent ? `${waterChange.percent}%` : "",
-        waterChange.notes,
-      ].filter(Boolean).join(" · "),
-      linkedEquipment: JOURNAL.suggestLinksForType ? JOURNAL.suggestLinksForType(state, "Maintenance / Water Change").linkedEquipment : [],
-      legacyKind: "water_change",
-      legacyId: waterChange.id,
-      legacyRaw: waterChange,
-    });
-    $("waterChangeForm").reset();
-    seedLogDates();
-    clearLogEdit();
-    saveState();
-    renderDashboard();
-    renderTimeline();
-    window.RC.Insights?.renderInsightsContext?.();
-    showToast(existing ? "Water change updated." : "Water change saved.");
   }
 
   async function handleDocumentClick(event) {
@@ -4120,19 +3987,7 @@
 
     const quickLog = event.target.closest("[data-open-log]");
     if (quickLog) {
-      state.ui.logMode = quickLog.dataset.openLog;
-      saveLocalState();
-      setActiveView("logbook");
-      renderLogMode();
-      return;
-    }
-
-    const logMode = event.target.closest("[data-log-mode]");
-    if (logMode) {
-      clearLogEdit();
-      state.ui.logMode = logMode.dataset.logMode;
-      saveLocalState();
-      renderLogMode();
+      startJournalQuickEntry(quickLog.dataset.openLog);
       return;
     }
 
@@ -4164,11 +4019,7 @@
 
     const stockClear = event.target.closest("[data-map-stock-clear]");
     if (stockClear) {
-      const item = state.livestock.find((entry) => entry.id === stockClear.dataset.mapStockClear);
-      if (item) {
-        item.mapPosition = null;
-        item.mapMarkerHidden = true;
-      }
+      updateLivestockPlacement(stockClear.dataset.mapStockClear, { mapPosition: null, mapMarkerHidden: true });
       saveState();
       window.RC.Map.renderMapMarkerControls();
       window.RC.Map.renderMapSummaries();
@@ -4182,8 +4033,8 @@
     if (zoneDelete) {
       const id = zoneDelete.dataset.zoneDelete;
       state.zones = state.zones.filter((zone) => zone.id !== id);
-      state.livestock.forEach((item) => {
-        if (item.zoneId === id) item.zoneId = "";
+      getLivestockItems().forEach((item) => {
+        if (item.zoneId === id) updateLivestockPlacement(item.id, { zoneId: "" });
       });
       saveState();
       renderZones();
@@ -4222,12 +4073,6 @@
       return;
     }
 
-    const editEntry = event.target.closest("[data-edit-entry]");
-    if (editEntry) {
-      startLogEdit(editEntry.dataset.editEntry);
-      return;
-    }
-
     const deleteEntry = event.target.closest("[data-delete-entry]");
     if (deleteEntry) {
       deleteTimelineEntry(deleteEntry.dataset.deleteEntry);
@@ -4235,7 +4080,8 @@
   }
 
   async function updateLivestockStatus(id, action) {
-    const item = state.livestock.find((entry) => entry.id === id);
+    const record = getLivestockRecord(id);
+    const item = record ? livestockItemFromRecord(record) : null;
     if (!item) return;
     if (action === "edit") {
       startLivestockEdit(id);
@@ -4252,14 +4098,10 @@
       const confirmed = window.confirm(`Delete ${label}? This permanently removes the item and its photos.`);
       if (!confirmed) return;
       await removeStoragePaths(getPhotoStoragePaths(getLivestockPhotos(item)));
-      state.livestock = state.livestock.filter((entry) => entry.id !== id);
       removeLivestockRecord(id);
       if (editingLivestockId === id) resetLivestockForm();
       toastMessage = "Livestock deleted.";
     } else if (action === "restore") {
-      item.status = "alive";
-      item.removedDate = "";
-      item.outcomeReason = "";
       addJournalEntry({
         type: "Livestock Change",
         title: `${item.species || item.name || "Livestock"} restored`,
@@ -4268,29 +4110,27 @@
         effects: [{ recordId: item.id, fields: { status: "alive", retiredAt: "" } }],
       });
     } else if (action === "deceased") {
-      item.status = "deceased";
-      item.removedDate = todayInputValue();
-      item.outcomeReason = window.prompt("Suspected cause or note?", item.outcomeReason || "") || "";
+      const removedDate = todayInputValue();
+      const outcomeReason = window.prompt("Suspected cause or note?", item.outcomeReason || "") || "";
       addJournalEntry({
         type: "Livestock Change",
         title: `${item.species || item.name || "Livestock"} deceased`,
-        summary: item.outcomeReason,
+        summary: outcomeReason,
         linkedLivestock: [item.id],
-        effects: [{ recordId: item.id, fields: { status: "deceased", retiredAt: item.removedDate } }],
+        effects: [{ recordId: item.id, fields: { status: "deceased", retiredAt: removedDate, outcomeReason } }],
       });
     } else if (action === "removed") {
-      item.status = "removed";
-      item.removedDate = todayInputValue();
-      item.outcomeReason = window.prompt("Removed how?", item.outcomeReason || "") || "";
+      const removedDate = todayInputValue();
+      const outcomeReason = window.prompt("Removed how?", item.outcomeReason || "") || "";
       addJournalEntry({
         type: "Livestock Change",
         title: `${item.species || item.name || "Livestock"} removed`,
-        summary: item.outcomeReason,
+        summary: outcomeReason,
         linkedLivestock: [item.id],
-        effects: [{ recordId: item.id, fields: { status: "removed", retiredAt: item.removedDate } }],
+        effects: [{ recordId: item.id, fields: { status: "removed", retiredAt: removedDate, outcomeReason } }],
       });
     }
-    if (action !== "delete") syncLivestockRecordFromItem(item);
+    syncLegacyLivestockFromRecords();
     saveState();
     renderLivestock();
     renderPhotoLibrary();
@@ -4305,21 +4145,20 @@
   function deleteTimelineEntry(key) {
     const [kind, id] = key.split(":");
     if (kind === "journal") {
-      const entry = state.journal.find((item) => item.id === id);
       state.journal = state.journal.filter((item) => item.id !== id);
-      if (entry?.legacyKind === "water_test") {
-        state.waterTests = state.waterTests.filter((test) => test.id !== entry.legacyId);
-      } else if (entry?.legacyId) {
-        state.events = state.events.filter((event) => event.id !== entry.legacyId);
-      }
     } else if (kind === "test") {
-      state.waterTests = state.waterTests.filter((test) => test.id !== id);
-      state.journal = (state.journal || []).filter((entry) => entry.legacyId !== id);
+      if (hasJournalSource()) {
+        state.journal = (state.journal || []).filter((entry) => entry.legacyId !== id);
+      } else {
+        state.waterTests = state.waterTests.filter((test) => test.id !== id);
+      }
     } else {
-      state.events = state.events.filter((event) => event.id !== id);
-      state.journal = (state.journal || []).filter((entry) => entry.legacyId !== id);
+      if (hasJournalSource()) {
+        state.journal = (state.journal || []).filter((entry) => entry.legacyId !== id);
+      } else {
+        state.events = state.events.filter((event) => event.id !== id);
+      }
     }
-    if (editingLog?.kind === kind && editingLog.id === id) clearLogEdit();
     saveState();
     renderDashboard();
     renderTimeline();
@@ -4388,13 +4227,10 @@
     $("cancelLivestockEditButton").addEventListener("click", resetLivestockForm);
     $("journalEntryForm")?.addEventListener("submit", addJournalEntryFromForm);
     $("journalEntryType")?.addEventListener("change", () => {
+      renderJournalTypeFields();
       renderJournalRecordPickers();
     });
-    $("waterTestForm").addEventListener("submit", addWaterTest);
-    $("feedingForm").addEventListener("submit", addFeeding);
-    $("maintenanceForm").addEventListener("submit", addMaintenance);
-    $("waterChangeForm").addEventListener("submit", addWaterChange);
-    $("testMeasuredAt").addEventListener("change", updateTestTimingPill);
+    $("journalOccurredAt")?.addEventListener("change", updateTestTimingPill);
     $("generateInsightButton").addEventListener("click", () => window.RC.Insights.generateInsight());
     $("privateAuthForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -4465,8 +4301,9 @@
     $, $$, saveState, saveLocalState, showToast, uid, escapeHtml, refreshIcons,
     formatValue, formatDate, formatDateTime, formatAge, daysSince,
     getZoneName, getLatestWaterTest, getLatestEvent, getLatestEventBefore, describeTimeAfter,
+    getWaterTestsFromJournal, getEventsFromJournal,
     getEquipmentProfiles, getCareTaskStatuses, getLightingPhotos, getLightPhase,
-    getCurrentRecord, getRecordHistory,
+    getCurrentRecord, getRecordHistory, getLivestockItems, updateLivestockPlacement,
     getTimelineEntries, isCasualStockCategory, isLifecycleStock, getLivestockPhotos,
     getPhotoSrc, getStoragePublicUrl, prepareInsightPhotosForSave, renderPhotoPreview,
     positiveNumber, finiteNumber, nonNegativeNumber, getLidarHeightMap,

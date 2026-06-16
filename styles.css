@@ -1216,14 +1216,6 @@ textarea:focus {
   border-color: var(--teal);
 }
 
-.log-form {
-  display: none;
-}
-
-.log-form.active {
-  display: grid;
-}
-
 .timeline-list {
   display: grid;
   gap: 9px;

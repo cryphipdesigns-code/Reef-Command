@@ -20,6 +20,7 @@
     formatValue, formatDateTime, isCasualStockCategory, positiveNumber, finiteNumber,
     nonNegativeNumber, getLidarHeightMap, normalizeMap, normalizeMap2RefinementAnnotations,
     normalizeMapPosition, normalizeMap2RefinementPoint, getDefaultMap, normalizePhotoRecord,
+    getLivestockItems, updateLivestockPlacement,
     MAP2_REFINEMENT_SHAPES, MAP2_REFINEMENT_ACTIONS, MAP2_REFINEMENT_DIRECTIONS,
     MAP2_REFINEMENT_STRENGTHS, MAP2_RIGHT_ROCK_OPTION5_REFINEMENT_BASE,
   } = RC;
@@ -278,7 +279,8 @@
   }
 
   function getMapPlaceableStock() {
-    return state.livestock.filter((item) => isCasualStockCategory(item.category) || item.status === "alive" || item.status === "active");
+    const livestock = getLivestockItems ? getLivestockItems() : state.livestock;
+    return livestock.filter((item) => isCasualStockCategory(item.category) || item.status === "alive" || item.status === "active");
   }
 
   function updateMapFromSettings() {
@@ -2010,7 +2012,8 @@
   }
 
   function getLivestockMapPlacements() {
-    return state.livestock
+    const livestock = getLivestockItems ? getLivestockItems() : state.livestock;
+    return livestock
       .filter((item) => isCasualStockCategory(item.category) || item.status === "alive" || item.status === "active")
       .map((item, index) => {
         const zone = state.zones.find((entry) => entry.id === item.zoneId);
@@ -2656,17 +2659,27 @@
       showToast("PAR marker placed.");
     } else if (tool === "stock") {
       const id = $("mapStockSelect").value || state.ui.selectedMapStockId;
-      const item = state.livestock.find((entry) => entry.id === id);
+      const item = getMapPlaceableStock().find((entry) => entry.id === id);
       if (!item) {
         showToast("Choose stock first.");
         return;
       }
       const hadVisibleMarker = getLivestockMapPlacements().some((placement) => placement.id === id && placement.anchor);
-      item.mapPosition = {
-        ...coordinate,
-        placedAt: new Date().toISOString(),
-      };
-      item.mapMarkerHidden = false;
+      if (updateLivestockPlacement) {
+        updateLivestockPlacement(id, {
+          mapPosition: {
+            ...coordinate,
+            placedAt: new Date().toISOString(),
+          },
+          mapMarkerHidden: false,
+        });
+      } else {
+        item.mapPosition = {
+          ...coordinate,
+          placedAt: new Date().toISOString(),
+        };
+        item.mapMarkerHidden = false;
+      }
       state.map.layers.livestock = true;
       state.ui.selectedMapStockId = id;
       $("mapMarkerNote").value = "";

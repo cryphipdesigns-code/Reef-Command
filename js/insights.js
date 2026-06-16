@@ -403,7 +403,7 @@
       parameters: {
         latest_test_at: latest?.measuredAt || "",
         latest_readings: latest ? summarizeWaterTest(latest) : null,
-        water_test_count: state.waterTests.length,
+        water_test_count: fullContext.waterTests?.length || 0,
       },
       livestock: {
         active_count: activeLivestock.length,
@@ -562,10 +562,13 @@
   }
 
   function buildInsightEvidenceBundles(fullContext, attachedPhotos = []) {
-    const sortedTests = [...state.waterTests]
+    const waterTests = fullContext.waterTests || fullContext.recentWaterTests || [];
+    const careEvents = fullContext.events || fullContext.recentEvents || [];
+    const livestockSource = RC.getLivestockItems ? RC.getLivestockItems() : fullContext.livestock;
+    const sortedTests = [...waterTests]
       .sort((a, b) => new Date(b.measuredAt) - new Date(a.measuredAt))
       .slice(0, 90);
-    const sortedEvents = [...state.events]
+    const sortedEvents = [...careEvents]
       .sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))
       .slice(0, 120);
     const feedingLogs = sortedEvents.filter((event) => event.type === "feeding");
@@ -575,7 +578,7 @@
     const lightingEvidence = RC.getLightingPhotos().map((photo, index) =>
       buildPhotoEvidenceRecord(photo, `lighting-${index}`, "Lighting schedule image"),
     );
-    const livestockPhotoEvidence = state.livestock
+    const livestockPhotoEvidence = livestockSource
       .map((item) => ({
         id: item.id,
         species: item.species || item.name || "Unknown",
@@ -624,18 +627,18 @@
 
     add("parameters", "Parameters", `${sortedTests.length} water test entr${sortedTests.length === 1 ? "y" : "ies"} available.`, {
       latest: fullContext.latestWaterTest ? summarizeWaterTest(fullContext.latestWaterTest) : null,
-      testCount: state.waterTests.length,
-    }, { count: state.waterTests.length, available: sortedTests.length > 0, terminal: false });
+      testCount: waterTests.length,
+    }, { count: waterTests.length, available: sortedTests.length > 0, terminal: false });
     add("parameters.latest", "Latest Readings", "Latest water test values and timing context.", fullContext.latestWaterTest, {
       count: fullContext.latestWaterTest ? 1 : 0,
       available: Boolean(fullContext.latestWaterTest),
     });
     add("parameters.testing_cadence", "Testing Cadence", "Water-test count and recency summary.", {
-      totalCount: state.waterTests.length,
+      totalCount: waterTests.length,
       latestMeasuredAt: fullContext.latestWaterTest?.measuredAt || "",
       latestAge: fullContext.latestWaterTest ? RC.formatAge(fullContext.latestWaterTest.measuredAt) : "",
       recentSampleDates: sortedTests.slice(0, 12).map((test) => test.measuredAt),
-    }, { count: state.waterTests.length, available: sortedTests.length > 0 });
+    }, { count: waterTests.length, available: sortedTests.length > 0 });
     add("parameters.full_test_records", "Full Test Entries", "Most recent raw water test entries with timing context.", sortedTests, {
       count: sortedTests.length,
       available: sortedTests.length > 0,
@@ -772,7 +775,7 @@
       available: livestockIndex.length > 0,
     });
     fullContext.livestock.forEach((item) => {
-      const original = state.livestock.find((entry) => entry.id === item.id) || item;
+      const original = livestockSource.find((entry) => entry.id === item.id) || item;
       const recordPath = `livestock.records.${livestockPathSegment(item)}`;
       const placement = placementById.get(item.id) || null;
       const photos = RC.getLivestockPhotos(original).map((photo, index) =>
@@ -1037,10 +1040,13 @@
   }
 
   function buildInsightContext() {
-    const recentWaterTests = [...state.waterTests]
+    const waterTests = RC.getWaterTestsFromJournal ? RC.getWaterTestsFromJournal() : state.waterTests;
+    const careEvents = RC.getEventsFromJournal ? RC.getEventsFromJournal() : state.events;
+    const livestockSource = RC.getLivestockItems ? RC.getLivestockItems() : state.livestock;
+    const recentWaterTests = [...waterTests]
       .sort((a, b) => new Date(b.measuredAt) - new Date(a.measuredAt))
       .slice(0, 30);
-    const recentEvents = [...state.events]
+    const recentEvents = [...careEvents]
       .sort((a, b) => new Date(b.happenedAt) - new Date(a.happenedAt))
       .slice(0, 50);
     const latestWaterTest = recentWaterTests[0] || null;
@@ -1052,7 +1058,7 @@
     const activeEquipment = equipment.filter((item) => item.active);
     const careTasks = RC.getCareTaskStatuses();
     const livestockPhotoInventory = [];
-    const livestock = state.livestock.map((item) => {
+    const livestock = livestockSource.map((item) => {
       const { photoDataUrl, photos, ...safeItem } = item;
       const photoCount = RC.getLivestockPhotos(item).length;
       if (photoCount) {
@@ -1202,6 +1208,8 @@
       mapModel,
       records: state.records || { equipment: [], livestock: [] },
       journal: state.journal || [],
+      waterTests,
+      events: careEvents,
       livestock,
       activeLivestock: livestock.filter((item) => RC.isLifecycleStock(item) && (item.status === "alive" || item.status === "active")),
       recentWaterTests,
@@ -1231,10 +1239,10 @@
           parMapAvailable: parMarkers.length > 0 || state.zones.some((zone) => zone.parMin || zone.parMax),
         },
         logs: {
-          waterTestCount: state.waterTests.length,
-          feedingCount: state.events.filter((event) => event.type === "feeding").length,
-          maintenanceCount: state.events.filter((event) => event.type === "maintenance").length,
-          waterChangeCount: state.events.filter((event) => event.type === "water_change").length,
+          waterTestCount: waterTests.length,
+          feedingCount: careEvents.filter((event) => event.type === "feeding").length,
+          maintenanceCount: careEvents.filter((event) => event.type === "maintenance").length,
+          waterChangeCount: careEvents.filter((event) => event.type === "water_change").length,
           scheduledCareTaskCount: careTasks.filter((task) => !task.manualOnly).length,
           overdueCareTaskCount: careTasks.filter((task) => task.overdue).length,
         },
