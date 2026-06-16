@@ -861,6 +861,14 @@ textarea:focus {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.map-stock-actions {
+  align-items: end;
+}
+
+.map-stock-actions .mini-button {
+  flex: 1 1 140px;
+}
+
 .map2-refine-panel {
   margin-top: 2px;
 }

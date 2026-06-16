@@ -992,7 +992,7 @@
         : null,
       health: placement.health,
       growth: placement.growth,
-      source: placement.manual ? "manual" : placement.anchor ? "zone_estimate" : "unplaced",
+      source: placement.hidden ? "hidden" : placement.manual ? "manual" : placement.anchor ? "zone_estimate" : "unplaced",
     }));
     const parMarkers = (state.map.parMarkers || []).map((marker) => ({
       id: marker.id,

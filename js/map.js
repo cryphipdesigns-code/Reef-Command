@@ -226,28 +226,55 @@
     if (!$("mapMarkerForm")) return;
     const tool = getMapTool();
     const stockItems = getMapPlaceableStock();
+    const placementsById = new Map(getLivestockMapPlacements().map((placement) => [placement.id, placement]));
     if (state.ui.selectedMapStockId && !stockItems.some((item) => item.id === state.ui.selectedMapStockId)) {
       state.ui.selectedMapStockId = "";
     }
     if (!state.ui.selectedMapStockId && stockItems.length) {
       state.ui.selectedMapStockId = stockItems[0].id;
     }
+    const selectedPlacement = placementsById.get(state.ui.selectedMapStockId) || null;
 
     $$("[data-map-tool]").forEach((button) => {
       button.classList.toggle("active", button.dataset.mapTool === tool);
     });
-    $("mapMarkerModePill").textContent = tool === "par" ? "PAR point" : tool === "stock" ? "Stock marker" : "Navigate";
+    $("mapMarkerModePill").textContent = tool === "par"
+      ? "PAR point"
+      : tool === "stock"
+        ? (selectedPlacement?.anchor ? "Move stock" : "Place stock")
+        : "Navigate";
     $("mapParValueField").hidden = tool !== "par";
     $("mapStockSelectField").hidden = tool !== "stock";
     $("mapMarkerNote").disabled = tool === "navigate";
     $("mapStockSelect").innerHTML = stockItems.length
-      ? stockItems.map((item) => `<option value="${item.id}">${escapeHtml(item.species || item.name || "Unknown")}</option>`).join("")
+      ? stockItems.map((item) => {
+        const placement = placementsById.get(item.id);
+        const label = `${item.species || item.name || "Unknown"} · ${getMapPlacementStatus(placement)}`;
+        return `<option value="${escapeHtml(item.id)}">${escapeHtml(label)}</option>`;
+      }).join("")
       : `<option value="">No active stock</option>`;
     $("mapStockSelect").value = state.ui.selectedMapStockId || "";
+    renderMapStockMarkerActions(tool, selectedPlacement);
   }
 
   function getMapTool() {
     return ["navigate", "par", "stock"].includes(state.ui.mapTool) ? state.ui.mapTool : "navigate";
+  }
+
+  function renderMapStockMarkerActions(tool, placement) {
+    const container = $("mapStockMarkerActions");
+    if (!container) return;
+    const visible = tool === "stock" && placement;
+    container.hidden = !visible;
+    if (!visible) {
+      container.innerHTML = "";
+      return;
+    }
+    const actionLabel = placement.anchor ? "Move Marker" : "Place Marker";
+    container.innerHTML = `
+      <button class="mini-button good" type="button" data-map-stock-place="${escapeHtml(placement.id)}">${actionLabel}</button>
+      ${placement.anchor ? `<button class="mini-button danger" type="button" data-map-stock-clear="${escapeHtml(placement.id)}">Delete Marker</button>` : ""}
+    `;
   }
 
   function getMapPlaceableStock() {
@@ -309,17 +336,17 @@
               <strong>${escapeHtml(placement.species)}</strong>
               <p class="card-meta">${escapeHtml(placement.category)} · ${escapeHtml(placement.zone || "Unplaced")}</p>
             </div>
-            <span class="category-pill">${escapeHtml(placement.structure?.name || "No zone")}</span>
+            <span class="category-pill">${escapeHtml(placement.hidden ? "No marker" : placement.structure?.name || "No zone")}</span>
           </div>
           <div class="map-stat-row">
-            <span class="map-stat">${escapeHtml(placement.manual ? "Manual" : placement.anchor ? "Zone estimate" : "Unplaced")}</span>
+            <span class="map-stat">${escapeHtml(getMapPlacementStatus(placement))}</span>
             ${placement.anchor ? `<span class="map-stat">${escapeHtml(formatMapCoordinate(placement.anchor))}</span>` : ""}
             <span class="map-stat">${escapeHtml(placement.health || "Health untracked")}</span>
             <span class="map-stat">${escapeHtml(placement.growth || "Growth untracked")}</span>
           </div>
           <div class="card-actions">
-            <button class="mini-button" type="button" data-map-stock-place="${placement.id}">Place</button>
-            ${placement.manual ? `<button class="mini-button danger" type="button" data-map-stock-clear="${placement.id}">Clear</button>` : ""}
+            <button class="mini-button good" type="button" data-map-stock-place="${escapeHtml(placement.id)}">${placement.anchor ? "Move Marker" : "Place Marker"}</button>
+            ${placement.anchor ? `<button class="mini-button danger" type="button" data-map-stock-clear="${escapeHtml(placement.id)}">Delete Marker</button>` : ""}
           </div>
         </article>
       `).join("")
@@ -358,6 +385,14 @@
   function formatMapCoordinate(point) {
     if (!point) return "No coordinate";
     return `X ${formatValue(point.x, "in")} · Y ${formatValue(point.y, "in")} · Z ${formatValue(point.z, "in")}`;
+  }
+
+  function getMapPlacementStatus(placement) {
+    if (!placement) return "Unplaced";
+    if (placement.hidden) return "No marker";
+    if (placement.manual) return "Manual marker";
+    if (placement.anchor) return "Zone estimate";
+    return "Unplaced";
   }
 
   function getMapStructureName(id) {
@@ -1947,19 +1982,29 @@
   }
 
   function addMap2LivestockMarkers() {
+    const stockToolActive = getMapTool() === "stock";
+    const selectedStockId = state.ui.selectedMapStockId || "";
     getLivestockMapPlacements().forEach((placement, index) => {
       if (!placement.anchor) return;
       const anchor = getMap2MarkerAnchor(placement.anchor);
       const color = livestockColor(placement.category);
+      const selected = placement.id === selectedStockId;
       const marker = new THREE.Mesh(
-        new THREE.SphereGeometry(0.22, 18, 12),
-        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.22, roughness: 0.4 }),
+        new THREE.SphereGeometry(stockToolActive && selected ? 0.28 : 0.22, 18, 12),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: stockToolActive && selected ? 0.38 : 0.22, roughness: 0.4 }),
       );
       marker.position.copy(anchor);
       marker.castShadow = true;
+      marker.userData.map2LivestockMarker = true;
+      marker.userData.livestockId = placement.id;
       map2Root.add(marker);
-      if (index < 18) {
-        map2Root.add(createMapLabel(placement.species, anchor.clone().add(new THREE.Vector3(0, 0, 0.85)), "#405856"));
+      if ((!stockToolActive && index < 18) || (stockToolActive && selected)) {
+        map2Root.add(createMapLabel(
+          placement.species,
+          anchor.clone().add(new THREE.Vector3(0, 0, 0.85)),
+          "#405856",
+          stockToolActive ? { opacity: 0.78, backgroundOpacity: 0.54, strokeOpacity: 0.72 } : {},
+        ));
       }
     });
   }
@@ -1969,9 +2014,18 @@
       .filter((item) => isCasualStockCategory(item.category) || item.status === "active")
       .map((item, index) => {
         const zone = state.zones.find((entry) => entry.id === item.zoneId);
-        const manualPosition = normalizeMapPosition(item.mapPosition);
+        const hidden = item.mapMarkerHidden === true;
+        const manualPosition = hidden ? null : normalizeMapPosition(item.mapPosition);
         const manualSurface = manualPosition ? getMapSurfaceAt(manualPosition.x, manualPosition.y) : null;
-        const structure = manualSurface?.structure || getStructureForZone(zone, item, index);
+        const zoneStructure = getStructureForZone(zone, item, index);
+        const structure = manualSurface?.structure || zoneStructure;
+        const anchor = hidden
+          ? null
+          : manualPosition
+            ? getMarkerAnchor(manualPosition)
+            : zoneStructure
+              ? getPlacementAnchor(zoneStructure, item.id || `${index}`)
+              : null;
         return {
           id: item.id,
           species: item.species || item.name || "Unknown",
@@ -1980,8 +2034,9 @@
           health: item.health || "",
           growth: [item.growthTrend, item.growthNotes].filter(Boolean).join(" · "),
           structure,
+          hidden,
           manual: Boolean(manualPosition),
-          anchor: manualPosition ? getMarkerAnchor(manualPosition) : structure ? getPlacementAnchor(structure, item.id || `${index}`) : null,
+          anchor,
         };
       });
   }
@@ -2091,16 +2146,19 @@
     return meshes;
   }
 
-  function createMapLabel(text, position, color) {
+  function createMapLabel(text, position, color, options = {}) {
+    const backgroundOpacity = clamp(0.12, 0.92, finiteNumber(options.backgroundOpacity, 0.86));
+    const strokeOpacity = clamp(0.1, 1, finiteNumber(options.strokeOpacity, 0.95));
+    const opacity = clamp(0.1, 1, finiteNumber(options.opacity, 1));
     const canvas = document.createElement("canvas");
     canvas.width = 512;
     canvas.height = 128;
     const context = canvas.getContext("2d");
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = "rgba(255, 255, 255, 0.86)";
+    context.fillStyle = `rgba(255, 255, 255, ${backgroundOpacity})`;
     roundRect(context, 12, 22, 488, 84, 18);
     context.fill();
-    context.strokeStyle = "rgba(167, 200, 191, 0.95)";
+    context.strokeStyle = `rgba(167, 200, 191, ${strokeOpacity})`;
     context.lineWidth = 3;
     context.stroke();
     context.fillStyle = color;
@@ -2109,7 +2167,7 @@
     context.textBaseline = "middle";
     context.fillText(shortenLabel(text), canvas.width / 2, canvas.height / 2 + 3, 452);
     const texture = new THREE.CanvasTexture(canvas);
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, opacity }));
     sprite.position.copy(position);
     sprite.scale.set(4.4, 1.1, 1);
     return sprite;
@@ -2369,6 +2427,9 @@
             handleMap2RefinementPointer(event);
           }
         }
+      } else if (map2PointerState?.pointers.has(event.pointerId) && map2PointerState.pointers.size === 1) {
+        const moved = Math.hypot(event.clientX - map2PointerState.startX, event.clientY - map2PointerState.startY);
+        if (moved <= 10) handleMap2MarkerSelectionPointer(event);
       }
       releaseMap2Pointer(event.pointerId);
     });
@@ -2600,14 +2661,16 @@
         showToast("Choose stock first.");
         return;
       }
+      const hadVisibleMarker = getLivestockMapPlacements().some((placement) => placement.id === id && placement.anchor);
       item.mapPosition = {
         ...coordinate,
         placedAt: new Date().toISOString(),
       };
+      item.mapMarkerHidden = false;
       state.map.layers.livestock = true;
       state.ui.selectedMapStockId = id;
       $("mapMarkerNote").value = "";
-      showToast("Stock marker placed.");
+      showToast(hadVisibleMarker ? "Stock marker moved." : "Stock marker placed.");
     }
     saveState();
     renderMapMarkerControls();
@@ -2642,6 +2705,40 @@
       z: Number(hit.point.z.toFixed(2)),
       structureId,
     };
+  }
+
+  function handleMap2MarkerSelectionPointer(event) {
+    const livestockId = getMap2LivestockMarkerHit(event);
+    if (!livestockId) return false;
+    state.ui.selectedMapStockId = livestockId;
+    state.ui.mapTool = "stock";
+    state.ui.map2RefinementShape = "navigate";
+    map2RefinementDraft = null;
+    saveLocalState();
+    renderMapMarkerControls();
+    renderMap2RefinementControls();
+    renderReefMap2({ rebuild: true });
+    showToast("Stock marker selected.");
+    return true;
+  }
+
+  function getMap2LivestockMarkerHit(event) {
+    if (!map2Renderer || !map2Camera || !map2Root || !window.THREE) return null;
+    const canvas = map2Renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const pointer = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -(((event.clientY - rect.top) / rect.height) * 2 - 1),
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(pointer, map2Camera);
+    const markers = [];
+    map2Root.traverse((child) => {
+      if (child.isMesh && child.userData?.map2LivestockMarker) markers.push(child);
+    });
+    const hits = raycaster.intersectObjects(markers, false);
+    return hits[0]?.object?.userData?.livestockId || null;
   }
 
   function seededRandom(seed) {
@@ -2760,6 +2857,8 @@
       saveLocalState();
       renderMapMarkerControls();
       renderMap2RefinementControls();
+      renderReefMap2({ rebuild: true });
+      showToast("Click the map to set this stock marker.");
       return true;
     }
 
@@ -2812,6 +2911,8 @@
     $("mapStockSelect").addEventListener("change", (event) => {
       state.ui.selectedMapStockId = event.target.value;
       saveLocalState();
+      renderMapMarkerControls();
+      if (getMapTool() === "stock") renderReefMap2({ rebuild: true });
     });
   }
 

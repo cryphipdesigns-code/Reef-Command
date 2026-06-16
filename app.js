@@ -526,6 +526,7 @@
         photos,
         photoDataUrl: photos.find((photo) => photo.dataUrl)?.dataUrl || "",
         mapPosition: normalizeMapPosition(item.mapPosition),
+        mapMarkerHidden: Boolean(item.mapMarkerHidden),
         removedDate: item.removedDate || "",
         outcomeReason: item.outcomeReason || "",
       };
@@ -3268,13 +3269,16 @@
     const stockClear = event.target.closest("[data-map-stock-clear]");
     if (stockClear) {
       const item = state.livestock.find((entry) => entry.id === stockClear.dataset.mapStockClear);
-      if (item) item.mapPosition = null;
+      if (item) {
+        item.mapPosition = null;
+        item.mapMarkerHidden = true;
+      }
       saveState();
       window.RC.Map.renderMapMarkerControls();
       window.RC.Map.renderMapSummaries();
       window.RC.Map.renderReefMap2({ rebuild: true });
       window.RC.Insights?.renderInsightsContext?.();
-      showToast("Stock marker cleared.");
+      showToast("Stock marker deleted.");
       return;
     }
 
