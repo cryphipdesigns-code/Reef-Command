@@ -247,13 +247,13 @@
     const evidence = buildInsightEvidenceBundles(fullContext, attachedPhotos);
     const context = buildProgressiveInsightContext(fullContext, question, evidence, attachedPhotos);
     if (previousRun) {
-      context.conversationContext = summarizeInsightRunForFollowup(previousRun);
+      context.conversation_context = summarizeInsightRunForFollowup(previousRun);
     }
     if (attachedPhotos.length) {
-      context.requestAttachments = {
-        photoCount: attachedPhotos.length,
-        evidencePath: "current_request.attachments.prompt_photos",
-        indexPassPolicy: "Prompt-attached image bytes are sent with the first GPT pass. Stored app photos are still request-gated.",
+      context.request_attachments = {
+        photo_count: attachedPhotos.length,
+        evidence_path: "current_request.attachments.prompt_photos",
+        index_pass_policy: "Prompt-attached image bytes are sent with the first GPT pass. Stored app photos are still request-gated.",
       };
     }
     return {
@@ -278,17 +278,17 @@
       : [];
     return {
       id: run?.id || "",
-      createdAt: run?.createdAt || "",
+      created_at: run?.createdAt || "",
       mode: run?.mode || "",
-      originalQuestion: run?.question || "",
+      original_question: run?.question || "",
       source: run?.source || "",
       headline: getInsightHeadline(result),
       summary: getInsightSummary(result),
       priorities,
       observations: result && typeof result === "object" && Array.isArray(result.observations) ? result.observations : [],
-      nextActions: result && typeof result === "object" && Array.isArray(result.next_actions) ? result.next_actions : [],
-      missingData: result && typeof result === "object" && Array.isArray(result.missing_data) ? result.missing_data : [],
-      dataRequests: result && typeof result === "object" && Array.isArray(result.data_requests) ? result.data_requests : [],
+      next_actions: result && typeof result === "object" && Array.isArray(result.next_actions) ? result.next_actions : [],
+      missing_data: result && typeof result === "object" && Array.isArray(result.missing_data) ? result.missing_data : [],
+      data_requests: result && typeof result === "object" && Array.isArray(result.data_requests) ? result.data_requests : [],
     };
   }
 
@@ -320,24 +320,30 @@
 
   function buildProgressiveInsightContext(fullContext, question, evidence, attachedPhotos = []) {
     return {
-      generatedAt: fullContext.generatedAt,
-      contextStrategy: {
+      generated_at: fullContext.generatedAt,
+      context_strategy: {
         phase: "tree_index_plus_selected_evidence",
         mode: INSIGHT_CHAT_MODE,
         question,
         approach: "Use the compact snapshot and evidence tree first. Request only the smallest specific paths needed to answer well.",
-        requestFormat: "Return data_requests with exact path values copied from contextTree.",
-        requestLimit: 4,
-        pathPolicy: "Prefer one branch deeper at a time. Do not request an entire parent branch when a child path is enough.",
-        maxFollowupPasses: 1,
+        request_format: "Return data_requests with exact path values copied from context_tree.",
+        request_limit: 4,
+        path_policy: "Prefer one branch deeper at a time. Do not request an entire parent branch when a child path is enough.",
+        max_followup_passes: 1,
       },
-      canonicalOwnership: {
+      canonical_ownership: {
         photos: "Photos live under the object they describe. Livestock photos are under livestock record paths; lighting images are under lighting; prompt photos are under current_request.attachments.",
         placement: "Livestock placement lives under livestock records and is also referenced from map.livestock_placements.",
         overlap: "Care events are canonical under care_logs. Equipment schedules/configuration are canonical under equipment records; care logs can reference equipment.",
       },
-      compactSnapshot: buildCompactInsightSnapshot(fullContext, attachedPhotos),
-      contextTree: buildEvidenceTreeIndex(evidence),
+      path_conventions: {
+        naming_style: "All evidence paths use lower snake_case.",
+        equipment_records: "equipment.records.<equipment_key> uses stable snake_case equipment keys such as auto_feeder and uv_sterilizer.",
+        livestock_records: "livestock.records.<species_or_name_slug>_<id_suffix> combines a readable slug with a short id suffix for stability.",
+        request_paths: "Copy path values exactly from context_tree when requesting more evidence.",
+      },
+      compact_snapshot: buildCompactInsightSnapshot(fullContext, attachedPhotos),
+      context_tree: buildEvidenceTreeIndex(evidence),
     };
   }
 
@@ -348,41 +354,65 @@
     return {
       tank: {
         name: fullContext.profile.tankName || "Reef Tank",
-        displayVolume: fullContext.profile.displayVolume || "",
-        totalVolume: fullContext.profile.totalVolume || "",
-        startDate: fullContext.profile.startDate || "",
+        display_volume: fullContext.profile.displayVolume || "",
+        total_volume: fullContext.profile.totalVolume || "",
+        start_date: fullContext.profile.startDate || "",
         style: fullContext.profile.tankStyle || "",
-        currentLightPhase: fullContext.currentLightPhase,
+        current_light_phase: fullContext.currentLightPhase,
       },
       parameters: {
-        latestTestAt: latest?.measuredAt || "",
-        latestReadings: latest ? summarizeWaterTest(latest) : null,
-        waterTestCount: state.waterTests.length,
+        latest_test_at: latest?.measuredAt || "",
+        latest_readings: latest ? summarizeWaterTest(latest) : null,
+        water_test_count: state.waterTests.length,
       },
       livestock: {
-        activeCount: activeLivestock.length,
-        totalCount: fullContext.livestock.length,
-        photoRecordCount: fullContext.rawDataInventory.livestockPhotos.length,
-        placedCount: fullContext.rawDataInventory.map.placedLivestockCount,
+        active_count: activeLivestock.length,
+        total_count: fullContext.livestock.length,
+        photo_record_count: fullContext.rawDataInventory.livestockPhotos.length,
+        placed_count: fullContext.rawDataInventory.map.placedLivestockCount,
       },
-      careLogs: fullContext.rawDataInventory.logs,
+      care_logs: summarizeCareLogInventory(fullContext.rawDataInventory.logs),
       equipment: {
-        activeCount: activeEquipment.length,
-        activeLabels: activeEquipment.map((item) => item.label),
-        detailsCount: fullContext.rawDataInventory.equipment.detailsCount,
-        uvScheduleAvailable: fullContext.rawDataInventory.equipment.uvScheduleAvailable,
-        autoFeederScheduleAvailable: Boolean(activeEquipment.find((item) => item.key === "autoFeeder")?.schedule),
+        active_count: activeEquipment.length,
+        active_labels: activeEquipment.map((item) => item.label),
+        details_count: fullContext.rawDataInventory.equipment.detailsCount,
+        uv_sterilizer_schedule_available: fullContext.rawDataInventory.equipment.uvScheduleAvailable,
+        auto_feeder_schedule_available: Boolean(activeEquipment.find((item) => item.key === "autoFeeder")?.schedule),
       },
       lighting: {
         model: fullContext.profile.lightingContext.model,
         photoperiod: fullContext.profile.lightingContext.photoperiod,
-        summaryAvailable: Boolean(fullContext.profile.lightingContext.summary),
-        imageCount: fullContext.profile.lightingImageCount,
+        summary_available: Boolean(fullContext.profile.lightingContext.summary),
+        image_count: fullContext.profile.lightingImageCount,
       },
-      map: fullContext.rawDataInventory.map,
-      currentRequest: {
-        attachedPhotoCount: attachedPhotos.length,
+      map: summarizeMapInventory(fullContext.rawDataInventory.map),
+      current_request: {
+        attached_photo_count: attachedPhotos.length,
       },
+    };
+  }
+
+  function summarizeCareLogInventory(logs = {}) {
+    return {
+      water_test_count: logs.waterTestCount || 0,
+      feeding_count: logs.feedingCount || 0,
+      maintenance_count: logs.maintenanceCount || 0,
+      water_change_count: logs.waterChangeCount || 0,
+      scheduled_care_task_count: logs.scheduledCareTaskCount || 0,
+      overdue_care_task_count: logs.overdueCareTaskCount || 0,
+    };
+  }
+
+  function summarizeMapInventory(map = {}) {
+    return {
+      model_available: Boolean(map.modelAvailable),
+      model_version: map.modelVersion || 1,
+      structure_count: map.structureCount || 0,
+      livestock_placement_count: map.placedLivestockCount || 0,
+      par_marker_count: map.parMarkerCount || 0,
+      refinement_annotation_count: map.refinementAnnotationCount || 0,
+      reference_image_count: map.referenceImageCount || 0,
+      par_markers_available: Boolean(map.parMapAvailable),
     };
   }
 
