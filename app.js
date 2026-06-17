@@ -59,6 +59,7 @@
   let remoteSaveQueued = false;
   let lastRemoteUpdatedAt = "";
   let isRemoteHydrating = false;
+  let lastLocalCacheWarningAt = 0;
   let toastTimer = null;
   let pendingLivestockPhotos = [];
   let editingLivestockId = "";
@@ -926,17 +927,101 @@
     }
   }
 
-  function writeJson(key, value) {
+  function writeJson(key, value, options = {}) {
+    let serialized = "";
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      serialized = JSON.stringify(value);
+      localStorage.setItem(key, serialized);
       return true;
     } catch (error) {
       console.warn(`Could not write ${key}`, error);
       if (isQuotaExceededError(error)) {
-        showToast("Local storage is full. Remove local-only photos or sign in to sync photos privately.");
+        if (reclaimLocalStorageSpace(key) && tryWriteSerializedJson(key, serialized)) {
+          return true;
+        }
+        if (key === STORAGE_KEY && supabaseClient && currentUser) {
+          const cacheValue = createRemoteBackedLocalCache(value);
+          if (cacheValue !== value && tryWriteSerializedJson(key, JSON.stringify(cacheValue))) {
+            return true;
+          }
+        }
+        handleLocalCacheQuota(key, options);
       }
       return false;
     }
+  }
+
+  function tryWriteSerializedJson(key, serialized) {
+    try {
+      localStorage.setItem(key, serialized);
+      return true;
+    } catch (error) {
+      console.warn(`Could not retry local write for ${key}`, error);
+      return false;
+    }
+  }
+
+  function reclaimLocalStorageSpace(targetKey) {
+    const disposableKeys = [PRE_PULL_BACKUP_KEY, PRE_RECORD_JOURNAL_BACKUP_KEY].filter((key) => key !== targetKey);
+    let reclaimed = false;
+    disposableKeys.forEach((key) => {
+      try {
+        if (localStorage.getItem(key) !== null) {
+          localStorage.removeItem(key);
+          reclaimed = true;
+        }
+      } catch (error) {
+        console.warn(`Could not remove local cache backup ${key}`, error);
+      }
+    });
+    return reclaimed;
+  }
+
+  function createRemoteBackedLocalCache(value) {
+    if (!supabaseClient || !currentUser || !value || typeof value !== "object") return value;
+    return stripInlinePhotoData(value);
+  }
+
+  function stripInlinePhotoData(value, seen = new WeakMap()) {
+    if (!value || typeof value !== "object") return value;
+    if (seen.has(value)) return seen.get(value);
+    if (Array.isArray(value)) {
+      const arrayCopy = [];
+      seen.set(value, arrayCopy);
+      value.forEach((entry, index) => {
+        arrayCopy[index] = stripInlinePhotoData(entry, seen);
+      });
+      return arrayCopy;
+    }
+
+    const objectCopy = {};
+    seen.set(value, objectCopy);
+    Object.entries(value).forEach(([key, entry]) => {
+      if (isInlinePhotoDataField(key, entry)) {
+        objectCopy[key] = "";
+      } else {
+        objectCopy[key] = stripInlinePhotoData(entry, seen);
+      }
+    });
+    return objectCopy;
+  }
+
+  function isInlinePhotoDataField(key, value) {
+    if (typeof value !== "string" || !value.startsWith("data:")) return false;
+    return key === "dataUrl" || key === "photoDataUrl" || key === "lightingPhotoDataUrl" || value.startsWith("data:image/");
+  }
+
+  function handleLocalCacheQuota(key, options = {}) {
+    if (key !== STORAGE_KEY) return;
+    if (supabaseClient && currentUser) {
+      updateBackendStatus("Private sync on. Local cache is full, so this device will reload from Supabase.");
+      return;
+    }
+    if (options.silentQuota) return;
+    const now = Date.now();
+    if (now - lastLocalCacheWarningAt < 60_000) return;
+    lastLocalCacheWarningAt = now;
+    showToast("This device's local cache is full. Sign in before adding more photos.");
   }
 
   function snapshotPreMigrationState(raw) {
@@ -1365,14 +1450,20 @@
     state.updatedAt = new Date().toISOString();
     syncLegacyLivestockFromRecords();
     syncLegacyLogsFromJournal();
-    writeJson(STORAGE_KEY, state);
     scheduleRemoteSave();
+    const cached = writeJson(STORAGE_KEY, state);
+    if (!cached && supabaseClient && currentUser && !isRemoteHydrating) {
+      scheduleRemoteSave(50);
+    }
   }
 
   function saveLocalState() {
     syncLegacyLivestockFromRecords();
     syncLegacyLogsFromJournal();
-    writeJson(STORAGE_KEY, state);
+    const cached = writeJson(STORAGE_KEY, state, { silentQuota: true });
+    if (!cached && supabaseClient && currentUser && !isRemoteHydrating) {
+      scheduleRemoteSave(50);
+    }
   }
 
   function scheduleRemoteSave(delay = 450) {
