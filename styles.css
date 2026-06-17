@@ -80,7 +80,7 @@ svg {
   width: min(100%, 1180px);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 12px 12px calc(172px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 12px calc(218px + env(safe-area-inset-bottom, 0px));
 }
 
 body.private-locked {
@@ -144,7 +144,7 @@ body:not(.private-locked) .private-access-gate {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 12px 0;
+  padding: 8px 0;
   background: rgba(244, 248, 247, 0.92);
   backdrop-filter: blur(16px);
 }
@@ -171,7 +171,7 @@ h3 {
 }
 
 h1 {
-  font-size: 1.74rem;
+  font-size: 1.5rem;
   line-height: 1.05;
 }
 
@@ -196,6 +196,7 @@ h3 {
 .secondary-button,
 .action-button,
 .filter-bar button,
+.risk-chip,
 .bottom-nav button,
 .mini-button {
   min-height: 42px;
@@ -224,6 +225,7 @@ h3 {
 .primary-button:hover,
 .secondary-button:hover,
 .action-button:hover,
+.risk-chip:hover,
 .text-button:hover,
 .mini-button:hover {
   transform: translateY(-1px);
@@ -233,6 +235,7 @@ h3 {
 .primary-button:disabled:hover,
 .secondary-button:disabled:hover,
 .action-button:disabled:hover,
+.risk-chip:disabled:hover,
 .text-button:disabled:hover,
 .mini-button:disabled:hover {
   transform: none;
@@ -365,6 +368,9 @@ h3 {
   padding: 8px 10px;
   border: 1px solid var(--line);
   background: var(--surface);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: normal;
 }
 
 .risk-chip[data-tone="warning"] {
@@ -485,6 +491,16 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(8, 127, 122, 0.1);
 }
 
+input:disabled,
+select:disabled,
+textarea:disabled {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.72);
+  border-color: #e2ece9;
+  opacity: 1;
+  cursor: default;
+}
+
 .toggle-row {
   display: flex;
   flex-wrap: wrap;
@@ -494,7 +510,16 @@ textarea:focus {
 .form-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.tank-profile-toolbar {
+  align-items: flex-start;
+}
+
+.tank-profile-toolbar .form-actions {
+  justify-content: flex-end;
 }
 
 .photo-field {
@@ -618,6 +643,14 @@ textarea:focus {
 .collapsible-form-shell summary small {
   color: var(--muted);
   font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.collapsible-form-shell > summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   font-weight: 800;
 }
 
@@ -1055,6 +1088,18 @@ textarea:focus {
   box-shadow: 0 12px 26px rgba(8, 127, 122, 0.1);
 }
 
+.livestock-card.is-inactive {
+  background: #f8faf9;
+  border-color: #d8e3e0;
+  box-shadow: none;
+}
+
+.livestock-card.is-inactive .category-pill {
+  color: var(--muted-strong);
+  background: #eef3f1;
+  border-color: #d1ddda;
+}
+
 .livestock-inline-form {
   display: grid;
   gap: 12px;
@@ -1157,7 +1202,41 @@ textarea:focus {
 .card-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.card-menu {
+  position: relative;
+}
+
+.card-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.card-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.card-menu-actions {
+  position: absolute;
+  right: 0;
+  z-index: 15;
+  min-width: 164px;
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.card-menu-actions .mini-button {
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .timeline-head .card-actions {

@@ -33,10 +33,13 @@
 
   function renderHomeInsightBrief() {
     const latest = state.insightRuns[0];
+    const section = $("homeInsightSection");
     if (!latest) {
-      $("homeInsightBrief").innerHTML = `<div class="empty-state">No insights generated yet.</div>`;
+      if (section) section.hidden = true;
+      $("homeInsightBrief").innerHTML = "";
       return;
     }
+    if (section) section.hidden = false;
     $("homeInsightBrief").innerHTML = renderInsightCompact(latest.result, latest.source);
   }
 
@@ -59,11 +62,11 @@
   function renderInsightOutput() {
     const latest = state.insightRuns[0];
     if (!latest) {
-      $("insightOutput").innerHTML = `<div class="empty-state">No result yet.</div>`;
-      $("insightSourcePill").textContent = RC.supabaseClient && RC.currentUser ? "GPT ready" : "Local";
+      $("insightOutput").innerHTML = `<div class="empty-state">Ask about your tank above to get started.</div>`;
+      $("insightSourcePill").textContent = RC.supabaseClient && RC.currentUser ? "Ready" : "Saved on this device";
       return;
     }
-    $("insightSourcePill").textContent = latest.source === "gpt" ? "GPT" : "Local";
+    $("insightSourcePill").textContent = latest.source === "gpt" ? "GPT" : "Saved on this device";
     $("insightOutput").innerHTML = state.insightRuns
       .slice(0, 10)
       .map((run, index) => renderInsightRun(run, index))
@@ -72,7 +75,7 @@
 
   function renderInsightCompact(result, source) {
     if (typeof result === "string") {
-      return `<article class="insight-card"><strong>${source === "gpt" ? "GPT" : "Local"} insight</strong><p>${RC.escapeHtml(result)}</p></article>`;
+      return `<article class="insight-card"><strong>${source === "gpt" ? "GPT" : "Tank"} insight</strong><p>${RC.escapeHtml(result)}</p></article>`;
     }
     return `
       <article class="insight-card">
@@ -89,7 +92,7 @@
         <summary>
           <span>
             <strong>${RC.escapeHtml(title)}</strong>
-            <small>${RC.escapeHtml([RC.formatDateTime(run.createdAt), run.source === "gpt" ? "GPT" : "Local", run.mode].filter(Boolean).join(" · "))}</small>
+            <small>${RC.escapeHtml([RC.formatDateTime(run.createdAt), run.source === "gpt" ? "GPT" : "Saved on this device", run.mode].filter(Boolean).join(" · "))}</small>
           </span>
           <i data-lucide="chevron-down"></i>
         </summary>
@@ -1491,7 +1494,7 @@
         result,
         debug,
       }, attachedPhotos, clearAttachedPhotos);
-      RC.showToast(source === "gpt" ? "GPT insight generated." : "Local insight generated.");
+      RC.showToast(source === "gpt" ? "GPT insight generated." : "Tank insight saved.");
     } catch (error) {
       console.error(error);
       const fallback = generateLocalInsight(mode, question, previousRun);
@@ -1503,7 +1506,7 @@
         result: fallback,
         debug: buildInsightDebugPayload(payload, { phase: "fallback", requested: [], provided: [] }, error?.message || String(error || "")),
       }, attachedPhotos, clearAttachedPhotos);
-      RC.showToast("GPT unavailable. Local insight generated.");
+      RC.showToast("GPT unavailable. Tank insight saved.");
     } finally {
       if (button) {
         button.disabled = false;

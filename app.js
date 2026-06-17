@@ -62,6 +62,7 @@
   let toastTimer = null;
   let pendingLivestockPhotos = [];
   let editingLivestockId = "";
+  let tankProfileEditing = false;
   let pendingInsightPhotos = [];
   let pendingInsightFollowupPhotos = [];
   let pendingInsightFollowupRunId = "";
@@ -2053,6 +2054,9 @@
     return {
       key: task.key,
       label: task.label,
+      source: task.source,
+      type: task.type,
+      labelMatch: task.labelMatch,
       lastAt,
       lastAgeDays,
       intervalDays: scheduled ? intervalDays : null,
@@ -2265,28 +2269,46 @@
 
     if (latestTest) {
       if (latestTest.ammonia !== null && latestTest.ammonia > 0.05) {
-        risks.push({ tone: "danger", label: "Ammonia detected" });
+        risks.push({ tone: "danger", label: "Ammonia detected", action: "test", help: "Log a follow-up water test" });
       }
       if (latestTest.nitrite !== null && latestTest.nitrite > 0.05) {
-        risks.push({ tone: "danger", label: "Nitrite detected" });
+        risks.push({ tone: "danger", label: "Nitrite detected", action: "test", help: "Log a follow-up water test" });
       }
       if (latestTest.nitrate !== null && latestTest.nitrate > 30) {
-        risks.push({ tone: "warning", label: "Nitrate elevated" });
+        risks.push({ tone: "warning", label: "Nitrate elevated", action: "test", help: "Log a follow-up water test" });
       }
     }
 
     careStatuses
       .filter((task) => task.overdue)
-      .forEach((task) => risks.push({ tone: "warning", label: task.lastAt ? task.overdueLabel : `${task.label} not logged` }));
+      .forEach((task) => risks.push({
+        tone: "warning",
+        label: task.lastAt ? task.overdueLabel : `${task.label} not logged`,
+        action: getCareTaskLogMode(task),
+        help: `Log ${task.label.toLowerCase()}`,
+      }));
     careStatuses
       .filter((task) => task.dueSoon)
-      .forEach((task) => risks.push({ tone: "warning", label: `${task.label} due soon` }));
+      .forEach((task) => risks.push({
+        tone: "warning",
+        label: `${task.label} due soon`,
+        action: getCareTaskLogMode(task),
+        help: `Log ${task.label.toLowerCase()}`,
+      }));
 
     if (!risks.length) risks.push({ tone: "good", label: "No obvious alerts" });
 
     $("riskStrip").innerHTML = risks
-      .map((risk) => `<span class="risk-chip" data-tone="${risk.tone}">${escapeHtml(risk.label)}</span>`)
+      .map((risk) => risk.action
+        ? `<button class="risk-chip" data-tone="${risk.tone}" data-open-log="${escapeHtml(risk.action)}" type="button" title="${escapeHtml(risk.help || "Open Journal")}">${escapeHtml(risk.label)}</button>`
+        : `<span class="risk-chip" data-tone="${risk.tone}">${escapeHtml(risk.label)}</span>`)
       .join("");
+  }
+
+  function getCareTaskLogMode(task) {
+    if (task.source === "water_test") return "test";
+    if (task.key === "water_change" || task.type === "water_change") return "water_change";
+    return "maintenance";
   }
 
   function renderHomeTimeline() {
@@ -2309,18 +2331,48 @@
     });
     renderPhotoPreview("lightingPhotoPreview", getLightingPhotos(), "Lighting schedule image");
     renderEquipmentRecords();
+    renderTankProfileMode();
   }
 
-  function updateProfileFromForm() {
+  function renderTankProfileMode() {
+    $$("[data-profile]").forEach((input) => {
+      input.disabled = !tankProfileEditing;
+    });
+    const editButton = $("editTankProfileButton");
+    const saveButton = $("saveTankProfileButton");
+    const cancelButton = $("cancelTankProfileButton");
+    if (editButton) editButton.hidden = tankProfileEditing;
+    if (saveButton) saveButton.hidden = !tankProfileEditing;
+    if (cancelButton) cancelButton.hidden = !tankProfileEditing;
+    if ($("profileSavedStatus")) $("profileSavedStatus").textContent = tankProfileEditing ? "Editing" : "Saved";
+  }
+
+  function startTankProfileEdit() {
+    tankProfileEditing = true;
+    renderTankProfileMode();
+    $("tankProfileForm")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    refreshIcons();
+  }
+
+  function cancelTankProfileEdit() {
+    tankProfileEditing = false;
+    renderTankProfileForm();
+  }
+
+  function updateProfileFromForm(event) {
+    event?.preventDefault?.();
     $$("[data-profile]").forEach((input) => {
       const key = input.dataset.profile;
       state.profile[key] = input.type === "checkbox" ? input.checked : input.value;
     });
+    tankProfileEditing = false;
     saveState();
     $("profileSavedStatus").textContent = "Saved";
+    renderTankProfileMode();
     renderDashboard();
     renderPhotoLibrary();
     window.RC.Insights?.renderInsightsContext?.();
+    showToast("Tank profile saved.");
   }
 
   function equipmentCategoryLabel(category) {
@@ -2377,12 +2429,12 @@
         </div>
         ${details ? `<p class="card-meta">${escapeHtml(details)}</p>` : ""}
         ${record.notes ? `<p class="card-meta">${escapeHtml(record.notes)}</p>` : ""}
-        ${renderRecordHistoryList(history)}
+        ${renderRecordHistoryList(history, { showEmpty: true })}
         <div class="card-actions">
           <button class="mini-button icon-mini-button" type="button" title="Edit setup" data-equipment-action="edit" data-id="${escapeHtml(record.id)}">
             <i data-lucide="pencil"></i>
           </button>
-          <button class="mini-button" type="button" data-record-journal="equipment:${escapeHtml(record.id)}">Log Change</button>
+          <button class="mini-button" type="button" data-record-journal="equipment:${escapeHtml(record.id)}">Add Journal Entry</button>
         </div>
       </article>
     `;
@@ -2395,8 +2447,10 @@
       .replace(/\b\w/g, (char) => char.toUpperCase());
   }
 
-  function renderRecordHistoryList(history) {
-    if (!history.length) return `<div class="record-history empty-record-history">No journal history yet.</div>`;
+  function renderRecordHistoryList(history, options = {}) {
+    if (!history.length) {
+      return options.showEmpty ? `<div class="record-history empty-record-history">No journal history yet.</div>` : "";
+    }
     return `
       <div class="record-history">
         <strong>History</strong>
@@ -2587,6 +2641,7 @@
   function renderLivestockCard(item) {
     const casual = isCasualStockCategory(item.category);
     const editing = editingLivestockId === item.id;
+    const inactive = !casual && !isAliveStock(item);
     const quantityAdded = formatQuantity(item.quantity);
     const currentCount = formatQuantity(item.currentCount);
     const countParts = [
@@ -2605,7 +2660,7 @@
       ? `<p class="card-meta">${escapeHtml(livestockStatusLabel(item.status))}${item.removedDate ? ` on ${escapeHtml(formatDate(item.removedDate))}` : ""}${item.outcomeReason ? ` · ${escapeHtml(item.outcomeReason)}` : ""}</p>`
       : "";
     return `
-      <article class="data-card livestock-card${editing ? " is-editing" : ""}" data-livestock-card="${escapeHtml(item.id)}">
+      <article class="data-card livestock-card${editing ? " is-editing" : ""}${inactive ? " is-inactive" : ""}" data-livestock-card="${escapeHtml(item.id)}">
         <div class="data-card-header">
           <div class="data-card-title">
             <strong>${escapeHtml(item.species)}</strong>
@@ -2620,15 +2675,22 @@
           ${renderRecordHistoryList(history)}
           ${outcome}
           <div class="card-actions">
-            <button class="mini-button" type="button" data-livestock-action="edit" data-id="${escapeHtml(item.id)}">Edit</button>
-            ${!casual && isAliveStock(item) ? `
-              <button class="mini-button danger" type="button" data-livestock-action="deceased" data-id="${escapeHtml(item.id)}">Deceased</button>
-              <button class="mini-button" type="button" data-livestock-action="removed" data-id="${escapeHtml(item.id)}">Removed</button>
-            ` : !casual ? `
-              <button class="mini-button good" type="button" data-livestock-action="restore" data-id="${escapeHtml(item.id)}">Restore</button>
-            ` : ""}
             <button class="mini-button" type="button" data-record-journal="livestock:${escapeHtml(item.id)}">Observation</button>
-            <button class="mini-button danger" type="button" data-livestock-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
+            <button class="mini-button icon-mini-button" type="button" title="Edit setup" data-livestock-action="edit" data-id="${escapeHtml(item.id)}">
+              <i data-lucide="pencil"></i>
+            </button>
+            <details class="card-menu">
+              <summary class="mini-button">More</summary>
+              <div class="card-menu-actions">
+                ${!casual && isAliveStock(item) ? `
+                  <button class="mini-button danger" type="button" data-livestock-action="deceased" data-id="${escapeHtml(item.id)}">Mark Deceased</button>
+                  <button class="mini-button" type="button" data-livestock-action="removed" data-id="${escapeHtml(item.id)}">Mark Removed</button>
+                ` : !casual ? `
+                  <button class="mini-button good" type="button" data-livestock-action="restore" data-id="${escapeHtml(item.id)}">Restore</button>
+                ` : ""}
+                <button class="mini-button danger" type="button" data-livestock-action="delete" data-id="${escapeHtml(item.id)}">Delete</button>
+              </div>
+            </details>
           </div>
         `}
       </article>
@@ -2797,26 +2859,28 @@
     const library = $("photoLibrary");
     if (!library) return;
     const photos = getPhotoLibraryItems();
+    const section = $("photoLibrarySection");
+    if (section) section.hidden = photos.length === 0;
     $("photoCountPill").textContent = `${photos.length} photo${photos.length === 1 ? "" : "s"}`;
-    library.innerHTML = photos.length
-      ? photos.map((photo) => `
+    library.innerHTML = photos.map((photo) => `
         <article class="photo-tile">
           <img src="${escapeHtml(photo.src)}" alt="${escapeHtml(photo.title)}" />
           <strong>${escapeHtml(photo.title)}</strong>
           <span>${escapeHtml(photo.subtitle)}</span>
         </article>
-      `).join("")
-      : `<div class="empty-state">No photos yet.</div>`;
+      `).join("");
   }
 
   function renderLogMode() {
     seedLogDates();
     renderJournalTypeFields();
     renderJournalRecordPickers();
+    renderJournalLivestockFields();
   }
 
   function renderJournalTypeFields() {
     const type = $("journalEntryType")?.value || "Observation";
+    if ($("journalEntryHint")) $("journalEntryHint").textContent = type;
     $$("[data-journal-fields]").forEach((element) => {
       const visible = element.dataset.journalFields === type;
       element.hidden = !visible;
@@ -2851,6 +2915,18 @@
     livestockSelect.innerHTML = (state.records?.livestock || []).map((record) => `
       <option value="${escapeHtml(record.id)}"${selectedLivestock.has(record.id) ? " selected" : ""}>${escapeHtml(record.species || record.name || record.id)}</option>
     `).join("");
+    renderJournalLivestockFields();
+  }
+
+  function renderJournalLivestockFields() {
+    const hasLivestock = getSelectedOptions($("journalLinkedLivestock")).length > 0;
+    $$("[data-journal-livestock-field]").forEach((element) => {
+      element.hidden = !hasLivestock;
+      element.querySelectorAll?.("input, select, textarea, button").forEach((input) => {
+        input.disabled = !hasLivestock;
+        if (!hasLivestock) input.value = "";
+      });
+    });
   }
 
   function getSelectedOptions(select) {
@@ -2994,6 +3070,8 @@
     seedLogDates();
     saveState();
     renderAll();
+    const shell = $("journalEntryShell");
+    if (shell) shell.open = false;
     if (type === "Water Test" && legacyRaw) {
       const alerts = getWaterTestAlerts(legacyRaw);
       if (alerts.length) {
@@ -3878,8 +3956,18 @@
     saveLocalState();
     setActiveView("logbook");
     renderLogMode();
-    $("journalEntryForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    openJournalComposer();
     showToast("Journal link selected.");
+  }
+
+  function openJournalComposer() {
+    const shell = $("journalEntryShell");
+    if (shell) {
+      shell.open = true;
+      shell.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    $("journalEntryForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function startJournalQuickEntry(mode = "") {
@@ -3894,7 +3982,7 @@
     if (mode === "water_change" && $("maintenanceType")) $("maintenanceType").value = "Water change";
     renderLogMode();
     setActiveView("logbook");
-    $("journalEntryForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    openJournalComposer();
   }
 
   function getWaterTestAlerts(test) {
@@ -4134,6 +4222,9 @@
 
   function deleteTimelineEntry(key) {
     const [kind, id] = key.split(":");
+    const entry = getTimelineEntries().find((item) => item.kind === kind && item.id === id);
+    const label = entry?.title || "this entry";
+    if (!window.confirm(`Delete ${label}? This removes it from the journal.`)) return;
     if (kind === "journal") {
       state.journal = state.journal.filter((item) => item.id !== id);
     } else if (kind === "test") {
@@ -4199,14 +4290,13 @@
     document.addEventListener("click", handleDocumentClick);
     document.addEventListener("change", handleDocumentChange);
     document.addEventListener("submit", handleDocumentSubmit);
-    $$("[data-profile]").forEach((input) => {
-      input.addEventListener("input", updateProfileFromForm);
-      input.addEventListener("change", updateProfileFromForm);
-    });
     window.RC.Map?.bindMapEvents?.();
     $("lightingPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "lighting"));
     $("insightPhotoInput").addEventListener("change", (event) => handlePhotoInput(event, "insight"));
     $("zoneForm")?.addEventListener("submit", addZone);
+    $("editTankProfileButton")?.addEventListener("click", startTankProfileEdit);
+    $("saveTankProfileButton")?.addEventListener("click", updateProfileFromForm);
+    $("cancelTankProfileButton")?.addEventListener("click", cancelTankProfileEdit);
     $("addEquipmentRecordButton")?.addEventListener("click", () => startEquipmentSetup());
     $("equipmentSetupForm")?.addEventListener("submit", saveEquipmentSetup);
     $("cancelEquipmentSetupButton")?.addEventListener("click", resetEquipmentSetup);
@@ -4220,6 +4310,7 @@
       renderJournalTypeFields();
       renderJournalRecordPickers();
     });
+    $("journalLinkedLivestock")?.addEventListener("change", renderJournalLivestockFields);
     $("journalOccurredAt")?.addEventListener("change", updateTestTimingPill);
     $("generateInsightButton").addEventListener("click", () => window.RC.Insights.generateInsight());
     $("privateAuthForm")?.addEventListener("submit", (event) => {

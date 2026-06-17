@@ -17,9 +17,9 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <script src="./vendor/supabase.min.js?v=68"></script>
-    <script src="./vendor/lucide.min.js?v=68"></script>
-    <link rel="stylesheet" href="./styles.css?v=68" />
+    <script src="./vendor/supabase.min.js?v=69"></script>
+    <script src="./vendor/lucide.min.js?v=69"></script>
+    <link rel="stylesheet" href="./styles.css?v=69" />
   </head>
   <body class="private-locked">
     <section id="privateAccessGate" class="private-access-gate" aria-labelledby="privateAccessTitle">
@@ -47,7 +47,6 @@
     <div id="appShell" aria-hidden="true">
       <header class="app-header">
         <div class="app-title-block">
-          <p class="kicker">Reef Command</p>
           <h1 id="viewTitle">Home</h1>
         </div>
       </header>
@@ -132,7 +131,7 @@
             <div id="homeTimeline" class="timeline-list"></div>
           </section>
 
-          <section class="section-block">
+          <section id="homeInsightSection" class="section-block" hidden>
             <div class="section-heading">
               <h2>Insight Brief</h2>
               <button class="text-button" type="button" data-view-link="insights">
@@ -144,14 +143,33 @@
         </section>
 
         <section id="tankView" class="app-view" data-title="Tank">
-          <form id="tankProfileForm" class="form-surface">
+          <section id="tankProfileForm" class="form-surface tank-profile-panel">
+            <div class="section-heading tank-profile-toolbar">
+              <div>
+                <h2>Tank Profile</h2>
+                <p class="muted-line">Current setup and operating targets.</p>
+              </div>
+              <div class="form-actions">
+                <span id="profileSavedStatus" class="status-pill">Saved</span>
+                <button id="editTankProfileButton" class="secondary-button" type="button">
+                  <i data-lucide="pencil"></i>
+                  Edit
+                </button>
+                <button id="saveTankProfileButton" class="primary-button" type="button" hidden>
+                  <i data-lucide="save"></i>
+                  Save
+                </button>
+                <button id="cancelTankProfileButton" class="secondary-button" type="button" hidden>
+                  Cancel
+                </button>
+              </div>
+            </div>
             <details class="profile-panel collapsible-panel">
               <summary>
                 <div class="summary-text">
                   <h2>Tank Details</h2>
                 </div>
                 <span class="summary-actions">
-                  <span id="profileSavedStatus" class="status-pill">Saved</span>
                   <i data-lucide="chevron-down"></i>
                 </span>
               </summary>
@@ -240,7 +258,7 @@
               <div class="section-heading">
                 <div>
                   <h2>Equipment</h2>
-                  <p class="muted-line">Setup details live here. Ongoing changes are logged in Journal.</p>
+                  <p class="muted-line">Equipment setup and service history.</p>
                 </div>
                 <button id="addEquipmentRecordButton" class="icon-button" type="button" title="Add equipment">
                   <i data-lucide="plus"></i>
@@ -325,7 +343,7 @@
                 </div>
               </details>
             </section>
-          </form>
+          </section>
 
         </section>
 
@@ -715,7 +733,7 @@
 
           <div id="livestockList" class="card-list"></div>
 
-          <section class="section-block">
+          <section id="photoLibrarySection" class="section-block" hidden>
             <div class="section-heading">
               <h2>Photo Library</h2>
               <span id="photoCountPill" class="status-pill">0 photos</span>
@@ -725,12 +743,16 @@
         </section>
 
         <section id="logbookView" class="app-view" data-title="Journal">
-          <form id="journalEntryForm" class="form-surface">
-            <div class="section-heading">
-              <h2>Journal Entry</h2>
-              <span class="status-pill">Linked history</span>
-            </div>
-            <div class="field-grid">
+          <details id="journalEntryShell" class="form-surface collapsible-form-shell journal-entry-shell">
+            <summary>
+              <span>
+                <i data-lucide="plus-circle"></i>
+                New Entry
+              </span>
+              <small id="journalEntryHint" class="muted-line">Observation</small>
+            </summary>
+            <form id="journalEntryForm" class="embedded-form">
+              <div class="field-grid">
               <label>
                 Type
                 <select id="journalEntryType">
@@ -754,7 +776,7 @@
                   <option value="urgent">Urgent</option>
                 </select>
               </label>
-              <label>
+              <label data-journal-livestock-field hidden>
                 Health
                 <select id="journalHealth">
                   <option value="">No health update</option>
@@ -765,7 +787,7 @@
                   <option value="Unknown">Unknown</option>
                 </select>
               </label>
-              <label>
+              <label data-journal-livestock-field hidden>
                 Growth Trend
                 <select id="journalGrowthTrend">
                   <option value="">No growth update</option>
@@ -776,11 +798,11 @@
                   <option value="Unknown">Unknown</option>
                 </select>
               </label>
-              <label>
+              <label data-journal-livestock-field hidden>
                 Growth Notes
                 <input id="journalGrowthNotes" type="text" placeholder="New heads, receding edge, color shift" />
               </label>
-              <label>
+              <label data-journal-livestock-field hidden>
                 Livestock Status
                 <select id="journalLivestockStatus">
                   <option value="">No lifecycle change</option>
@@ -899,12 +921,13 @@
                 Related Livestock
                 <select id="journalLinkedLivestock" multiple size="5"></select>
               </label>
-            </div>
-            <button class="primary-button" type="submit">
-              <i data-lucide="save"></i>
-              Save Entry
-            </button>
-          </form>
+              </div>
+              <button class="primary-button" type="submit">
+                <i data-lucide="save"></i>
+                Save Entry
+              </button>
+            </form>
+          </details>
 
           <details id="paramTrendsPanel" class="section-block param-trends-panel">
             <summary class="section-heading">
@@ -976,8 +999,8 @@
 
           <section class="section-block">
             <div class="section-heading">
-              <h2>Responses</h2>
-              <span id="insightSourcePill" class="status-pill">Local</span>
+              <h2>Insights</h2>
+              <span id="insightSourcePill" class="status-pill">Ready</span>
             </div>
             <div id="insightOutput" class="insight-output"></div>
           </section>
@@ -1027,11 +1050,11 @@
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </div>
 
-    <script src="./map-lidar-data.js?v=68"></script>
-    <script src="./js/records.js?v=68"></script>
-    <script src="./js/journal.js?v=68"></script>
-    <script src="./app.js?v=68"></script>
-    <script src="./js/map.js?v=68"></script>
-    <script src="./js/insights.js?v=68"></script>
+    <script src="./map-lidar-data.js?v=69"></script>
+    <script src="./js/records.js?v=69"></script>
+    <script src="./js/journal.js?v=69"></script>
+    <script src="./app.js?v=69"></script>
+    <script src="./js/map.js?v=69"></script>
+    <script src="./js/insights.js?v=69"></script>
   </body>
 </html>
