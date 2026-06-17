@@ -654,6 +654,26 @@ textarea:disabled {
   font-weight: 800;
 }
 
+.journal-entry-shell[open] {
+  scroll-margin-bottom: calc(126px + env(safe-area-inset-bottom, 0px));
+}
+
+.journal-entry-shell[open] .embedded-form {
+  padding-bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+}
+
+.journal-related-shell {
+  background: var(--surface-soft);
+}
+
+.journal-related-shell > summary {
+  padding: 0 12px;
+}
+
+.journal-related-grid {
+  grid-template-columns: 1fr;
+}
+
 .equipment-card {
   display: grid;
   gap: 12px;
@@ -1637,6 +1657,41 @@ textarea:disabled {
   max-width: 100%;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.confirm-dialog {
+  width: min(calc(100% - 32px), 420px);
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.confirm-dialog::backdrop {
+  background: rgba(14, 32, 30, 0.36);
+  backdrop-filter: blur(4px);
+}
+
+.confirm-panel {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.confirm-panel h2 {
+  font-size: 1.06rem;
+}
+
+.confirm-panel .form-actions {
+  justify-content: flex-end;
+}
+
+.primary-button.danger {
+  background: var(--red);
+  border-color: #9b2521;
 }
 
 .toast {

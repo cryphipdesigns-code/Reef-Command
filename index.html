@@ -17,9 +17,9 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <script src="./vendor/supabase.min.js?v=70"></script>
-    <script src="./vendor/lucide.min.js?v=70"></script>
-    <link rel="stylesheet" href="./styles.css?v=70" />
+    <script src="./vendor/supabase.min.js?v=71"></script>
+    <script src="./vendor/lucide.min.js?v=71"></script>
+    <link rel="stylesheet" href="./styles.css?v=71" />
   </head>
   <body class="private-locked">
     <section id="privateAccessGate" class="private-access-gate" aria-labelledby="privateAccessTitle">
@@ -768,7 +768,7 @@
                 When
                 <input id="journalOccurredAt" type="datetime-local" />
               </label>
-              <label>
+              <label data-journal-progressive-field="severity">
                 Severity
                 <select id="journalSeverity">
                   <option value="routine">Routine</option>
@@ -776,7 +776,7 @@
                   <option value="urgent">Urgent</option>
                 </select>
               </label>
-              <label data-journal-livestock-field hidden>
+              <label data-journal-livestock-field data-journal-progressive-field="health" hidden>
                 Health
                 <select id="journalHealth">
                   <option value="">No health update</option>
@@ -787,7 +787,7 @@
                   <option value="Unknown">Unknown</option>
                 </select>
               </label>
-              <label data-journal-livestock-field hidden>
+              <label data-journal-livestock-field data-journal-progressive-field="growth" hidden>
                 Growth Trend
                 <select id="journalGrowthTrend">
                   <option value="">No growth update</option>
@@ -798,11 +798,11 @@
                   <option value="Unknown">Unknown</option>
                 </select>
               </label>
-              <label data-journal-livestock-field hidden>
+              <label data-journal-livestock-field data-journal-progressive-field="growth" hidden>
                 Growth Notes
                 <input id="journalGrowthNotes" type="text" placeholder="New heads, receding edge, color shift" />
               </label>
-              <label data-journal-livestock-field hidden>
+              <label data-journal-livestock-field data-journal-progressive-field="livestockStatus" hidden>
                 Livestock Status
                 <select id="journalLivestockStatus">
                   <option value="">No lifecycle change</option>
@@ -905,7 +905,7 @@
                 Details
                 <input id="maintenanceDetails" type="text" />
               </label>
-              <label class="wide-field">
+              <label class="wide-field" data-journal-progressive-field="title">
                 Title
                 <input id="journalTitle" type="text" />
               </label>
@@ -913,14 +913,26 @@
                 Notes
                 <textarea id="journalSummary" rows="3"></textarea>
               </label>
-              <label>
-                Related Equipment
-                <select id="journalLinkedEquipment" multiple size="5"></select>
-              </label>
-              <label>
-                Related Livestock
-                <select id="journalLinkedLivestock" multiple size="5"></select>
-              </label>
+              <details id="journalRelatedShell" class="collapsible-field journal-related-shell wide-field" data-journal-progressive-field="relatedLinks">
+                <summary>
+                  <span>
+                    <i data-lucide="link"></i>
+                    Related Items
+                  </span>
+                  <small id="journalRelatedHint" class="muted-line">Optional</small>
+                  <i data-lucide="chevron-down"></i>
+                </summary>
+                <div class="collapsible-content journal-related-grid">
+                  <label data-journal-progressive-field="equipmentLinks">
+                    Equipment
+                    <select id="journalLinkedEquipment" multiple size="5"></select>
+                  </label>
+                  <label data-journal-progressive-field="livestockLinks">
+                    Livestock
+                    <select id="journalLinkedLivestock" multiple size="5"></select>
+                  </label>
+                </div>
+              </details>
               </div>
               <button class="primary-button" type="submit">
                 <i data-lucide="save"></i>
@@ -1048,13 +1060,23 @@
       </nav>
 
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle">
+        <div class="confirm-panel">
+          <h2 id="confirmTitle">Delete entry?</h2>
+          <p id="confirmMessage" class="muted-line">This cannot be undone.</p>
+          <div class="form-actions">
+            <button id="confirmCancelButton" class="secondary-button" type="button">Cancel</button>
+            <button id="confirmActionButton" class="primary-button danger" type="button">Delete</button>
+          </div>
+        </div>
+      </dialog>
     </div>
 
-    <script src="./map-lidar-data.js?v=70"></script>
-    <script src="./js/records.js?v=70"></script>
-    <script src="./js/journal.js?v=70"></script>
-    <script src="./app.js?v=70"></script>
-    <script src="./js/map.js?v=70"></script>
-    <script src="./js/insights.js?v=70"></script>
+    <script src="./map-lidar-data.js?v=71"></script>
+    <script src="./js/records.js?v=71"></script>
+    <script src="./js/journal.js?v=71"></script>
+    <script src="./app.js?v=71"></script>
+    <script src="./js/map.js?v=71"></script>
+    <script src="./js/insights.js?v=71"></script>
   </body>
 </html>

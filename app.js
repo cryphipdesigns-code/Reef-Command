@@ -61,6 +61,7 @@
   let isRemoteHydrating = false;
   let lastLocalCacheWarningAt = 0;
   let toastTimer = null;
+  let pendingConfirmResolve = null;
   let pendingLivestockPhotos = [];
   let editingLivestockId = "";
   let tankProfileEditing = false;
@@ -1796,6 +1797,32 @@
     toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
   }
 
+  function requestConfirmation(options = {}) {
+    const dialog = $("confirmDialog");
+    if (!dialog || typeof dialog.showModal !== "function") {
+      return Promise.resolve(window.confirm(options.message || "Are you sure?"));
+    }
+    $("confirmTitle").textContent = options.title || "Confirm";
+    $("confirmMessage").textContent = options.message || "Are you sure?";
+    $("confirmActionButton").textContent = options.confirmLabel || "Confirm";
+    if (pendingConfirmResolve) {
+      pendingConfirmResolve(false);
+      pendingConfirmResolve = null;
+    }
+    return new Promise((resolve) => {
+      pendingConfirmResolve = resolve;
+      dialog.showModal();
+    });
+  }
+
+  function closeConfirmation(confirmed) {
+    const resolve = pendingConfirmResolve;
+    pendingConfirmResolve = null;
+    const dialog = $("confirmDialog");
+    if (dialog?.open) dialog.close();
+    if (resolve) resolve(Boolean(confirmed));
+  }
+
   function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -2980,6 +3007,7 @@
       });
     });
     updateTestTimingPill();
+    renderJournalLivestockFields();
   }
 
   function renderJournalRecordPickers() {
@@ -3010,14 +3038,69 @@
   }
 
   function renderJournalLivestockFields() {
-    const hasLivestock = getSelectedOptions($("journalLinkedLivestock")).length > 0;
-    $$("[data-journal-livestock-field]").forEach((element) => {
-      element.hidden = !hasLivestock;
+    const type = $("journalEntryType")?.value || "Observation";
+    const selectedLivestockIds = getSelectedOptions($("journalLinkedLivestock"));
+    const selectedEquipmentIds = getSelectedOptions($("journalLinkedEquipment"));
+    const selectedLivestock = selectedLivestockIds
+      .map((id) => getLivestockRecord(id))
+      .filter(Boolean)
+      .map(livestockItemFromRecord);
+
+    $$("[data-journal-progressive-field]").forEach((element) => {
+      const role = element.dataset.journalProgressiveField || "";
+      const visible = shouldShowJournalProgressiveField(role, type, selectedLivestock);
+      element.hidden = !visible;
       element.querySelectorAll?.("input, select, textarea, button").forEach((input) => {
-        input.disabled = !hasLivestock;
-        if (!hasLivestock) input.value = "";
+        input.disabled = !visible;
+        if (!visible) clearJournalInput(input);
       });
     });
+
+    const relatedShell = $("journalRelatedShell");
+    const equipmentLinks = document.querySelector("[data-journal-progressive-field='equipmentLinks']");
+    const livestockLinks = document.querySelector("[data-journal-progressive-field='livestockLinks']");
+    const visibleLinks = [equipmentLinks, livestockLinks].filter((element) => element && !element.hidden);
+    if (relatedShell) relatedShell.hidden = visibleLinks.length === 0;
+    const relatedCount = (equipmentLinks && !equipmentLinks.hidden ? getSelectedOptions($("journalLinkedEquipment")).length : 0)
+      + (livestockLinks && !livestockLinks.hidden ? getSelectedOptions($("journalLinkedLivestock")).length : 0);
+    if ($("journalRelatedHint")) {
+      $("journalRelatedHint").textContent = relatedCount
+        ? `${relatedCount} linked`
+        : visibleLinks.length ? "Optional" : "";
+    }
+    if (type === "Observation" && $("journalSeverity") && !$("journalSeverity").value) {
+      $("journalSeverity").value = "routine";
+    }
+  }
+
+  function shouldShowJournalProgressiveField(role, type, selectedLivestock) {
+    const hasLivestock = selectedLivestock.length > 0;
+    if (role === "severity") return type === "Observation";
+    if (role === "health") return type === "Observation" && hasLivestock;
+    if (role === "growth") return type === "Observation" && selectedLivestock.some(isGrowthTrackedStock);
+    if (role === "livestockStatus") return type === "Livestock Change" && hasLivestock;
+    if (role === "title") return type === "Equipment Change" || type === "Livestock Change";
+    if (role === "relatedLinks") return type !== "Feeding / Dosing";
+    if (role === "equipmentLinks") return ["Observation", "Water Test", "Maintenance / Water Change", "Equipment Change"].includes(type);
+    if (role === "livestockLinks") return ["Observation", "Livestock Change"].includes(type);
+    return true;
+  }
+
+  function isGrowthTrackedStock(item) {
+    return /coral|macroalgae/i.test([item?.category, item?.species, item?.name].filter(Boolean).join(" "));
+  }
+
+  function clearJournalInput(input) {
+    if (!input) return;
+    if (input.tagName === "SELECT" && input.multiple) {
+      Array.from(input.options || []).forEach((option) => {
+        option.selected = false;
+      });
+    } else if (input.type === "checkbox" || input.type === "radio") {
+      input.checked = false;
+    } else {
+      input.value = "";
+    }
   }
 
   function getSelectedOptions(select) {
@@ -4244,7 +4327,8 @@
 
     const deleteEntry = event.target.closest("[data-delete-entry]");
     if (deleteEntry) {
-      deleteTimelineEntry(deleteEntry.dataset.deleteEntry);
+      await deleteTimelineEntry(deleteEntry.dataset.deleteEntry);
+      return;
     }
   }
 
@@ -4311,11 +4395,16 @@
     showToast(toastMessage);
   }
 
-  function deleteTimelineEntry(key) {
+  async function deleteTimelineEntry(key, options = {}) {
     const [kind, id] = key.split(":");
     const entry = getTimelineEntries().find((item) => item.kind === kind && item.id === id);
     const label = entry?.title || "this entry";
-    if (!window.confirm(`Delete ${label}? This removes it from the journal.`)) return;
+    const confirmed = await requestConfirmation({
+      title: options.title || "Delete entry?",
+      message: options.message || `Delete "${label}" from the journal? This cannot be undone.`,
+      confirmLabel: "Delete",
+    });
+    if (!confirmed) return;
     if (kind === "journal") {
       state.journal = state.journal.filter((item) => item.id !== id);
     } else if (kind === "test") {
@@ -4338,13 +4427,16 @@
     showToast("Entry deleted.");
   }
 
-  function deleteLastEntry() {
+  async function deleteLastEntry() {
     const latest = getTimelineEntries()[0];
     if (!latest) {
       showToast("No entries to delete.");
       return;
     }
-    deleteTimelineEntry(`${latest.kind}:${latest.id}`);
+    await deleteTimelineEntry(`${latest.kind}:${latest.id}`, {
+      title: "Delete latest entry?",
+      message: `Delete the latest entry, "${latest.title || "Journal entry"}"? This cannot be undone.`,
+    });
   }
 
   function updateMap2RefinementOpacity(event) {
@@ -4413,6 +4505,15 @@
     $("signOutButton")?.addEventListener("click", signOut);
     $("pullStateButton")?.addEventListener("click", pullState);
     $("pushStateButton")?.addEventListener("click", pushState);
+    $("confirmCancelButton")?.addEventListener("click", () => closeConfirmation(false));
+    $("confirmActionButton")?.addEventListener("click", () => closeConfirmation(true));
+    $("confirmDialog")?.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closeConfirmation(false);
+    });
+    $("confirmDialog")?.addEventListener("close", () => {
+      if (pendingConfirmResolve) closeConfirmation(false);
+    });
     $("clearMistakeButton").addEventListener("click", deleteLastEntry);
     $("paramTrendsPanel")?.addEventListener("toggle", (event) => {
       if (event.target.open) renderParameterTrends();
