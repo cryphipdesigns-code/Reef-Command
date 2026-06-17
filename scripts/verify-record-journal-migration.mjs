@@ -91,6 +91,12 @@ function verifyEquipment(raw, migrated) {
       (entry.linkedEquipment || []).includes(recordId)
     );
     assert(founding, `missing founding journal entry for ${recordId}`);
+    if (record.addedAt) {
+      assert(
+        String(founding.occurredAt || "").slice(0, 10) === String(record.addedAt),
+        `founding journal date changed for ${recordId}: ${record.addedAt} -> ${founding.occurredAt}`,
+      );
+    }
   });
 }
 

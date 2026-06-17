@@ -342,6 +342,7 @@
         observation: {
           health: record.details.initialHealth,
           growthTrend: record.details.growthTrend || "",
+          growthNotes: record.details.growthNotes || "",
         },
         effects: [
           {
@@ -349,6 +350,7 @@
             fields: compactObject({
               currentHealth: record.details.initialHealth,
               growthTrend: record.details.growthTrend,
+              growthNotes: record.details.growthNotes,
             }),
           },
         ],
@@ -584,6 +586,7 @@
         if (entry.type === "Observation" && (entry.linkedLivestock || []).includes(record.id)) {
           if (entry.observation?.health) current.currentHealth = entry.observation.health;
           if (entry.observation?.growthTrend) current.growthTrend = entry.observation.growthTrend;
+          if (entry.observation?.growthNotes) current.growthNotes = entry.observation.growthNotes;
         }
       });
 

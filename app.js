@@ -1154,7 +1154,7 @@
       initialHealth: details.initialHealth || legacy.health || "",
       health: current.currentHealth || details.initialHealth || legacy.health || "",
       growthTrend: current.growthTrend || details.growthTrend || legacy.growthTrend || "",
-      growthNotes: details.growthNotes || current.growthNotes || legacy.growthNotes || "",
+      growthNotes: current.growthNotes || details.growthNotes || legacy.growthNotes || "",
       photos: normalizePhotoArray(current.photos || record.photos || legacy.photos || []),
       photoDataUrl: "",
       mapPosition: current.mapPosition || legacy.mapPosition || null,
@@ -2703,23 +2703,6 @@
               ], item.initialHealth || "")}
             </select>
           </label>
-          <label>
-            Growth Trend
-            <select name="growthTrend">
-              ${renderLivestockSelectOptions([
-                ["", "Not tracked"],
-                ["Growing", "Growing"],
-                ["Stable", "Stable"],
-                ["Receding", "Receding"],
-                ["Melting", "Melting"],
-                ["Unknown", "Unknown"],
-              ], item.growthTrend || "")}
-            </select>
-          </label>
-          <label class="wide-field">
-            Growth Notes
-            <input name="growthNotes" type="text" value="${escapeHtml(item.growthNotes || "")}" placeholder="Original larger, baby mushroom, second head forming, receding edge" />
-          </label>
           <label class="wide-field">
             Add Note
             <input name="noteText" type="text" placeholder="Saved with timestamp" />
@@ -2886,6 +2869,8 @@
     const linkedEquipment = getSelectedOptions($("journalLinkedEquipment"));
     const linkedLivestock = getSelectedOptions($("journalLinkedLivestock"));
     const health = $("journalHealth").value;
+    const growthTrend = $("journalGrowthTrend")?.value || "";
+    const growthNotes = $("journalGrowthNotes")?.value.trim() || "";
     const status = $("journalLivestockStatus").value;
     const occurredAt = fromDatetimeLocal($("journalOccurredAt").value);
     const effects = [];
@@ -2995,6 +2980,8 @@
       context,
       observation: {
         health,
+        growthTrend,
+        growthNotes,
       },
       effects,
       legacyKind,
@@ -3655,8 +3642,6 @@
       zoneId: field("zoneId"),
       noteText: field("noteText").trim(),
       health: field("health"),
-      growthTrend: field("growthTrend"),
-      growthNotes: field("growthNotes").trim(),
       photos: pendingLivestockPhotos,
       photoDataUrl: "",
     };
@@ -3770,6 +3755,10 @@
         photos,
         photoDataUrl: photos.find((photo) => photo.dataUrl)?.dataUrl || "",
       };
+      if (existing && !Object.prototype.hasOwnProperty.call(stockData, "growthTrend")) {
+        payload.growthTrend = existing.details?.growthTrend || existing.legacyRaw?.growthTrend || "";
+        payload.growthNotes = existing.details?.growthNotes || existing.legacyRaw?.growthNotes || existing.legacyRaw?.growthMetric || "";
+      }
 
       const nextItem = {
         ...(existingItem || {}),
@@ -3801,6 +3790,7 @@
       await removeStoragePaths(previousPaths.filter((path) => !nextPaths.includes(path)));
 
       resetLivestockForm();
+      syncLegacyLivestockFromRecords();
       saveState();
       renderLivestock();
       renderPhotoLibrary();
