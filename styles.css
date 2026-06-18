@@ -622,6 +622,11 @@ textarea:disabled {
   min-width: 0;
 }
 
+.equipment-panel-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .collapsible-panel > summary svg,
 .collapsible-form-shell > summary > svg,
 .insight-context-panel > summary svg {
