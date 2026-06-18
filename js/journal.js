@@ -10,14 +10,19 @@
       likelyEquipmentCategories: [],
     },
     {
-      value: "Feeding / Dosing",
-      label: "Feeding / Dosing",
+      value: "Feeding",
+      label: "Feeding",
       likelyEquipmentCategories: ["feeder"],
     },
     {
-      value: "Maintenance / Water Change",
-      label: "Maintenance / Water Change",
-      likelyEquipmentCategories: ["sump", "ato", "skimmer", "reactor", "uv", "filtration"],
+      value: "Water Change",
+      label: "Water Change",
+      likelyEquipmentCategories: ["sump", "ato"],
+    },
+    {
+      value: "Maintenance",
+      label: "Maintenance",
+      likelyEquipmentCategories: ["skimmer", "reactor", "uv", "filtration", "sump", "refugium"],
     },
     {
       value: "Equipment Change",
@@ -46,6 +51,8 @@
   }
 
   function normalizeEntryType(type) {
+    if (type === "Feeding / Dosing") return "Feeding";
+    if (type === "Maintenance / Water Change") return "Maintenance";
     const found = JOURNAL_TYPES.find((entry) => entry.value === type || entry.label === type);
     return found ? found.value : "Observation";
   }
@@ -110,11 +117,7 @@
   }
 
   function suggestLinkedLivestock(state = {}, type) {
-    const normalized = normalizeEntryType(type);
-    if (normalized !== "Feeding / Dosing" && normalized !== "Livestock Change" && normalized !== "Observation") {
-      return getRecentLinkedIds(state, normalized, "linkedLivestock").slice(0, 8);
-    }
-    return getRecentLinkedIds(state, normalized, "linkedLivestock").slice(0, 8);
+    return getRecentLinkedIds(state, normalizeEntryType(type), "linkedLivestock").slice(0, 8);
   }
 
   function suggestLinksForType(state = {}, type) {
@@ -157,9 +160,9 @@
         happenedAt: entry.occurredAt || raw.happenedAt,
       };
     }
-    const type = entry.type === "Feeding / Dosing"
+    const type = (entry.type === "Feeding" || entry.type === "Feeding / Dosing")
       ? "feeding"
-      : entry.type === "Maintenance / Water Change" && /water change/i.test(entry.title || "")
+      : (entry.type === "Water Change" || (entry.type === "Maintenance / Water Change" && /water change/i.test(entry.title || "")))
         ? "water_change"
         : "maintenance";
     return {

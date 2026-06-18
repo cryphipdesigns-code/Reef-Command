@@ -17,9 +17,9 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <script src="./vendor/supabase.min.js?v=71"></script>
-    <script src="./vendor/lucide.min.js?v=71"></script>
-    <link rel="stylesheet" href="./styles.css?v=71" />
+    <script src="./vendor/supabase.min.js?v=79"></script>
+    <script src="./vendor/lucide.min.js?v=79"></script>
+    <link rel="stylesheet" href="./styles.css?v=79" />
   </head>
   <body class="private-locked">
     <section id="privateAccessGate" class="private-access-gate" aria-labelledby="privateAccessTitle">
@@ -254,95 +254,21 @@
               </div>
             </details>
 
-            <section class="equipment-panel record-panel">
-              <div class="section-heading">
-                <div>
+            <details class="profile-panel collapsible-panel equipment-panel record-panel">
+              <summary>
+                <div class="summary-text">
                   <h2>Equipment</h2>
                   <p class="muted-line">Equipment setup and service history.</p>
                 </div>
-                <button id="addEquipmentRecordButton" class="icon-button" type="button" title="Add equipment">
-                  <i data-lucide="plus"></i>
-                </button>
-              </div>
-              <div id="equipmentRecordList" class="record-list"></div>
-              <form id="equipmentSetupForm" class="embedded-form setup-editor" hidden>
-                <input id="equipmentRecordId" type="hidden" />
-                <div class="field-grid">
-                  <label>
-                    Name
-                    <input id="equipmentRecordName" type="text" required />
-                  </label>
-                  <label>
-                    Type
-                    <select id="equipmentRecordCategory">
-                      <option value="filtration">Filtration</option>
-                      <option value="lighting">Lighting</option>
-                      <option value="skimmer">Skimmer</option>
-                      <option value="sump">Sump</option>
-                      <option value="refugium">Refugium</option>
-                      <option value="ato">ATO</option>
-                      <option value="feeder">Feeder</option>
-                      <option value="uv">UV</option>
-                      <option value="reactor">Reactor</option>
-                      <option value="flow">Flow</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </label>
-                  <label>
-                    Status
-                    <select id="equipmentRecordStatus">
-                      <option value="active">Active</option>
-                      <option value="retired">Retired</option>
-                    </select>
-                  </label>
-                  <label>
-                    Added Date
-                    <input id="equipmentRecordAddedAt" type="date" />
-                  </label>
-                  <label>
-                    Retired Date
-                    <input id="equipmentRecordRetiredAt" type="date" />
-                  </label>
-                  <label>
-                    Schedule
-                    <input id="equipmentRecordSchedule" type="text" />
-                  </label>
-                  <label class="wide-field">
-                    Details
-                    <textarea id="equipmentRecordDetails" rows="3"></textarea>
-                  </label>
-                  <label class="wide-field">
-                    Notes
-                    <textarea id="equipmentRecordNotes" rows="3"></textarea>
-                  </label>
-                </div>
-                <div class="form-actions">
-                  <button class="primary-button" type="submit">
-                    <i data-lucide="save"></i>
-                    Save Setup
+                <span class="summary-actions">
+                  <button id="addEquipmentRecordButton" class="icon-button" type="button" title="Add equipment">
+                    <i data-lucide="plus"></i>
                   </button>
-                  <button id="cancelEquipmentSetupButton" class="secondary-button" type="button">
-                    Cancel
-                  </button>
-                </div>
-              </form>
-              <details class="collapsible-field photo-field">
-                <summary>
-                  <span>
-                    <i data-lucide="image"></i>
-                    Lighting Images
-                  </span>
                   <i data-lucide="chevron-down"></i>
-                </summary>
-                <div class="collapsible-content">
-                  <label>
-                    Upload Images
-                    <input id="lightingPhotoInput" type="file" accept="image/*" multiple />
-                  </label>
-                  <div id="lightingPhotoPreview" class="photo-preview" hidden></div>
-                </div>
-              </details>
-            </section>
+                </span>
+              </summary>
+              <div id="equipmentRecordList" class="record-list"></div>
+            </details>
           </section>
 
         </section>
@@ -758,8 +684,9 @@
                 <select id="journalEntryType">
                   <option value="Observation">Observation</option>
                   <option value="Water Test">Water Test</option>
-                  <option value="Feeding / Dosing">Feeding / Dosing</option>
-                  <option value="Maintenance / Water Change">Maintenance / Water Change</option>
+                  <option value="Feeding">Feeding</option>
+                  <option value="Water Change">Water Change</option>
+                  <option value="Maintenance">Maintenance</option>
                   <option value="Equipment Change">Equipment Change</option>
                   <option value="Livestock Change">Livestock Change</option>
                 </select>
@@ -767,40 +694,6 @@
               <label>
                 When
                 <input id="journalOccurredAt" type="datetime-local" />
-              </label>
-              <label data-journal-progressive-field="severity">
-                Severity
-                <select id="journalSeverity">
-                  <option value="routine">Routine</option>
-                  <option value="watch">Watch</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </label>
-              <label data-journal-livestock-field data-journal-progressive-field="health" hidden>
-                Health
-                <select id="journalHealth">
-                  <option value="">No health update</option>
-                  <option value="Thriving">Thriving</option>
-                  <option value="Stable">Stable</option>
-                  <option value="Struggling">Struggling</option>
-                  <option value="Declining">Declining</option>
-                  <option value="Unknown">Unknown</option>
-                </select>
-              </label>
-              <label data-journal-livestock-field data-journal-progressive-field="growth" hidden>
-                Growth Trend
-                <select id="journalGrowthTrend">
-                  <option value="">No growth update</option>
-                  <option value="Growing">Growing</option>
-                  <option value="Stable">Stable</option>
-                  <option value="Receding">Receding</option>
-                  <option value="Melting">Melting</option>
-                  <option value="Unknown">Unknown</option>
-                </select>
-              </label>
-              <label data-journal-livestock-field data-journal-progressive-field="growth" hidden>
-                Growth Notes
-                <input id="journalGrowthNotes" type="text" placeholder="New heads, receding edge, color shift" />
               </label>
               <label data-journal-livestock-field data-journal-progressive-field="livestockStatus" hidden>
                 Livestock Status
@@ -854,7 +747,7 @@
                 Magnesium
                 <input id="testMagnesium" type="number" min="0" step="1" />
               </label>
-              <label data-journal-fields="Feeding / Dosing" hidden>
+              <label data-journal-fields="Feeding" hidden>
                 Food
                 <select id="feedingFood">
                   <option value="Flakes">Flakes</option>
@@ -867,16 +760,24 @@
                   <option value="Other">Other</option>
                 </select>
               </label>
-              <label data-journal-fields="Feeding / Dosing" hidden>
+              <label data-journal-fields="Feeding" hidden>
                 Amount
                 <input id="feedingAmount" type="text" placeholder="1/2 cube" />
               </label>
-              <label data-journal-fields="Feeding / Dosing" hidden>
+              <label data-journal-fields="Feeding" hidden>
                 Target
                 <input id="feedingTarget" type="text" placeholder="Whole tank" />
               </label>
-              <label data-journal-fields="Maintenance / Water Change" hidden>
-                Type
+              <label data-journal-fields="Water Change" hidden>
+                Gallons
+                <input id="waterChangeGallons" type="number" min="0" step="0.1" />
+              </label>
+              <label data-journal-fields="Water Change" hidden>
+                Percent
+                <input id="waterChangePercent" type="number" min="0" step="1" />
+              </label>
+              <label data-journal-fields="Maintenance" hidden>
+                Task
                 <select id="maintenanceType">
                   <option value="RODI replaced">RODI replaced</option>
                   <option value="Top Carbon replaced">Top Carbon replaced</option>
@@ -889,23 +790,10 @@
                   <option value="Pump cleaned">Pump cleaned</option>
                   <option value="Dosing adjusted">Dosing adjusted</option>
                   <option value="Equipment changed">Equipment changed</option>
-                  <option value="Water change">Water change</option>
                   <option value="General note">General note</option>
                 </select>
               </label>
-              <label data-journal-fields="Maintenance / Water Change" hidden>
-                Gallons
-                <input id="waterChangeGallons" type="number" min="0" step="0.1" />
-              </label>
-              <label data-journal-fields="Maintenance / Water Change" hidden>
-                Percent
-                <input id="waterChangePercent" type="number" min="0" step="1" />
-              </label>
-              <label class="wide-field" data-journal-fields="Maintenance / Water Change" hidden>
-                Details
-                <input id="maintenanceDetails" type="text" />
-              </label>
-              <label class="wide-field" data-journal-progressive-field="title">
+              <label class="wide-field" data-journal-progressive-field="title" hidden>
                 Title
                 <input id="journalTitle" type="text" />
               </label>
@@ -923,16 +811,30 @@
                   <i data-lucide="chevron-down"></i>
                 </summary>
                 <div class="collapsible-content journal-related-grid">
-                  <label data-journal-progressive-field="equipmentLinks">
-                    Equipment
-                    <select id="journalLinkedEquipment" multiple size="5"></select>
-                  </label>
-                  <label data-journal-progressive-field="livestockLinks">
-                    Livestock
-                    <select id="journalLinkedLivestock" multiple size="5"></select>
-                  </label>
+                  <div class="journal-link-controls">
+                    <div class="filter-bar journal-link-filter-bar" role="tablist" aria-label="Related item filter">
+                      <button class="active" type="button" data-journal-link-filter="equipment">Equipment</button>
+                      <button type="button" data-journal-link-filter="fish">Fish</button>
+                      <button type="button" data-journal-link-filter="corals">Corals</button>
+                      <button type="button" data-journal-link-filter="inverts">Inverts</button>
+                      <button type="button" data-journal-link-filter="other">Other</button>
+                    </div>
+                    <div class="journal-link-search-row">
+                      <input id="journalLinkSearch" type="search" placeholder="Find item" autocomplete="off" />
+                      <small id="journalLinkFilterHint" class="muted-line"></small>
+                    </div>
+                  </div>
+                  <div data-journal-progressive-field="equipmentLinks">
+                    <p class="picker-label">Equipment</p>
+                    <div id="journalLinkedEquipment" class="checkbox-picker"></div>
+                  </div>
+                  <div data-journal-progressive-field="livestockLinks">
+                    <p class="picker-label">Livestock</p>
+                    <div id="journalLinkedLivestock" class="checkbox-picker"></div>
+                  </div>
                 </div>
               </details>
+              <div id="journalRecordUpdatePanel" class="journal-record-update-panel wide-field" data-journal-progressive-field="recordUpdates" hidden></div>
               </div>
               <button class="primary-button" type="submit">
                 <i data-lucide="save"></i>
@@ -973,20 +875,6 @@
                 placeholder="Review my last 30 days"
               ></textarea>
             </label>
-            <div class="quick-actions insight-presets">
-              <button class="action-button" type="button" data-insight-preset="algae_pressure">
-                <i data-lucide="leaf"></i>
-                Algae Pressure
-              </button>
-              <button class="action-button" type="button" data-insight-preset="dino_risk">
-                <i data-lucide="radar"></i>
-                Dino Risk
-              </button>
-              <button class="action-button" type="button" data-insight-preset="nutrient_balance">
-                <i data-lucide="scale"></i>
-                Nutrient Balance
-              </button>
-            </div>
             <button id="generateInsightButton" class="primary-button" type="button">
               <i data-lucide="sparkles"></i>
               Generate
@@ -1072,11 +960,11 @@
       </dialog>
     </div>
 
-    <script src="./map-lidar-data.js?v=71"></script>
-    <script src="./js/records.js?v=71"></script>
-    <script src="./js/journal.js?v=71"></script>
-    <script src="./app.js?v=71"></script>
-    <script src="./js/map.js?v=71"></script>
-    <script src="./js/insights.js?v=71"></script>
+    <script src="./map-lidar-data.js?v=79"></script>
+    <script src="./js/records.js?v=79"></script>
+    <script src="./js/journal.js?v=79"></script>
+    <script src="./app.js?v=79"></script>
+    <script src="./js/map.js?v=79"></script>
+    <script src="./js/insights.js?v=79"></script>
   </body>
 </html>

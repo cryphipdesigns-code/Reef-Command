@@ -674,6 +674,111 @@ textarea:disabled {
   grid-template-columns: 1fr;
 }
 
+.picker-label {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted-strong);
+}
+
+.journal-link-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.journal-link-filter-bar {
+  padding-bottom: 0;
+}
+
+.journal-link-search-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  align-items: center;
+}
+
+.checkbox-picker {
+  display: grid;
+  gap: 2px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 0.88rem;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label:hover {
+  background: var(--surface);
+}
+
+.checkbox-label-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.checkbox-label-text > span {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.checkbox-label-text small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+
+.journal-record-update-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.journal-record-update-panel[hidden] {
+  display: none;
+}
+
+.journal-record-update-card {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.journal-record-update-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.journal-record-update-heading strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.compact-update-grid {
+  gap: 10px;
+}
+
 .equipment-card {
   display: grid;
   gap: 12px;
@@ -1182,27 +1287,140 @@ textarea:disabled {
   font-weight: 800;
 }
 
-.record-history {
+.record-card-body {
   display: grid;
-  gap: 5px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-soft);
+  gap: 8px;
+  padding: 4px 0 4px;
 }
 
-.record-history strong {
-  color: var(--muted-strong);
-  font-size: 0.76rem;
+.record-field {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.82rem;
 }
 
-.record-history p {
+.record-field-label {
+  color: var(--muted);
+  flex-shrink: 0;
+  min-width: 56px;
+}
+
+.record-description {
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.5;
   margin: 0;
 }
 
-.empty-record-history {
+.record-notes {
+  color: var(--muted-strong);
+}
+
+.record-history-panel {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.record-history-panel > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted-strong);
+  padding-bottom: 2px;
+}
+
+.record-history-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.record-history-panel > summary svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+
+.record-history-panel[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.record-history-list {
+  display: grid;
+  gap: 0;
+  margin-top: 6px;
+}
+
+.record-history-entry {
+  display: grid;
+  gap: 1px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.record-history-entry:last-child {
+  border-bottom: none;
+}
+
+.record-history-date {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.record-history-title {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.record-history-empty {
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.record-card-editing {
+  border-color: var(--accent, var(--primary, #0a9a78));
+}
+
+.pill-muted {
+  color: var(--muted-strong);
+  background: var(--surface-soft);
+  border-color: var(--line);
+}
+
+details.record-card > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+details.record-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.record-card > summary .data-card-title strong::after {
+  content: " ›";
+  color: var(--muted);
+  font-weight: 400;
+}
+
+details.record-card[open] > summary .data-card-title strong::after {
+  content: " ‹";
+}
+
+.record-card-summary-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.record-last-entry {
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .icon-mini-button {
@@ -1755,6 +1973,10 @@ textarea:disabled {
   .field-grid,
   .settings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .journal-link-search-row {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .equipment-row {

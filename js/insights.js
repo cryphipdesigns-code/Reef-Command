@@ -16,21 +16,6 @@
     { key: "calcium", label: "Calcium", unit: "ppm" },
     { key: "magnesium", label: "Magnesium", unit: "ppm" },
   ];
-  const INSIGHT_PRESETS = {
-    algae_pressure: {
-      question: "Check algae pressure using recent nutrient trends, lighting context, maintenance history, and livestock observations. What is most likely feeding it, and what should I verify next?",
-      evidencePaths: ["records.index", "journal.index", "parameters.trends.nitrate", "parameters.trends.phosphate", "lighting.schedule_summary"],
-    },
-    dino_risk: {
-      question: "Assess dino risk from recent nutrients, water-change/maintenance history, livestock observations, and any photos I attach. What patterns would confirm or rule it out?",
-      evidencePaths: ["records.index", "journal.index", "parameters.full_test_records", "care_logs.water_changes.recent_events"],
-    },
-    nutrient_balance: {
-      question: "Review nutrient balance across nitrate, phosphate, feeding, export equipment, and water changes. What is drifting and what is the least disruptive next adjustment?",
-      evidencePaths: ["records.index", "journal.index", "parameters.trends.nitrate", "parameters.trends.phosphate", "care_logs.feeding.recent_events"],
-    },
-  };
-
   function renderHomeInsightBrief() {
     const latest = state.insightRuns[0];
     const section = $("homeInsightSection");
@@ -375,7 +360,7 @@
         max_followup_passes: 1,
       },
       canonical_ownership: {
-        photos: "Photos live under the object they describe. Livestock photos are under livestock item paths; lighting images are under lighting; prompt photos are under current_request.attachments.",
+        photos: "Photos live under the object they describe. Livestock photos are under livestock item paths; prompt photos are under current_request.attachments.",
         placement: "Livestock placement lives under livestock items and is also referenced from map.livestock_placements.",
         overlap: "Care entries are canonical under journal. Equipment schedules/configuration are canonical under equipment items.",
       },
@@ -433,7 +418,6 @@
         model: fullContext.profile.lightingContext.model,
         photoperiod: fullContext.profile.lightingContext.photoperiod,
         summary_available: Boolean(fullContext.profile.lightingContext.summary),
-        image_count: fullContext.profile.lightingImageCount,
       },
       map: summarizeMapInventory(fullContext.rawDataInventory.map),
       current_request: {
@@ -578,9 +562,6 @@
     const maintenanceLogs = sortedEvents.filter((event) => event.type === "maintenance");
     const waterChangeLogs = sortedEvents.filter((event) => event.type === "water_change");
     const activeEquipment = RC.getEquipmentProfiles().filter((item) => item.active);
-    const lightingEvidence = RC.getLightingPhotos().map((photo, index) =>
-      buildPhotoEvidenceRecord(photo, `lighting-${index}`, "Lighting schedule image"),
-    );
     const livestockPhotoEvidence = livestockSource
       .map((item) => ({
         id: item.id,
@@ -890,14 +871,10 @@
       }
     });
 
-    add("lighting", "Lighting", "Lighting model, photoperiod, summary notes, and lighting images.", fullContext.profile.lightingContext, {
+    add("lighting", "Lighting", "Lighting model, photoperiod, and schedule notes.", fullContext.profile.lightingContext, {
       terminal: false,
     });
     add("lighting.schedule_summary", "Lighting Schedule Summary", "Model, photoperiod, and summarized lighting notes.", fullContext.profile.lightingContext);
-    add("lighting.images", "Lighting Images", `${lightingEvidence.length} stored lighting image${lightingEvidence.length === 1 ? "" : "s"}.`, lightingEvidence, {
-      count: lightingEvidence.length,
-      available: lightingEvidence.length > 0,
-    });
 
     add("map", "Map", "Tank dimensions, aquascape, PAR markers, livestock placements, and geometry detail.", summarizeInsightMapModel(fullContext.mapModel), {
       terminal: false,
@@ -1056,7 +1033,6 @@
     const latestWaterChange = RC.getLatestEvent("water_change");
     const latestFeeding = RC.getLatestEvent("feeding");
     const { lightingPhotoDataUrl, lightingPhoto, lightingPhotos, ...profile } = state.profile;
-    const lightingImageCount = RC.getLightingPhotos().length;
     const equipment = RC.getEquipmentProfiles();
     const activeEquipment = equipment.filter((item) => item.active);
     const careTasks = RC.getCareTaskStatuses();
@@ -1195,8 +1171,6 @@
       profile: {
         ...profile,
         equipment: activeEquipment,
-        lightingImageCount,
-        hasLightingScreenshot: lightingImageCount > 0,
         lightingContext: {
           model: state.profile.lightingModel || "",
           photoperiod: {
@@ -1204,7 +1178,6 @@
             lightsOff: state.profile.lightEnd || "",
           },
           summary: state.profile.lightingSummary || "",
-          sourceImageCount: lightingImageCount,
         },
       },
       zones: state.zones.map(({ flow: _flow, ...zone }) => zone),
@@ -1225,9 +1198,7 @@
       currentLightPhase: RC.getLightPhase().label,
       rawDataInventory: {
         lighting: {
-          imageCount: lightingImageCount,
           summaryAvailable: Boolean(state.profile.lightingSummary),
-          canRequestRawImages: lightingImageCount > 0,
         },
         livestockPhotos: livestockPhotoInventory,
         map: {
@@ -1285,17 +1256,8 @@
     if (!context.profile.displayVolume) missingData.push("Display volume");
     if (!context.profile.filtration) missingData.push("Filtration type");
     if (!context.profile.lightingModel) missingData.push("Lighting model");
-    if (!context.profile.hasLightingScreenshot) missingData.push("Lighting screenshot or intensity schedule");
+    if (!context.profile.lightingContext?.summary) missingData.push("Lighting schedule");
     if (context.profile.uvSterilizer && !context.profile.uvSchedule) missingData.push("UV schedule");
-    if (context.profile.lightingImageCount && !context.profile.lightingSummary) {
-      missingData.push("Lighting summary from schedule images");
-      dataRequests.push({
-        label: "Lighting schedule images",
-        path: "lighting.images",
-        reason: "Lighting images exist, but the compact lighting summary is empty.",
-        priority: "medium",
-      });
-    }
     if (
       context.activeLivestock.length &&
       !context.mapModel.livestockPlacements.some((placement) => placement.coordinateInches)
@@ -1388,18 +1350,6 @@
       loadingText: "Generating",
       idleHtml: `<i data-lucide="sparkles"></i>Generate`,
     });
-  }
-
-  function applyInsightPreset(presetKey) {
-    const preset = INSIGHT_PRESETS[presetKey];
-    if (!preset) return;
-    const textarea = $("insightQuestion");
-    if (!textarea) return;
-    textarea.value = preset.question;
-    textarea.dataset.evidencePreset = presetKey;
-    textarea.dataset.evidencePaths = (preset.evidencePaths || []).join(",");
-    textarea.focus();
-    RC.showToast("Insight prompt ready.");
   }
 
   async function generateFollowupInsight(runId = "", trigger = null) {
@@ -1518,6 +1468,6 @@
 
   window.RC.Insights = {
     renderInsightOutput, renderInsightsContext, renderHomeInsightBrief,
-    generateInsight, generateFollowupInsight, applyInsightPreset,
+    generateInsight, generateFollowupInsight,
   };
 })();
