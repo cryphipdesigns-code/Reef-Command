@@ -3981,16 +3981,25 @@
     document.body.classList.toggle("private-locked", locked);
     $("appShell")?.setAttribute("aria-hidden", String(locked));
     const email = $("privateAuthEmail");
+    const password = $("privateAuthPassword");
     const submit = $("privateAuthSubmit");
+    const magicButton = $("privateMagicLinkButton");
     if (email) {
       email.disabled = !locked || loadingPrivateState || !backendAvailable;
       if (!email.value && currentUser?.email) email.value = currentUser.email;
+    }
+    if (password) {
+      password.disabled = !locked || loadingPrivateState || !backendAvailable;
     }
     if (submit) {
       submit.disabled = !locked || loadingPrivateState || !backendAvailable;
       submit.textContent = loadingPrivateState
         ? "Loading..."
-        : backendAvailable ? "Send Magic Link" : "Sync Unavailable";
+        : backendAvailable ? "Sign In" : "Sync Unavailable";
+    }
+    if (magicButton) {
+      magicButton.disabled = !locked || loadingPrivateState || !backendAvailable;
+      magicButton.textContent = "Send Magic Link";
     }
     if (message) {
       setPrivateAccessStatus(message);
@@ -4001,7 +4010,7 @@
     } else if (currentUser) {
       setPrivateAccessStatus(`Signed in as ${currentUser.email || currentUser.id}.`);
     } else {
-      setPrivateAccessStatus("Enter your email to unlock Reef Command.");
+      setPrivateAccessStatus("Sign in with your password, or send a magic link.");
     }
   }
 
@@ -4268,6 +4277,78 @@
     return supabaseClient.auth.signInWithOtp({ email, options });
   }
 
+  function setPrivateAuthBusy(label = "") {
+    const busy = Boolean(label);
+    const email = $("privateAuthEmail");
+    const password = $("privateAuthPassword");
+    const submit = $("privateAuthSubmit");
+    const magicButton = $("privateMagicLinkButton");
+    if (email) email.disabled = busy;
+    if (password) password.disabled = busy;
+    if (submit) {
+      submit.disabled = busy;
+      submit.textContent = busy ? label : "Sign In";
+    }
+    if (magicButton) {
+      magicButton.disabled = busy;
+      magicButton.textContent = label === "Sending..." ? "Sending..." : "Send Magic Link";
+    }
+  }
+
+  function describePasswordSignInError(error) {
+    const code = String(error?.code || error?.error_code || "").toLowerCase();
+    const message = String(error?.message || error?.msg || "").trim();
+    if (code === "invalid_credentials") {
+      return "Could not sign in with that email and password.";
+    }
+    if (code === "email_not_confirmed") {
+      return "That email still needs confirmation before password sign-in.";
+    }
+    if (code === "over_request_rate_limit") {
+      return "Too many sign-in attempts from this device. Wait a few minutes and try again.";
+    }
+    return message ? `Could not sign in: ${message}` : "Could not sign in.";
+  }
+
+  async function signInWithPassword() {
+    if (!supabaseClient) {
+      setPrivateAccessStatus("Private sync is not configured.");
+      showToast("Private sync is not configured.");
+      return;
+    }
+    const email = ($("authEmail")?.value || $("privateAuthEmail")?.value || "").trim();
+    const password = ($("privateAuthPassword")?.value || "").trim();
+    if (!email) {
+      setPrivateAccessStatus("Enter your email.");
+      showToast("Enter an email.");
+      return;
+    }
+    if (!password) {
+      setPrivateAccessStatus("Enter your password, or use magic link.");
+      showToast("Enter your password.");
+      return;
+    }
+
+    setPrivateAuthBusy("Signing in...");
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    setPrivateAuthBusy("");
+
+    if (error) {
+      console.error(error);
+      setPrivateAccessStatus(describePasswordSignInError(error));
+      showToast("Could not sign in.");
+      return;
+    }
+
+    if ($("privateAuthPassword")) $("privateAuthPassword").value = "";
+    currentUser = data?.user || data?.session?.user || currentUser;
+    privateStateReady = false;
+    updateBackendStatus();
+    updatePrivateAccessGate("Loading private reef data...");
+    showToast("Signed in.");
+    await loadPrivateStateForSession();
+  }
+
   async function sendMagicLink() {
     if (!supabaseClient) {
       setPrivateAccessStatus("Private sync is not configured.");
@@ -4280,11 +4361,7 @@
       showToast("Enter an email.");
       return;
     }
-    const submit = $("privateAuthSubmit");
-    if (submit) {
-      submit.disabled = true;
-      submit.textContent = "Sending...";
-    }
+    setPrivateAuthBusy("Sending...");
     let redirectUrl = getMagicLinkRedirectUrl();
     let fallbackToProjectUrl = false;
     let { error } = await requestMagicLink(email, redirectUrl);
@@ -4295,10 +4372,7 @@
       redirectUrl = "";
       ({ error } = await requestMagicLink(email, redirectUrl));
     }
-    if (submit) {
-      submit.disabled = false;
-      submit.textContent = "Send Magic Link";
-    }
+    setPrivateAuthBusy("");
     if (error) {
       console.error(error);
       setPrivateAccessStatus(describeMagicLinkError(error));
@@ -4311,6 +4385,15 @@
         : "Magic link sent. Open it to unlock Reef Command.",
     );
     showToast("Magic link sent.");
+  }
+
+  function handlePrivateAuthSubmit(event) {
+    event.preventDefault();
+    if (($("privateAuthPassword")?.value || "").trim()) {
+      signInWithPassword();
+    } else {
+      sendMagicLink();
+    }
   }
 
   async function signOut() {
@@ -5193,10 +5276,8 @@
     $("journalLinkSearch")?.addEventListener("input", applyJournalLinkFilters);
     $("journalOccurredAt")?.addEventListener("change", updateTestTimingPill);
     $("generateInsightButton").addEventListener("click", () => window.RC.Insights.generateInsight());
-    $("privateAuthForm")?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      sendMagicLink();
-    });
+    $("privateAuthForm")?.addEventListener("submit", handlePrivateAuthSubmit);
+    $("privateMagicLinkButton")?.addEventListener("click", sendMagicLink);
     $("saveBackendButton")?.addEventListener("click", saveBackendSettings);
     $("sendMagicLinkButton")?.addEventListener("click", sendMagicLink);
     $("signOutButton")?.addEventListener("click", signOut);

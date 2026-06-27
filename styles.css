@@ -133,6 +133,8 @@ body:not(.private-locked) .private-access-gate {
 
 .private-access-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   justify-content: flex-end;
 }
 
