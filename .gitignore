@@ -4,4 +4,5 @@ supabase/.temp/
 !.env.example
 config.local.json
 .tmp-backups/
+.tmp-auth/
 test-results/
