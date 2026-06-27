@@ -1484,7 +1484,7 @@
   }
 
   async function loadLocalBackendConfig() {
-    if (hasValidBackendConfig(backendConfig) && backendConfig.authRedirectUrl) return;
+    if (hasValidBackendConfig(backendConfig)) return;
 
     const configPaths = isLocalDevelopmentHost()
       ? ["./config.local.json", "./config.json"]
@@ -1495,21 +1495,9 @@
         if (!response.ok) continue;
         const config = await response.json();
         if (!config.supabaseUrl || !config.supabaseAnonKey) continue;
-        if (hasValidBackendConfig(backendConfig)) {
-          const nextConfig = {
-            ...backendConfig,
-            authRedirectUrl: config.authRedirectUrl || backendConfig.authRedirectUrl || "",
-          };
-          if (nextConfig.authRedirectUrl !== backendConfig.authRedirectUrl) {
-            backendConfig = nextConfig;
-            writeJson(BACKEND_KEY, backendConfig);
-          }
-          return;
-        }
         backendConfig = {
           supabaseUrl: config.supabaseUrl,
           supabaseAnonKey: config.supabaseAnonKey,
-          authRedirectUrl: config.authRedirectUrl || "",
         };
         writeJson(BACKEND_KEY, backendConfig);
         return;
@@ -4154,7 +4142,6 @@
     backendConfig = {
       supabaseUrl: $("backendUrl")?.value.trim() || "",
       supabaseAnonKey: $("backendAnonKey")?.value.trim() || "",
-      authRedirectUrl: backendConfig.authRedirectUrl || "",
     };
     writeJson(BACKEND_KEY, backendConfig);
     await initBackend();
@@ -4171,101 +4158,6 @@
       return false;
     }
     return true;
-  }
-
-  function cleanAuthRedirectUrl(url) {
-    const value = String(url || "").trim();
-    if (!value) return "";
-    try {
-      const parsed = new URL(value, window.location.href);
-      if (!["http:", "https:"].includes(parsed.protocol)) return "";
-      parsed.hash = "";
-      return parsed.href;
-    } catch {
-      return "";
-    }
-  }
-
-  function getMagicLinkRedirectUrl() {
-    const configured = cleanAuthRedirectUrl(backendConfig.authRedirectUrl);
-    if (configured) return configured;
-
-    try {
-      const current = new URL(window.location.href);
-      if (!["http:", "https:"].includes(current.protocol)) return "";
-      current.hash = "";
-      [
-        "access_token",
-        "code",
-        "error",
-        "error_code",
-        "error_description",
-        "expires_at",
-        "expires_in",
-        "refresh_token",
-        "token_type",
-        "type",
-      ].forEach((key) => current.searchParams.delete(key));
-      return current.href;
-    } catch {
-      return "";
-    }
-  }
-
-  function isRedirectAuthError(error) {
-    const message = [error?.message, error?.msg, error?.code, error?.error_code]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return message.includes("redirect") || message.includes("not allowed");
-  }
-
-  function describeMagicLinkError(error) {
-    const code = String(error?.code || error?.error_code || "").toLowerCase();
-    const message = String(error?.message || error?.msg || "").trim();
-    if (isRedirectAuthError(error)) {
-      return "Supabase rejected this return URL. Add it in Auth redirect URLs or set authRedirectUrl in config.json.";
-    }
-    if (code === "email_address_not_authorized") {
-      return "Supabase can only email organization members until custom SMTP is configured.";
-    }
-    if (code.includes("email") && code.includes("invalid")) {
-      return "Supabase rejected that email address.";
-    }
-    if (code === "over_email_send_rate_limit") {
-      return "Too many sign-in links were sent to this email. Wait a while and try again.";
-    }
-    if (code === "over_request_rate_limit") {
-      return "Too many sign-in attempts from this device. Wait a few minutes and try again.";
-    }
-    if (code.includes("rate") || /rate|too many/i.test(message)) {
-      return "Too many sign-in emails were requested. Wait a minute and try again.";
-    }
-    if (code === "otp_disabled") {
-      return "Supabase email OTP / magic-link sign-in is disabled for this project.";
-    }
-    if (code === "email_provider_disabled") {
-      return "Supabase email sign-in is disabled for this project.";
-    }
-    if (code === "signup_disabled" || code.includes("signup") || /signups? disabled/i.test(message)) {
-      return "This email is not registered for Reef Command.";
-    }
-    if (code === "request_timeout") {
-      return "Supabase took too long to send the link. Try again in a moment.";
-    }
-    if (code === "unexpected_failure" && /sign-?in link/i.test(message)) {
-      return "Supabase could not send the link. Check Auth logs; default SMTP only emails Supabase organization members.";
-    }
-    if (/cannot send a sign-?in link/i.test(message)) {
-      return "Supabase could not send the link. Check Auth logs; default SMTP only emails Supabase organization members.";
-    }
-    return message ? `Could not send sign-in link: ${message}` : "Could not send sign-in link.";
-  }
-
-  async function requestMagicLink(email, redirectUrl) {
-    const options = {};
-    if (redirectUrl) options.emailRedirectTo = redirectUrl;
-    return supabaseClient.auth.signInWithOtp({ email, options });
   }
 
   async function sendMagicLink() {
@@ -4285,31 +4177,23 @@
       submit.disabled = true;
       submit.textContent = "Sending...";
     }
-    let redirectUrl = getMagicLinkRedirectUrl();
-    let fallbackToProjectUrl = false;
-    let { error } = await requestMagicLink(email, redirectUrl);
-    if (error && redirectUrl && isRedirectAuthError(error)) {
-      console.warn("Magic-link redirect URL rejected; retrying with Supabase Site URL.", error);
-      setPrivateAccessStatus("Return URL rejected. Trying the Supabase project URL...");
-      fallbackToProjectUrl = true;
-      redirectUrl = "";
-      ({ error } = await requestMagicLink(email, redirectUrl));
-    }
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.href.split("#")[0],
+      },
+    });
     if (submit) {
       submit.disabled = false;
       submit.textContent = "Send Magic Link";
     }
     if (error) {
       console.error(error);
-      setPrivateAccessStatus(describeMagicLinkError(error));
+      setPrivateAccessStatus("Could not send sign-in link.");
       showToast("Could not send link.");
       return;
     }
-    setPrivateAccessStatus(
-      fallbackToProjectUrl
-        ? "Magic link sent. It will open the Supabase project URL."
-        : "Magic link sent. Open it to unlock Reef Command.",
-    );
+    setPrivateAccessStatus("Magic link sent. Open it to unlock Reef Command.");
     showToast("Magic link sent.");
   }
 
